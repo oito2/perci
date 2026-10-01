@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-First public release (1.0.0): a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with five sidebar categories.
+## [1.0.0] - 2026-10-01
+
+First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with five sidebar categories.
 
 ### Added
 - **Home** — system overview; update and uninstall Perci itself; settings for theme, sidebar mascot, app icon, workspace folder, Flatpak scope and an optional system tray icon with a compact window.
@@ -19,3 +21,6 @@ First public release (1.0.0): a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.
 - **Dev Tools** — repositories (clone, init, global and per-repo git identity, `.gitignore` by project type, Code of Conduct); AI contexts (`AGENTS.md`, `CLAUDE.md`, `.instructions/`); AI skills from skills.sh; MCP servers for Claude Code, Codex and Antigravity.
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
+
+[Unreleased]: https://github.com/oito2/perci/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/oito2/perci/releases/tag/v1.0.0
