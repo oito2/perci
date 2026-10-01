@@ -1,0 +1,846 @@
+<!--
+  Copyright (C) 2026  oito2
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Perci</title>
+
+<!--
+  daisyUI 5.7.33 + Tailwind CSS v4 (@tailwindcss/browser 4.3.3), no build
+  step — vendored under ./vendor/ (like xterm/lucide), copied from the
+  official npm tarballs after checking the registry's sha512 integrity
+  (MIT, LICENSE next to each). Not loaded from a CDN: that was third-party
+  JavaScript running with access to every Wails binding, and jsDelivr
+  serves a re-minified @tailwindcss/browser, so SRI can't pin it either.
+  To upgrade, replace the files from the new npm tarballs.
+
+  Implementation note: daisyUI's official CDN page warns that the
+  `is-drawer-open:`/`is-drawer-close:` variants aren't included in the
+  pre-compiled CSS files (only in @tailwindcss/browser's JIT engine, in a
+  not-fully-documented way). To avoid depending on unconfirmed
+  behavior, the sidebar collapse here is done with plain custom CSS (see
+  <style> below, `#sidebar[data-collapsed]`) instead of those variants —
+  same visual effect (icon-only vs. icon+text), without relying on
+  something unverified.
+-->
+<!--
+  Content-Security-Policy: only same-origin resources, and no inline
+  scripts at all (script-src 'self', no 'unsafe-inline') — the app's code
+  lives in ./js/ (cmd/prci-gui/csp_test.go keeps it that way).
+  style-src needs 'unsafe-inline': @tailwindcss/browser injects the
+  generated CSS as a <style> element at runtime (and this file has its own
+  <style> block and style="" attributes). img-src/font-src allow data:
+  URIs (daisyUI's CSS embeds its SVG masks that way).
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'" />
+<link rel="stylesheet" href="./vendor/daisyui/daisyui.css" />
+<link rel="stylesheet" href="./vendor/daisyui/themes.css" />
+<script src="./vendor/tailwindcss/browser.js"></script>
+<link rel="stylesheet" href="./vendor/xterm/xterm.css" />
+
+<style>
+  /* Sidebar collapse — see the note above on why we don't use
+     is-drawer-open:/is-drawer-close:. Two views per category: the normal
+     one (accordion-view, inline items) and the rail one (rail-view, just
+     the icon + a flyout with the items) — only one of them is visible at
+     a time, based on data-collapsed. */
+  #sidebar { width: 18rem; transition: width .15s ease; overflow: visible; }
+  #sidebar[data-collapsed="true"] { width: 4.5rem; }
+  #sidebar[data-collapsed="true"] .sidebar-label { display: none; }
+
+  #sidebar .rail-view { display: none; }
+  #sidebar[data-collapsed="true"] .accordion-view { display: none; }
+  #sidebar[data-collapsed="true"] .rail-view { display: flex; }
+
+  /* #accordion normally scrolls (an expanded category can have many
+     items); in rail mode that would clip the flyout coming out of the
+     icon, so it becomes visible while collapsed (only 4 categories, no
+     need to scroll in that mode). */
+  #accordion { overflow-y: auto; }
+  #sidebar[data-collapsed="true"] #accordion { overflow: visible; }
+
+  /* Real root cause of the flyout "disappearing behind the content"
+     (found by actually running the page in Chrome via a browser
+     automation tool and inspecting getComputedStyle/elementsFromPoint —
+     not just reading docs, after two wrong guesses): daisyUI's own
+     `.drawer-side` ships with `overflow: hidden auto` baked into the
+     component. That clips (not a z-index or hover bug) anything that
+     spills outside the collapsed sidebar's ~4.5rem band — including the
+     flyout below, which is geometrically correct (opacity, position,
+     rect all fine) but never actually painted. This overflow needs to be
+     overridden here. */
+  .drawer-side { overflow: visible; }
+
+  /* Rail flyout: does NOT use daisyUI's `dropdown` component — also
+     confirmed with real Chrome that the CDN version's `.dropdown-content`
+     stays stuck at opacity:0 even with :focus-within active. Custom
+     implementation below, same reasoning already used for the sidebar
+     collapse (is-drawer-open/is-drawer-close): plain hover/focus, without
+     depending on undocumented behavior of the ready-made component. */
+  .rail-item { position: relative; }
+  .rail-flyout {
+    position: absolute; left: 100%; top: 0; margin-left: .5rem;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .1s ease;
+    z-index: 100;
+  }
+  /* Click-only open, by design — no :hover on purpose. */
+  .rail-item:focus-within .rail-flyout {
+    opacity: 1; visibility: visible; pointer-events: auto;
+  }
+
+  .cat-badge {
+    display: inline-flex; width: 2rem; height: 2rem; border-radius: 9999px;
+    align-items: center; justify-content: center; font-size: .7rem; font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Sidebar scrolling was leaking into the whole app — the height chain
+     (body → .drawer-content → aside#sidebar) used min-h-*, which only
+     sets a MINIMUM, not a ceiling: the accordion's content grows and
+     pushes everything, including <body>, to scroll along with it. A
+     locked height (h-screen/h-full) is needed through the whole chain so
+     #accordion (which already has overflow-y:auto) scrolls on its own,
+     contained. Same reasoning for <main>/tabs, so the terminal doesn't
+     spill outside the content area. */
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--color-base-100, #1e1e2e); }
+
+  #terminal { height: 100%; }
+
+  /* Tabs (Definições/Execução): downloaded the component's real CSS
+     (daisyui@5.7.33/components/tab.css) and confirmed there's no
+     `display:none` rule for an inactive `.tab-content` — verified for
+     real in Chrome, both panels stayed visible at the same time, one
+     under the other. Explicitly showing/hiding here, same approach as
+     the rest of the page (not depending on a ready-made component's
+     mechanism that wasn't confirmed working). */
+  #panel-desc, #panel-terminal, #panel-repos-list { display: none; }
+  .tabs:has(#tab-radio-desc:checked) #panel-desc { display: block; }
+  .tabs:has(#tab-radio-terminal:checked) #panel-terminal { display: flex; }
+  .tabs:has(#tab-radio-repos-list:checked) #panel-repos-list { display: block; }
+
+  /* Clonar/Iniciar/Identidade Local/Arquivos horizontal menu — disabled
+     (visible, but not clickable) until a working folder is chosen. */
+  .repos-submenu-disabled a { pointer-events: none; opacity: .4; }
+
+  /* "Docker :: Criar Contêiner" and "Docker :: Gerenciar Contêineres ::
+     Editar" — "label on the right + field" layout, styled like a
+     GNOME/KDE Settings dialog. The fields are generated by
+     textFieldHTML/selectFieldHTML/checkboxFieldHTML (shared between
+     #dc-fields and #edit-fields) — each one produces a
+     <label class="form-control"> with a <div class="label"> and the
+     <input>/<select> inside. The .dc-form-grid class turns into the
+     2-column grid; inside it, that wrapper becomes `display: contents`
+     (generates no box of its own) so the <div class="label"> and the
+     field land directly into the grid's two columns — same technique for
+     the "<div id="*-phpVersion-wrap">" wrapper (exists only so
+     wireMoodlePHPFilter can rewrite "Versão PHP" without re-rendering the
+     whole row), which without this rule became its own box and threw off
+     the alignment of everything after it ("Versão PHP"/"Limite de memória
+     PHP" misaligned). */
+  .dc-form-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: .75rem;
+  }
+  .dc-form-grid #dc-fields,
+  .dc-form-grid label.form-control,
+  .dc-form-grid div[id$="-phpVersion-wrap"] {
+    display: contents;
+  }
+  /* .hidden (e.g. "Tipo", only visible when "Contêiner Aplicativo" is
+     chosen) needs to override the display:contents above — one extra
+     class in the selector guarantees higher specificity than the rule
+     right above it. */
+  .dc-form-grid label.form-control.hidden {
+    display: none;
+  }
+  .dc-form-grid label.form-control div.label {
+    justify-content: flex-end;
+    text-align: right;
+  }
+  /* The "Habilitar acesso ao banco" checkbox (checkboxFieldHTML) doesn't
+     use form-control — it's a single <label class="label ..."> with the
+     checkbox and text side by side, same as every other screen; here it
+     just spans both full columns instead of getting stuck in the label
+     column (the selector is by tag+class, it doesn't match the
+     <div class="label"> from the other rules). */
+  .dc-form-grid label.label.cursor-pointer {
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body class="h-screen">
+
+<div class="drawer lg:drawer-open">
+  <input id="mobile-drawer-toggle" type="checkbox" class="drawer-toggle" />
+
+  <div class="drawer-content flex flex-col h-full min-h-0">
+    <!-- top: menu button (only shows on narrow screens, lg:hidden) +
+         collapse sidebar. The tray's compact window (735px) is narrower
+         than Tailwind's lg breakpoint, so this "mobile" bar was showing up
+         there too for no reason — hidden separately in compact mode (see
+         id="mobile-topbar" in the <script>). -->
+    <div id="mobile-topbar" class="flex items-center gap-2 p-3 border-b border-base-300 lg:hidden flex-none">
+      <label for="mobile-drawer-toggle" class="btn btn-square btn-ghost btn-sm" aria-label="Abrir menu">☰</label>
+      <span class="font-semibold">Perci</span>
+    </div>
+
+    <main class="flex-1 min-h-0 p-6 flex flex-col">
+      <div id="normal-header-row" class="flex items-center gap-3 mb-4 flex-none">
+        <button id="btn-collapse-sidebar" class="btn btn-ghost btn-xs hidden lg:inline-flex" title="Recolher/expandir menu" aria-label="Recolher/expandir menu">⇔</button>
+        <div class="breadcrumbs text-sm opacity-70">
+          <ul id="breadcrumb"><li>Perci</li></ul>
+        </div>
+      </div>
+
+      <!-- Compact window opened by the system tray (a single window with
+           tabs, not 3 separate windows — reference size 735×825): a fixed
+           header with image+"Perci"+"Abrir Aplicativo" inside an outline
+           alert whose border uses the theme's accent color (border-primary),
+           and right below it the 3 tabs Contêineres/Repositórios/Atualizar
+           Sistema (tabs-box) that pick which item to show in the rest of
+           the screen — all of this in place of the normal
+           sidebar+breadcrumb. Hidden by default; only activated when the
+           page loads with ?compact=<tab> or receives the
+           "compact-switch-tab" event (see activateCompactMode/
+           switchCompactTab in the <script>). -->
+      <div id="compact-header" class="hidden alert alert-outline border-primary items-center gap-3 mb-4 flex-none">
+        <img id="compact-header-icon" src="./assets/perci-blue.png" alt="Perci" class="w-10 h-10 rounded-full object-cover" />
+        <span class="font-semibold flex-1">Perci</span>
+        <button id="btn-compact-open-app" class="btn btn-sm btn-primary">Abrir Aplicativo</button>
+      </div>
+
+      <div id="compact-tabs" class="tabs tabs-box hidden mb-4 flex-none">
+        <label class="tab">
+          <input type="radio" name="compact-tab-radio" id="compact-tab-docker-manage" />
+          Contêineres
+        </label>
+        <label class="tab">
+          <input type="radio" name="compact-tab-radio" id="compact-tab-repos" />
+          Repositórios
+        </label>
+        <label class="tab">
+          <input type="radio" name="compact-tab-radio" id="compact-tab-system-update" />
+          Atualizar Sistema
+        </label>
+      </div>
+
+      <div class="tabs tabs-lift flex-1 min-h-0">
+        <label class="tab flex-none">
+          <input type="radio" name="content-tabs" id="tab-radio-desc" checked />
+          <span class="mr-1">📝</span><span id="tab-desc-label">Perci</span>
+        </label>
+        <div id="panel-desc" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <!-- "dashboard" mode (Home :: Visão Geral): a system summary
+               plus the "Atualizar Perci" and "Desinstalar Perci" screens
+               embedded right here (no longer their own menu items — see
+               catalog.go). This is also the screen's initial state,
+               before any sidebar selection — shown by default (no
+               class="hidden") instead of inside selectItem's dispatch. -->
+          <div id="dashboard-container">
+            <div class="stats stats-vertical sm:stats-horizontal shadow mb-8 w-full bg-base-200">
+              <div class="stat">
+                <div class="stat-title">Sistema</div>
+                <div id="dashboard-system-label" class="stat-value text-base">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">Contêineres Docker</div>
+                <div id="dashboard-docker-summary" class="stat-value text-base">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">Versão instalada</div>
+                <div id="dashboard-version" class="stat-value text-base">—</div>
+              </div>
+            </div>
+
+            <!-- "Atualizar Perci" (used to be its own menu item, ActionID
+                 "self-update" — moved into the Visão Geral overview,
+                 replacing the per-category shortcuts that used to be
+                 here). -->
+            <div class="mb-8">
+              <h3 class="font-semibold mb-3">Atualizar Perci</h3>
+              <p id="su-status" class="opacity-80 mb-4">Verificando...</p>
+              <div class="flex gap-2">
+                <button id="btn-su-check" class="btn btn-outline">Verificar Novamente</button>
+                <button id="btn-su-update" class="btn btn-primary" disabled>Atualizar</button>
+              </div>
+            </div>
+
+            <!-- "Desinstalar Perci" (used to be its own menu item, ActionID
+                 "self-uninstall" — same move as above). The Docker
+                 container removal and configuration backup checkboxes
+                 are added alongside the original "Também remover
+                 configurações" checkbox; the "Desinstalar" button comes
+                 after all three. -->
+            <div>
+              <h3 class="font-semibold mb-3">Desinstalar Perci</h3>
+              <div class="alert alert-warning mb-4">
+                <span>Esta ação remove o binário do Perci do seu sistema. É irreversível.</span>
+              </div>
+              <div class="flex flex-col gap-2 mb-4 max-w-md">
+                <label class="label cursor-pointer justify-start gap-2">
+                  <input id="su2-backup-config" type="checkbox" class="checkbox" />
+                  <span class="label-text">Fazer backup das configurações antes de desinstalar</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-2">
+                  <input id="su2-remove-docker" type="checkbox" class="checkbox" />
+                  <span class="label-text">Remover contêineres Docker (Nginx/MariaDB/Apps)</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-2">
+                  <input id="su2-remove-config" type="checkbox" class="checkbox" />
+                  <span class="label-text">Também remover configurações (~/.perci)</span>
+                </label>
+              </div>
+              <button id="btn-su2-uninstall" class="btn btn-outline btn-error">Desinstalar</button>
+            </div>
+          </div>
+
+          <!-- Simple mode: static description + a single button (most
+               screens, e.g. "Atualizar Sistema"). -->
+          <div id="simple-container" class="hidden">
+            <!-- Same status bar as Home :: Visão Geral, but with only
+                 "Sistema" — #simple-container is only used today by
+                 "Linux :: Atualizar Sistema" (the only item still falling
+                 into the generic "simple" mode), so it's always visible
+                 here, with no actionId check. -->
+            <div class="stats shadow mb-6 bg-base-200">
+              <div class="stat">
+                <div class="stat-title">Sistema</div>
+                <div id="simple-system-label" class="stat-value text-base">—</div>
+              </div>
+            </div>
+
+            <p id="content-desc" class="opacity-80 mb-6" style="white-space: pre-line;">
+              Escolha uma categoria na barra lateral, depois um item, para ver a descrição aqui.
+            </p>
+            <!-- Optional cleanups of "Atualizar Sistema" (update.Options),
+                 unchecked by default. -->
+            <div class="flex flex-col gap-2 mb-6">
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="su-opt-journal" type="checkbox" class="checkbox checkbox-sm" />
+                <span>Limpar logs do journal com mais de 7 dias</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input id="su-opt-autoremove" type="checkbox" class="checkbox checkbox-sm" />
+                <span>Remover pacotes órfãos (autoremove) e runtimes Flatpak sem uso</span>
+              </label>
+            </div>
+            <button id="btn-executar" class="btn btn-primary" disabled>
+              Executar
+            </button>
+            <p id="executar-hint" class="text-xs opacity-50 mt-2">
+              Selecione um item para continuar.
+            </p>
+          </div>
+
+          <!-- "self-config" mode (Home :: Configurações) — consolidates
+               what used to be the "Configurar" screen (workspace/Flatpak)
+               with what used to be the "Configurações" gear-icon modal in
+               the sidebar footer (theme only), merging both into one
+               screen and removing the footer button/modal. Tema/Logo/
+               Ícone apply (and persist) immediately on swatch click — same
+               pattern the old modal already used for the theme. Workspace
+               became an alert card (same pattern as "Dev Tools :: IA:
+               Contextos") that persists on its own when "Criar Workspace"
+               is clicked; Flatpak now applies immediately too, like Tema/
+               Logo/Ícone — none of this screen's actions are async/
+               streamed, so the "Execução" tab stays hidden here (see
+               selectItem). -->
+          <div id="selfconfig-container" class="hidden">
+            <div class="mb-8">
+              <h3 class="font-semibold mb-3">Tema</h3>
+              <div id="cfg-theme-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-xl"></div>
+            </div>
+
+            <div class="mb-8">
+              <h3 class="font-semibold mb-3">Logo da Sidebar</h3>
+              <div id="cfg-logo-grid" class="flex flex-wrap gap-3"></div>
+            </div>
+
+            <div class="mb-8">
+              <h3 class="font-semibold mb-3">Ícone do Aplicativo</h3>
+              <div id="cfg-icon-grid" class="flex flex-wrap gap-3"></div>
+              <p class="text-xs opacity-60 mt-2">O ícone do menu de aplicativos é trocado na hora (pede a senha de administrador); o da janela, ao reiniciar o Perci.</p>
+            </div>
+
+            <div class="mb-8 max-w-xl">
+              <h3 class="font-semibold mb-3">Caminho do Workspace</h3>
+              <div role="alert" class="alert mb-2 flex-wrap">
+                <div>
+                  <h3 id="sc-workspace-alert-title" class="font-bold"></h3>
+                  <div id="sc-workspace-alert-desc" class="text-sm opacity-80"></div>
+                </div>
+                <button id="btn-sc-pick-workspace" class="btn btn-sm ml-auto">Selecionar Pasta</button>
+              </div>
+              <button id="btn-sc-create-workspace" class="btn btn-primary btn-sm hidden">Criar Workspace</button>
+            </div>
+
+            <div class="max-w-md mb-8">
+              <label class="form-control">
+                <div class="label"><span class="label-text">Escopo de instalação Flatpak</span></div>
+                <select id="sc-flatpak" class="select select-bordered">
+                  <option value="system">system (global)</option>
+                  <option value="user">user (usuário)</option>
+                </select>
+              </label>
+            </div>
+
+            <!-- System tray toggle: opt-in, off by default. Turns on/off
+                 immediately (App.SetTrayEnabled), no restart needed —
+                 unlike the Ícone do Aplicativo above, which only applies
+                 on the next launch. -->
+            <div class="max-w-xl">
+              <label class="label cursor-pointer justify-start gap-3">
+                <input id="sc-tray-enabled" type="checkbox" class="toggle toggle-primary" />
+                <span class="label-text">Mostrar Perci na bandeja do sistema</span>
+              </label>
+              <p class="text-xs opacity-60 mt-1">
+                Ao ligar: fechar a janela principal passa a escondê-la na bandeja em vez de encerrar o Perci
+                (use "Sair" no menu do ícone pra encerrar de vez), e o Perci passa a iniciar oculto na bandeja
+                junto com a sessão gráfica. O ícone requer um ambiente com suporte a StatusNotifierItem —
+                funciona nativamente em KDE, XFCE e COSMIC; no GNOME só aparece com a extensão
+                "AppIndicator and KStatusNotifierItem Support" instalada.
+              </p>
+            </div>
+          </div>
+
+          <!-- Checklist-with-dependency mode: screens whose actions vary
+               by detected OS (e.g. "Pós-instalação") — item.actionId ===
+               "postinstall" in catalog.go triggers this mode instead of
+               the simple one above. -->
+          <div id="postinstall-container" class="hidden">
+            <div id="postinstall-unsupported" class="hidden">
+              <p class="opacity-80">Seu Sistema Operacional não é suportado pelo Perci</p>
+            </div>
+            <div id="postinstall-supported" class="hidden">
+              <p id="postinstall-title" class="font-semibold mb-1">Pós instalação do —</p>
+              <p class="opacity-80 mb-4">Selecione abaixo o que deseja executar na pós instalação</p>
+              <ul id="postinstall-actions" class="space-y-2 mb-4"></ul>
+              <button id="btn-executar-postinstall" class="btn btn-primary">
+                Executar pós instalação
+              </button>
+            </div>
+          </div>
+
+          <!-- Simple checklist mode (installed ⇄ unchecked): "toggle
+               install state via multi-select" screens with no dependency
+               between items — the same pattern reused across fonts,
+               templates, Flatpak, prerequisites (internal/sets.Diff).
+               Triggered via the MULTISELECT_SCREENS registry below, one
+               entry per actionId. -->
+          <div id="multiselect-container" class="hidden">
+            <p id="multiselect-intro" class="opacity-80 mb-4" style="white-space: pre-line;"></p>
+            <ul id="multiselect-items" class="space-y-2 mb-4"></ul>
+            <div class="flex gap-2">
+              <button id="btn-executar-multiselect" class="btn btn-primary">
+                Executar
+              </button>
+              <!-- Optional extra buttons (e.g. "Aplicar Starship" and
+                   "Remover Starship" in "Aplicativos: Terminais") — built
+                   per screen from MULTISELECT_SCREENS[actionId].extras;
+                   empty when a screen doesn't define any. -->
+              <div id="multiselect-extras" class="flex gap-2"></div>
+            </div>
+          </div>
+
+          <!-- "app único install/desinstalar" mode: an external app with
+               no checklist — two buttons, Instalar (always enabled) and
+               Desinstalar (enabled only if already installed). Triggered
+               via the SINGLE_APP_SCREENS registry below, one entry per
+               actionId (e.g. "Aplicativos - Linux Toys"). -->
+          <div id="singleapp-container" class="hidden">
+            <p id="singleapp-desc" class="opacity-80 mb-6" style="white-space: pre-line;"></p>
+            <div class="flex gap-2">
+              <button id="btn-singleapp-install" class="btn btn-primary" disabled>
+                Instalar
+              </button>
+              <button id="btn-singleapp-uninstall" class="btn btn-outline btn-error" disabled>
+                Desinstalar
+              </button>
+            </div>
+          </div>
+
+          <!-- "IDE install/atualizar/desinstalar" mode: three buttons,
+               Atualizar/Desinstalar enabled only once already installed.
+               Triggered via the IDE_SCREENS registry below, one entry per
+               actionId (e.g. "ide-zed"). -->
+          <div id="ide-container" class="hidden">
+            <p id="ide-desc" class="opacity-80 mb-6" style="white-space: pre-line;"></p>
+            <div class="flex gap-2">
+              <button id="btn-ide-install" class="btn btn-primary">
+                Instalar
+              </button>
+              <button id="btn-ide-update" class="btn btn-outline" disabled>
+                Atualizar
+              </button>
+              <button id="btn-ide-uninstall" class="btn btn-outline btn-error" disabled>
+                Desinstalar
+              </button>
+            </div>
+          </div>
+
+          <!-- "app externo via arquivo local install/(atualizar/)
+               desinstalar" mode: the user points at a manually downloaded
+               .tar.gz before being able to install/update. Triggered via
+               the FILEAPP_SCREENS registry below, one entry per actionId
+               (e.g. "androidstudio", "antigravityide") — the Atualizar
+               button only appears when the entry defines update(). -->
+          <div id="fileapp-container" class="hidden">
+            <p id="fileapp-desc" class="opacity-80 mb-4" style="white-space: pre-line;"></p>
+            <div class="flex items-center gap-2 mb-4">
+              <button id="btn-fileapp-pick" class="btn btn-outline btn-sm">
+                Selecionar arquivo
+              </button>
+              <span id="fileapp-path" class="text-sm opacity-70">Nenhum arquivo selecionado.</span>
+            </div>
+            <div class="flex gap-2 mb-4">
+              <button id="btn-fileapp-install" class="btn btn-primary" disabled>
+                Instalar
+              </button>
+              <button id="btn-fileapp-update" class="btn btn-outline hidden" disabled>
+                Atualizar
+              </button>
+              <button id="btn-fileapp-uninstall" class="btn btn-outline btn-error" disabled>
+                Desinstalar
+              </button>
+            </div>
+            <ul id="fileapp-notes" class="text-sm opacity-70 list-disc pl-5 space-y-1"></ul>
+          </div>
+
+          <!-- "Docker :: Criar Container". "Tipo de contêiner" select with
+               a second select ("Tipo") only when "Container Aplicativo"
+               is chosen (Moodle/PHP/Genérico). Dynamic fields per final
+               type rendered into #dc-fields (buildContainerFieldsHTML,
+               shared with the Editar modal). -->
+          <div id="dockercreate-container" class="hidden">
+            <!-- "label on the right + field" layout (styled like a
+                 GNOME/KDE Settings dialog) — CSS in <style> (the
+                 .dc-form-grid class) flattens each
+                 <label class="form-control"> (textFieldHTML/
+                 selectFieldHTML, shared with the Editar modal,
+                 #edit-fields) via display:contents, without duplicating
+                 HTML/JS or affecting that modal (the rule is scoped to
+                 #dockercreate-container). -->
+            <div class="dc-form-grid max-w-2xl">
+              <label class="form-control">
+                <div class="label"><span class="label-text">Tipo de contêiner</span></div>
+                <select id="dc-kind" class="select select-bordered">
+                  <option value="nginx">Nginx</option>
+                  <option value="mariadb">MariaDB</option>
+                  <option value="__app__">Contêiner Aplicativo</option>
+                  <option value="node">Node</option>
+                  <option value="php_node">PHP + Node</option>
+                </select>
+              </label>
+
+              <label id="dc-apptype-wrap" class="form-control hidden">
+                <div class="label"><span class="label-text">Tipo</span></div>
+                <select id="dc-apptype" class="select select-bordered">
+                  <option value="moodle">Moodle</option>
+                  <option value="php">PHP</option>
+                  <option value="generic">Genérico</option>
+                </select>
+              </label>
+
+              <div id="dc-fields"></div>
+            </div>
+
+            <button id="btn-dc-create" class="btn btn-primary mt-6">Criar Contêiner</button>
+            <p id="dc-hint" class="text-xs opacity-50 mt-2"></p>
+          </div>
+
+          <!-- "Docker :: Gerenciar Containers": a table + per-row action
+               icons + Exportar/Importar configurações. -->
+          <div id="dockerlist-container" class="hidden">
+            <div class="overflow-x-auto mb-4">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="dockerlist-rows"></tbody>
+              </table>
+            </div>
+            <p id="dockerlist-empty" class="opacity-70 mb-4 hidden">Nenhum contêiner Docker registrado ainda — crie um em "Docker :: Criar Contêiner".</p>
+            <div class="flex gap-2">
+              <button id="btn-docker-export" class="btn btn-outline btn-sm"></button>
+              <button id="btn-docker-import" class="btn btn-outline btn-sm"></button>
+            </div>
+          </div>
+
+          <!-- "Dev Tools :: Repositórios": 2 internal tabs — "Identidade
+               Global" (the "Alterar identidade Global" checkbox only
+               shows once one is already configured) and "Repositórios"
+               (working-folder picker + Clonar/Iniciar Repositório/
+               Identidade Local/Arquivos horizontal menu, disabled until
+               the folder is chosen). -->
+          <!-- "Dev Tools :: Repositórios" — "Identidade Global" (the old
+               sub-tab, now direct content of #panel-desc for this item;
+               the other sub-tab, "Repositórios", became its own top-level
+               tab #panel-repos-list, see above). -->
+          <div id="repos-container" class="hidden">
+            <p class="opacity-70 mb-4">Defina a Identidade Global que será usada.</p>
+            <div id="repos-identity-checkbox-wrap" class="hidden mb-3">
+              <label class="label cursor-pointer justify-start gap-3">
+                <input id="repos-identity-change" type="checkbox" class="checkbox" />
+                <span class="label-text">Alterar identidade Global</span>
+              </label>
+            </div>
+            <div class="grid gap-4 max-w-md">
+              <label class="form-control">
+                <div class="label"><span class="label-text">Nome</span></div>
+                <input id="repos-identity-name" type="text" class="input input-bordered" />
+              </label>
+              <label class="form-control">
+                <div class="label"><span class="label-text">Email</span></div>
+                <input id="repos-identity-email" type="text" class="input input-bordered" />
+              </label>
+            </div>
+            <button id="btn-repos-identity-apply" class="btn btn-primary mt-4">Aplicar Identidade Global</button>
+          </div>
+
+          <!-- "Dev Tools :: IA: SKILLs": Global/Local select (Local
+               requires a folder, same pattern as Repositórios) + a table
+               with Instalar/Atualizar/Remover per skill, backed by
+               internal/dev/agentskills (npx skills). -->
+          <div id="agentskills-container" class="hidden">
+            <p class="opacity-80 mb-4">
+              O Perci oferece atalhos para a instalação de SKILLs disponibilizadas pelo
+              <a href="#" id="as-skills-sh-link" class="link link-primary">skills.sh</a>.
+            </p>
+
+            <label class="form-control max-w-xs mb-4">
+              <div class="label"><span class="label-text">Tipo de Instalação </span></div>
+              <select id="as-scope" class="select select-bordered">
+                <option value="global">Global</option>
+                <option value="local">Local</option>
+              </select>
+            </label>
+
+            <div role="alert" class="alert mb-4 flex-wrap">
+              <div>
+                <h3 id="as-scope-alert-title" class="font-bold"></h3>
+                <div id="as-scope-alert-desc" class="text-sm opacity-80"></div>
+              </div>
+              <button id="btn-as-pick-folder" class="btn btn-sm ml-auto hidden">Selecionar Pasta</button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>SKILL</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="as-rows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- "Dev Tools :: IA: Contextos": working-folder picker (same
+               pattern as Repositórios/IA: SKILLs) + a simple checklist of
+               AI context models + a single "Aplicar" button. -->
+          <div id="aicontext-container" class="hidden">
+            <p class="opacity-80 mb-4">Contextos de IA são regras para direcionar o seu agente na realização de tarefas.</p>
+
+            <div role="alert" class="alert mb-4 flex-wrap">
+              <div>
+                <h3 id="aic-alert-title" class="font-bold"></h3>
+                <div id="aic-alert-desc" class="text-sm opacity-80"></div>
+              </div>
+              <button id="btn-aic-pick-folder" class="btn btn-sm ml-auto">Selecionar Pasta</button>
+            </div>
+
+            <ul id="aic-items" class="space-y-2 mb-4"></ul>
+            <button id="btn-aic-apply" class="btn btn-primary" disabled>Aplicar</button>
+          </div>
+
+          <!-- "Dev Tools :: IA: MCPs": same Global/Local structure as IA:
+               SKILLs, but each row has its own per-agent registration
+               mechanism (not a single tool) — internal/dev/mcpservers. -->
+          <div id="mcpservers-container" class="hidden">
+            <label class="form-control max-w-xs mb-4">
+              <div class="label"><span class="label-text">Tipo de Instalação </span></div>
+              <select id="mcp-scope" class="select select-bordered">
+                <option value="global">Global</option>
+                <option value="local">Local</option>
+              </select>
+            </label>
+
+            <div role="alert" class="alert mb-2 flex-wrap">
+              <div>
+                <h3 id="mcp-scope-alert-title" class="font-bold"></h3>
+                <div id="mcp-scope-alert-desc" class="text-sm opacity-80"></div>
+              </div>
+              <button id="btn-mcp-pick-folder" class="btn btn-sm ml-auto hidden">Selecionar Pasta</button>
+            </div>
+            <p id="mcp-codex-note" class="text-xs opacity-60 mb-4 hidden">Nota: o Codex só é registrado quando o Tipo de Instalação é Global (o escopo por projeto do Codex não está confirmado como já lançado).</p>
+
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>MCP</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="mcp-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Own top-level tab for "Dev Tools :: Repositórios" — used to
+             be an internal sub-tab of #repos-container (alongside
+             "Identidade Global", which became the direct content of
+             #panel-desc for this item — see #repos-container below),
+             promoted to a top-level tab, between the generic one and
+             "Execução". Only visible when the selected item is "repos"
+             (hidden class toggled in selectItem) — every other item
+             keeps the usual 2 tabs. -->
+        <label id="tab-label-repos-list" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-repos-list" />
+          <span class="mr-1">📁</span> Repositórios
+        </label>
+        <div id="panel-repos-list" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <div id="repos-list-cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6"></div>
+
+          <div class="divider"></div>
+
+          <div role="alert" class="alert mb-4 flex-wrap">
+            <span id="repos-folder-alert-text"></span>
+          </div>
+
+          <ul class="menu menu-horizontal bg-base-200 rounded-box mb-4 repos-submenu-disabled" id="repos-submenu">
+            <li><a href="#" data-sub="clone">Clonar</a></li>
+            <li><a href="#" data-sub="init">Iniciar Repositório</a></li>
+            <li><a href="#" data-sub="ident">Identidade Local</a></li>
+            <li><a href="#" data-sub="files">Arquivos</a></li>
+          </ul>
+
+          <div id="repos-sub-panel"></div>
+        </div>
+
+        <label id="tab-label-terminal" class="tab flex-none">
+          <input type="radio" name="content-tabs" id="tab-radio-terminal" />
+          <span class="mr-1">▶</span> Execução
+        </label>
+        <div id="panel-terminal" class="tab-content bg-base-100 border-base-300 p-6 flex flex-col">
+          <div id="term-title" class="text-sm opacity-70 mb-2 flex-none">Executando: —</div>
+          <progress id="term-progress" class="progress w-full mb-3 flex-none" value="0" max="100"></progress>
+          <div id="terminal" class="flex-1 min-h-0"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="drawer-side">
+    <label for="mobile-drawer-toggle" class="drawer-overlay"></label>
+    <aside id="sidebar" class="bg-base-200 h-full flex flex-col border-r border-base-300">
+      <div class="p-4 flex flex-col items-center gap-2 border-b border-base-300">
+        <img id="sidebar-logo-img" src="./assets/perci-blue.png" alt="Perci — trocar o formato do logo" role="button" tabindex="0" class="w-28 h-28 rounded-full object-cover cursor-pointer" />
+        <span class="font-bold text-lg sidebar-label">Perci</span>
+      </div>
+
+      <div id="accordion" class="flex-1 py-2"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- Generic "Docker :: Gerenciar Containers" modals — confirmation
+     (Recriar/Remover), error (Iniciar/Parar/Reiniciar/Remover don't open
+     the Execução tab — they report an error here instead of in the
+     terminal), logs (instant, with Atualizar/Exportar) and edit (reuses
+     buildContainerFieldsHTML, same form rendering as Criar). -->
+<dialog id="confirm-modal" class="modal">
+  <div class="modal-box">
+    <h3 id="confirm-modal-title" class="font-bold text-lg mb-2">Confirmar</h3>
+    <p id="confirm-modal-message" class="opacity-80" style="white-space: pre-line;"></p>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Cancelar</button></form>
+      <button id="btn-confirm-ok" type="button" class="btn btn-primary">Sim</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
+<dialog id="error-modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-2 text-error">Erro</h3>
+    <p id="error-modal-message" class="opacity-80" style="white-space: pre-line;"></p>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Fechar</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
+<dialog id="logs-modal" class="modal">
+  <div class="modal-box max-w-3xl">
+    <h3 id="logs-modal-title" class="font-bold text-lg mb-2">Logs</h3>
+    <pre id="logs-modal-content" class="bg-base-200 rounded p-3 text-xs overflow-auto" style="max-height: 60vh; white-space: pre-wrap;"></pre>
+    <div class="modal-action sm:justify-between">
+      <div class="flex gap-2">
+        <button id="btn-logs-refresh" type="button" class="btn btn-outline btn-sm">Atualizar</button>
+        <button id="btn-logs-export" type="button" class="btn btn-outline btn-sm">Exportar</button>
+      </div>
+      <form method="dialog"><button class="btn btn-sm">Fechar</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
+<dialog id="edit-modal" class="modal">
+  <div class="modal-box max-w-xl">
+    <h3 id="edit-modal-title" class="font-bold text-lg mb-4">Editar</h3>
+    <div id="edit-fields" class="dc-form-grid"></div>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Cancelar</button></form>
+      <button id="btn-edit-save" type="button" class="btn btn-primary">Salvar</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
+<script src="./vendor/xterm/xterm.js"></script>
+<script src="./vendor/xterm/addon-fit.js"></script>
+<script src="./vendor/lucide/icons.js"></script>
+<!-- App scripts: js/bootstrap.js (the only module: bindings + runtime) first,
+     then classic scripts sharing one global scope, in this order. -->
+<script type="module" src="./js/bootstrap.js"></script>
+<script defer src="./js/core.js"></script>
+<script defer src="./js/screens/checklists.js"></script>
+<script defer src="./js/screens/linux.js"></script>
+<script defer src="./js/screens/home.js"></script>
+<script defer src="./js/navigation.js"></script>
+<script defer src="./js/widgets.js"></script>
+<script defer src="./js/screens/docker.js"></script>
+<script defer src="./js/screens/repos.js"></script>
+<script defer src="./js/screens/agent-skills.js"></script>
+<script defer src="./js/screens/ai-context.js"></script>
+<script defer src="./js/screens/mcp.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Perci
+Comment=Ferramentas de setup e gerenciamento de ambiente de desenvolvimento Linux
+Exec=/usr/local/bin/prci
+Icon=perci
+Terminal=false
+Categories=Development;System;Utility;
+StartupWMClass=org.wails.perci

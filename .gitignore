@@ -1,0 +1,34 @@
+# Build outputs — `make build` writes ./prci, `make release` writes dist/;
+# a plain `go build` inside cmd/prci-gui leaves a prci-gui binary there.
+/prci
+/prci-gui
+/cmd/prci-gui/prci-gui
+/dist/
+
+# Go test and coverage artifacts (go test -c, -coverprofile, -cpuprofile)
+*.test
+*.out
+*.prof
+coverage.html
+
+# Local, per-machine tool configuration
+/.claude/settings.local.json
+/.luminavault.json
+/.agents/mcp_config.json
+
+# AI agent rules and context files (kept locally, not versioned)
+/AGENTS.md
+/CLAUDE.md
+/.instructions/
+/.aiexclude
+/.claudeignore
+
+# Frontend tests use plain Node — no npm dependencies, just in case
+node_modules/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
