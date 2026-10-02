@@ -6,7 +6,7 @@ Strict standard for building Dart/Flutter applications under the oito2 organizat
 
 ## 1. Tech Stack (Mandatory Baseline)
 
-- **Framework**: Flutter, stable channel, SDK `^3.12.2` or newer.
+- **Framework**: Flutter, stable channel, with the Dart SDK constraint `sdk: ^3.12.2` (or newer) under `environment:` in `pubspec.yaml`.
 - **Language**: Dart, null-safe, no `dynamic` unless interfacing with untyped JSON.
 - **State management**: `flutter_bloc` + `bloc_concurrency`. Do not use `provider`, `riverpod`, `get`, `getx`, `mobx`, or bare `ChangeNotifier`/`ValueNotifier` app-wide state. `equatable` for all Bloc states/events.
 - **UI component library**: `shadcn_ui`. Do not build custom design-system components that shadcn_ui already provides.
@@ -100,7 +100,7 @@ There is no user-customizable accent color. Each preset uses its own fixed signa
 
 ### 4.2 Palette source files
 
-One Dart file per color-theme family under `core/theme/palettes/`, containing only raw `Color` constants (no `ShadColorScheme`/`ThemeData` logic) and a doc comment citing the official upstream source. Required files and their exact constants:
+One Dart file per color-theme family under `core/theme/palettes/`, containing only raw `Color` constants (no `ShadColorScheme`/`ThemeData` logic). Take every value from the family's official upstream palette listed below. Required files and their exact constants:
 
 **`nord_palette.dart`** — source: nordtheme.com. Nord has no official light variant; `nordLight` is an unofficial derivation (swap Polar Night ↔ Snow Storm roles, use `nord10` instead of `nord8` as primary for contrast on a light background).
 ```
@@ -221,7 +221,7 @@ Any export/print surface (PDF, HTML, or similar rendered document output) must e
 
 ## 6. Internationalization Rules
 
-- One `.arb` file is the **template** (source of truth — every key is authored here first); every other locale's `.arb` is a **translation**. Document which one is the template in a code comment at the top of `l10n.yaml`'s referenced arb-dir.
+- One `.arb` file is the **template** (source of truth — every key is authored here first); every other locale's `.arb` is a **translation**. The template is the one named by `template-arb-file` in `l10n.yaml`.
 - `l10n.yaml` at the project root: `arb-dir: lib/core/l10n`, `template-arb-file: <template>.arb`, `output-class: AppLocalizations`, `output-dir: lib/core/l10n`.
 - `flutter: generate: true` in `pubspec.yaml`, so `flutter pub get`/`flutter run` regenerate `AppLocalizations` automatically — never require a manual `flutter gen-l10n` step in the standard workflow.
 - Adding a user-facing string: add the key to the template `.arb` first (with an `@key` metadata block if it needs placeholders/ICU plurals), add the same key translated to every other `.arb`, then regenerate.
@@ -234,10 +234,10 @@ Any export/print surface (PDF, HTML, or similar rendered document output) must e
 ## 7. Code Style & Comments
 
 - All code comments (`//`, `///`, `/* */`) are written in English, regardless of the team's spoken language or the app's UI locale.
-- A comment describes what the current code does and why (its rationale), as standalone documentation that stays correct forever. It never narrates project history: no "fixed on <date>", no issue/finding/phase numbers, no references to internal tracking documents. That context belongs in the commit message, never in the source.
+- A comment describes strictly what the current code does, as standalone documentation that stays correct forever. It never narrates project history and never references external material: no "fixed on <date>", no issue/finding/phase numbers, no documentation pages, code reviews or internal tracking documents. That context belongs in the commit message, never in the source.
 - User-facing string literals and test descriptions (`test(...)`, `testWidgets(...)`, `group(...)`) are not comments and are exempt from the above — they may be in the app's primary spoken language if that's the team's convention.
 - `///` dartdoc comments on public classes/methods/fields are mandatory for anything exported from a feature's `domain/` layer or reused across features.
-- Run `dart format .` before every commit. Zero `flutter analyze` warnings/errors beyond pre-existing, explicitly acknowledged ones.
+- Run `dart format .` before reporting a task as done. Zero `flutter analyze` warnings/errors beyond pre-existing, explicitly acknowledged ones.
 
 ---
 
@@ -283,9 +283,7 @@ The project root must also contain a plain-text `LICENSE` file with the full GPL
 
 ## 10. Documentation & Repository Hygiene
 
-- Root of the repository, in English: `README.md` (GitHub-focused: badges, summary, table of contents, what the app does, installation quick-start with prerequisites, how to update, a documentation table, and a `GPLv3 — see [`LICENSE`](LICENSE)` line), `CODE_OF_CONDUCT.md` (Contributor Covenant), `CONTRIBUTING.md` (dev setup pointer + every rule in this document that a contributor needs to know + PR process).
-- A Portuguese (Brazil) translation of each of those 3 root files lives under `docs/pt-br/` as `leiame.md`, `codigo-de-conduta.md`, `contribuindo.md` — never duplicated at the repository root.
-- `docs/en/` and `docs/pt-br/` each hold the same set of deeper technical docs (architecture, full feature walkthrough, development guide), mirrored 1:1 between the two languages, cross-linked to each other and back to the root README.
+- Documentation follows `.instructions/PROJECT-DOCUMENTATION.md` (plus its desktop/mobile complements) when those standards are active. Without them, keep at least `README.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant) and `CONTRIBUTING.md` at the root in English, with Portuguese (Brazil) mirrors under `docs/pt-br/` (`leiame.md`, `codigo-de-conduta.md`, `contribuindo.md`), and end the README with `GPL-3.0 — see [LICENSE](LICENSE).`
 - `.gitignore`: keep Flutter's default generated root `.gitignore` plus the platform-specific ones (`android/.gitignore`, `linux/.gitignore`, etc. — these already correctly cover `local.properties`, `key.properties`, `*.keystore`/`*.jks`, and platform ephemeral/build directories). Additionally always gitignore: any AI-assistant tool's local-only state file (e.g. a `*.local.json` settings file), and any project-linking config file for a personal external tool that embeds a machine-specific absolute path.
 - `pubspec.lock` is committed (this is an application, not a published package — set `publish_to: 'none'`).
 - Never commit a secret, API key, OAuth client secret, or signing keystore. Provide them via `--dart-define` at build time or a secure runtime store.

@@ -5,26 +5,16 @@ Covers file structure, API usage, architecture patterns, and common mistakes.
 
 ---
 
-## Language
-
-| Context | Language |
-|---|---|
-| Responses to the user | Brazilian Portuguese (pt-BR) |
-| Code comments | English |
-
----
-
 ## Development Environment
 
 - **Moodle Version:** {{MOODLE_VERSION}}
 - **Installation Path:** {{MOODLE_PATH}}
-- **MCP Server:** `lumina-mdle-dev` is configured and indices have been generated.
 
 ---
 
 ## Docker Development Environment
 
-Each Moodle install runs in its own container ("Container PHP" — one project, one PHP version, one URL), created via perci's **Dev Stuff → Gerenciar Docker → Criar Container PHP**. It provides PHP tools as host-side wrapper scripts in `~/.local/bin/`, suffixed with the project's own folder name — no PHP-version suffix, since a project only ever has the one PHP version it was created with. All commands run inside that project's container automatically.
+Each Moodle install runs in its own container (one project, one PHP version, one URL), created in perci via **Docker → Criar Contêiner → Contêiner Aplicativo**, type **Moodle**. It provides PHP tools as host-side wrapper scripts in `~/.local/bin/`, suffixed with the project's own folder name — no PHP-version suffix, since a project only ever has the one PHP version it was created with. All commands run inside that project's container automatically.
 
 ### Available commands
 
@@ -70,92 +60,65 @@ phpunit-mdle --filter MyPluginTest
 
 ---
 
-## lumina-mdle-dev — Usage Guide
-
-Always load the plugin context before starting work:
-
-```text
-Load context for plugin local_myplugin.
-```
-
-### Available Tools
-
-- `get_plugin_info` — loads the complete plugin context into the current session.
-- `search_api` — searches for Moodle core API functions.
-- `generate_plugin_context` — generates `PLUGIN_*.md` documentation files for a plugin.
-- `update_indexes` — regenerates global indices after installing new plugins.
-- `doctor` — runs health checks on the `moodle-dev-mcp` environment.
-
-### Recommended Workflow
-
-1. **Initialize:** Load context using `get_plugin_info` before working on a plugin.
-2. **Research:** Use `search_api` before suggesting or implementing core functions.
-3. **Document:** Run `generate_plugin_context` after significant code changes.
-4. **Sync:** Execute `update_indexes` whenever new plugins are added to the environment.
-
----
-
 ## Target Moodle Version
 
-This project targets **Moodle {{MOODLE_VERSION}}+** (`requires = {{MOODLE_FULLVERSION}}`).
+This project targets **Moodle {{MOODLE_VERSION}}+** (core `$version = {{MOODLE_FULLVERSION}}`).
 
 - Use only APIs compatible with Moodle {{MOODLE_VERSION}} or later.
 - **Strictly avoid** functions deprecated in previous versions.
 
 ### PHP Compatibility Matrix
 
-| Moodle Version | PHP Minimum | PHP Used by this stack |
+| Moodle Version | Supported PHP | perci "Versão do Moodle" → PHP options |
 |---|---|---|
-| 4.1 | 7.4 | 8.1 |
-| 4.2 | 8.0 | 8.2 |
-| 4.3 | 8.0 | 8.2 |
-| 4.4 | 8.1 | 8.3 |
-| 4.5 | 8.1 | 8.3 |
-| 5.0 | 8.2 | 8.3 |
-| 5.1 | 8.2 | 8.3 |
-| 5.2 | 8.3 | 8.3 |
-| 5.3 (not yet released) | 8.3 | 8.3 |
+| 4.1 (LTS) | 7.4 – 8.1 | `4.1` → 7.4, 8.0, 8.1 |
+| 4.2 | 8.0 – 8.2 | `4.2-4.3` → 8.0, 8.1, 8.2 |
+| 4.3 | 8.0 – 8.2 | `4.2-4.3` → 8.0, 8.1, 8.2 |
+| 4.4 | 8.1 – 8.3 | `4.4-4.5` → 8.1, 8.2, 8.3 |
+| 4.5 (LTS) | 8.1 – 8.3 | `4.4-4.5` → 8.1, 8.2, 8.3 |
+| 5.0 | 8.2 – 8.4 | `5.0` → 8.2, 8.3, 8.4 |
+| 5.1 | 8.2 – 8.4 | `5.1+` → 8.3, 8.4 |
+| 5.2 | 8.3 – 8.4 | `5.1+` → 8.3, 8.4 |
+| 5.3 (LTS, from 2026-10-05) | 8.3 – 8.4 | `5.1+` → 8.3, 8.4 |
 
-Write PHP code compatible with the **Minimum** column for {{MOODLE_VERSION}}, not just the PHP version running in this stack's container — sites still on that release's lowest supported PHP must keep working. If unsure whether legacy-PHP compatibility matters for this project, ask the user before relying on syntax newer than that minimum (e.g. enums, readonly properties, first-class callable syntax).
+Write PHP code compatible with the lowest **Supported PHP** for {{MOODLE_VERSION}}, not just the PHP version running in this stack's container — sites still on that release's lowest supported PHP must keep working. If unsure whether legacy-PHP compatibility matters for this project, ask the user before relying on syntax newer than that minimum (e.g. enums, readonly properties, first-class callable syntax).
 
 ### Hook API vs lib.php Callbacks
 
-The Hook API is available from **Moodle 4.3+**. Before implementing any event hook or plugin callback, ask the user:
+The Hook API exists from **Moodle 4.3**; most output callbacks (e.g. `before_standard_html_head`) only gained a hook in **Moodle 4.4**. Decide from the plugin's own `version.php` `$plugin->requires`:
 
-> "Does this plugin need to support Moodle versions earlier than 4.3?"
-
-Based on the answer:
-
-- **Only 4.3+** — use the Hook API exclusively (`classes/hook/` + `db/hooks.php`).
-- **Only < 4.3** — use `lib.php` callbacks exclusively.
-- **Both versions** — implement both and guard the `lib.php` callback to avoid double execution on 4.3+:
+- **`requires` ≥ the first version that has the hook** — use the Hook API only (`classes/hook/` or a callbacks class + `db/hooks.php`).
+- **`requires` below it** — implement both: the hook callback plus the legacy `lib.php` callback. Moodle ignores a legacy callback automatically when a hook callback replaces it, so no version guard is needed.
+- Ask the user only when the plugin has no `version.php` yet and the minimum version is unknown.
 
 ```php
-// lib.php — executed only on Moodle < 4.3
+// lib.php — legacy callback, used only by versions without the hook
 function local_example_before_standard_html_head(): string {
-    global $CFG;
-    if ($CFG->version >= 2023100900) { // 4.3+ uses Hook API
-        return '';
-    }
-    return local_example_render_head_content();
+    return \local_example\output\head::content();
 }
+```
 
-// classes/hook/before_standard_html_head.php — for Moodle 4.3+
-namespace local_example\hook;
+```php
+// classes/hook_callbacks.php — Hook API callback (Moodle 4.4+)
+namespace local_example;
 
-class before_standard_html_head {
-    public static function callback(\core\hook\output\before_standard_html_head $hook): void {
-        $hook->add_html(local_example_render_head_content());
+class hook_callbacks {
+    public static function before_standard_head_html_generation(
+        \core\hook\output\before_standard_head_html_generation $hook,
+    ): void {
+        $hook->add_html(\local_example\output\head::content());
     }
 }
 ```
 
 ```php
-// db/hooks.php — registers the Hook API callback (Moodle 4.3+)
+// db/hooks.php — registers the Hook API callback
+defined('MOODLE_INTERNAL') || die();
+
 $callbacks = [
     [
-        'hook'     => \core\hook\output\before_standard_html_head::class,
-        'callback' => \local_example\hook\before_standard_html_head::class . '::callback',
+        'hook'     => \core\hook\output\before_standard_head_html_generation::class,
+        'callback' => [\local_example\hook_callbacks::class, 'before_standard_head_html_generation'],
     ],
 ];
 ```
@@ -166,7 +129,7 @@ $callbacks = [
 
 Starting with Moodle 5.1, the codebase ships a `/public` directory, and the web server document root must point to `{{MOODLE_PATH}}/public` instead of `{{MOODLE_PATH}}`. A new (optional) Routing Engine enables cleaner URLs; it is **not compulsory** — a compatibility layer keeps traditional script-based URLs (e.g. `/mod/forum/view.php?id=1`) working.
 
-**Impact on this Docker stack:** none — this project's container already has its own dedicated nginx `root`, pointed directly at `{{MOODLE_PATH}}/public` by perci itself when the Container Aplicativo was created (Moodle apps always route this way, by design; no manual nginx change needed). To run a Moodle 5.1+ project here:
+**Impact on this Docker stack:** none — this project's container already has its own dedicated nginx `root`, pointed directly at `{{MOODLE_PATH}}/public` by perci itself when the container was created (Moodle apps always route this way, by design; no manual nginx change needed). To run a Moodle 5.1+ project here:
 
 - `$CFG->wwwroot` (and the browser URL) is just the app's own URL, e.g. `http://<folder>.localhost` — **no** `/public` suffix; the document root already points inside `public/`, so it never appears in the URL.
 - Plugin code (`local/`, `mod/`, `blocks/`, etc.) keeps the exact same relative structure — it now lives under `public/<area>/<plugin>` instead of `<area>/<plugin>`. Never hardcode the Moodle root path; use `$CFG->dirroot` / `new moodle_url(...)` as already required elsewhere in this guide.
@@ -177,16 +140,15 @@ Starting with Moodle 5.1, the codebase ships a `/public` directory, and the web 
 
 ## Required Files
 
-Every plugin must include these files at a minimum:
+Every plugin must include:
 
 ```text
 version.php
 lang/en/[component].php
-db/install.xml
-db/upgrade.php
-db/access.php
 classes/privacy/provider.php
 ```
+
+Add these when the plugin needs them: `db/install.xml` (it has database tables), `db/upgrade.php` (a released schema changes), `db/access.php` (it defines capabilities).
 
 **Optional (recommended):** `settings.php`, `lib.php`, `index.php`, `classes/`, `templates/`, `amd/src/`, `tests/`, `tests/behat/`
 
@@ -201,7 +163,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_example';
 $plugin->version   = 2026010100; // Format: YYYYMMDDNN (NN = daily increment, starting at 00)
-$plugin->requires  = 2022112800; // Matches {{MOODLE_FULLVERSION}}
+$plugin->requires  = {{MOODLE_FULLVERSION}}; // Minimum Moodle core version
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '1.0';
 ```
@@ -223,7 +185,7 @@ All user-facing strings must be defined here. Never hardcode strings in PHP or M
 - Tables must use the Moodle prefix (handled by XMLDB).
 - Every table **must** have a primary key.
 - Define indexes for columns used in `WHERE` or `JOIN` clauses.
-- Supported types: `INT`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`.
+- Supported types: `INT`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BINARY`.
 
 ### db/upgrade.php
 
@@ -282,6 +244,7 @@ namespace local_example\output;
 namespace local_example\external;
 namespace local_example\task;
 namespace local_example\event;
+namespace local_example\observer;
 namespace local_example\hook;
 namespace local_example\privacy;
 ```
@@ -298,7 +261,8 @@ classes/
   external/       → Web service endpoints
   task/           → Scheduled and ad-hoc tasks
   event/          → Event classes
-  hook/           → Hook API callbacks (Moodle 4.3+)
+  observer/       → Event observers
+  hook/           → Hook definitions and callbacks
   privacy/        → Privacy API — GDPR compliance (required)
 db/
   events.php      → Event observers
@@ -402,16 +366,16 @@ class provider implements
 
 ## External API (Web Services)
 
-Declare each endpoint as a class under `classes/external/` and register it in `db/services.php`.
+Declare each endpoint as a class under `classes/external/` and register it in `db/services.php`. From Moodle 4.2 the external API classes live in the `core_external` namespace; the global names (`external_api`, `external_value`, ...) are deprecated aliases — use them only when the plugin must support 4.1.
 
 ```php
 // classes/external/get_example.php
 namespace local_example\external;
 
-use external_api;
-use external_function_parameters;
-use external_value;
-use external_single_structure;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
 
 class get_example extends external_api {
 
@@ -553,36 +517,32 @@ echo "Save";
 echo get_string('save', 'local_example');
 ```
 
-### JavaScript — Use AMD Modules
+### JavaScript — ES Modules in `amd/src/`
 
-Never use inline `<script>` tags. Avoid importing jQuery — use Moodle core modules or native DOM APIs instead.
+Never use inline `<script>` tags. Avoid importing jQuery — use Moodle core modules or native DOM APIs instead. Write ES modules in `amd/src/` and build them into `amd/build/` (`npx grunt amd`); commit both, since Moodle loads the built files.
 
 ```javascript
 // amd/src/example.js
-define(['core/log', 'core/ajax'], function (Log, Ajax) {
-    return {
-        init: function (config) {
-            Log.debug('local_example: module initialized', config);
+import Ajax from 'core/ajax';
+import Log from 'core/log';
 
-            document.querySelector('[data-action="example-submit"]')
-                ?.addEventListener('click', function () {
-                    Ajax.call([{
-                        methodname: 'local_example_get_example',
-                        args: { id: config.recordId },
-                    }])[0].done(function (result) {
-                        Log.debug('local_example: result', result);
-                    });
-                });
-        },
-    };
-});
+export const init = (config) => {
+    document.querySelector('[data-action="example-submit"]')
+        ?.addEventListener('click', async() => {
+            const result = await Ajax.call([{
+                methodname: 'local_example_get_example',
+                args: {id: config.recordId},
+            }])[0];
+            Log.debug('local_example: result', result);
+        });
+};
 ```
 
 ```mustache
-{{! Load AMD module from template }}
+{{! Load the module from a template }}
 {{#js}}
 require(['local_example/example'], function(mod) {
-    mod.init();
+    mod.init({recordId: {{id}}});
 });
 {{/js}}
 ```
@@ -604,7 +564,7 @@ The plugin must work correctly regardless of which theme is active on the site.
 - Always use the global `$DB` object for all database operations.
 - SQL table names in raw queries must use `{bracket_format}`.
 - Follow **Moodle Coding Style** (based on PSR-12).
-- **Exclude from indexing:** `.git`, `node_modules`, `vendor`, `.grunt`, `moodledata`, `cache`.
+- **Ignore when searching the codebase:** `.git`, `node_modules`, `vendor`, `.grunt`, `moodledata`, `cache`.
 
 ### Database Portability (MySQL/MariaDB priority, PostgreSQL support)
 
@@ -639,5 +599,5 @@ phpunit-mdle
 phpunit-mdle --filter local_example
 ```
 
-- **moodle-cs** — enforces Moodle coding style on top of PSR-2; install via `composer-<folder> require --dev moodlehq/moodle-cs`.
-- **phpunit** — run the full test suite before every commit, via the project's own `phpunit-<folder>` wrapper.
+- **moodle-cs** — enforces Moodle coding style (based on PSR-12); install via `composer-<folder> require --dev moodlehq/moodle-cs`.
+- **phpunit** — run the full test suite before reporting a task as done, via the project's own `phpunit-<folder>` wrapper.

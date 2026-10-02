@@ -1,6 +1,6 @@
-# MySQL Patterns
+# MySQL / MariaDB Standard
 
-Use this skill when working on MySQL or MariaDB schema design, migrations, slow-query investigation, queue-style transactions, connection pools, or production database configuration. Prefer exact version checks before applying a feature-specific pattern because MySQL and MariaDB have diverged in several SQL details.
+Apply this standard when working on MySQL or MariaDB schema design, migrations, slow-query investigation, queue-style transactions, connection pools, or production database configuration. Prefer exact version checks before applying a feature-specific pattern because MySQL and MariaDB have diverged in several SQL details.
 
 ## Activation
 - Designing MySQL or MariaDB tables, indexes, and constraints
@@ -40,8 +40,10 @@ CREATE TABLE orders (
     PRIMARY KEY (id),
     KEY idx_orders_account_status_created (account_id, status, created_at),
     KEY idx_orders_active (account_id, deleted_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+*`utf8mb4_unicode_ci` works on MySQL and MariaDB; on a MySQL 8.0+-only target prefer `utf8mb4_0900_ai_ci` (see the table below).*
 
 ### Default Choices Summary
 
@@ -63,11 +65,16 @@ CREATE TABLE orders (
 > **CRITICAL RULE:** MySQL/MariaDB DDL statements execute an **implicit `COMMIT`**. DDL cannot be run within a multi-statement transaction or rolled back.
 
 ### Non-Blocking ALTER Statements
-For online schema changes on InnoDB tables, specify `ALGORITHM` and `LOCK` clauses to avoid table locks:
+For online schema changes on InnoDB tables, specify `ALGORITHM` and `LOCK` clauses to avoid table locks. Adding a column can be instant (metadata-only) on MySQL 8.0.12+ and MariaDB 10.3+; fall back to `INPLACE` when `INSTANT` is refused:
 
 ```sql
 ALTER TABLE orders
     ADD COLUMN notes VARCHAR(255) NULL,
+    ALGORITHM=INSTANT;
+
+-- When INSTANT is not supported for the change:
+ALTER TABLE orders
+    ADD INDEX idx_orders_status (status),
     ALGORITHM=INPLACE, LOCK=NONE;
 ```
 
@@ -279,7 +286,7 @@ const [rows] = await pool.execute(
 First-pass diagnostic commands:
 ```sql
 SHOW FULL PROCESSLIST;
-SHOW ENGINE INNODB STATUS\G;
+SHOW ENGINE INNODB STATUS\G
 SHOW VARIABLES LIKE 'slow_query_log';
 SHOW VARIABLES LIKE 'long_query_time';
 ```
@@ -299,11 +306,11 @@ SET GLOBAL log_queries_not_using_indexes = 'ON';
 Read replicas can lag. Do not route read-your-own-write paths, checkout flows, permission checks, or idempotency-key reads to a replica immediately after a write.
 
 ```sql
--- Legacy MySQL / common fleet syntax
-SHOW SLAVE STATUS\G;
+-- Legacy syntax (older MySQL / MariaDB)
+SHOW SLAVE STATUS\G
 
--- Modern MySQL syntax (MySQL 8.0.22+)
-SHOW REPLICA STATUS\G;
+-- MySQL 8.0.22+ and MariaDB 10.5.1+
+SHOW REPLICA STATUS\G
 ```
 
 ---
@@ -376,7 +383,7 @@ binlog_expire_logs_seconds = 604800
 ---
 
 ## Output Expectations for Code / Schema Review
-When this skill is used for review, return:
+When this standard is used for a review, return:
 1. **Engine/version assumptions** (MySQL 8.0 vs 5.7 vs MariaDB).
 2. **Highest-risk issues** (correctness, locks, implicit commits, security, migration blocking).
 3. **Exact SQL or code changes** for the safe path.

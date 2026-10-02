@@ -6,15 +6,6 @@ Use for creating automation scripts, CLI tools, and installers.
 
 ---
 
-## Language
-
-| Context | Language |
-|---|---|
-| Responses to the user | Brazilian Portuguese (pt-BR) |
-| Code comments | English |
-
----
-
 ## Boilerplate — Lumina Ecosystem Scripts
 
 Use for scripts that belong to the Lumina library ecosystem and depend on `lib/utils.sh` and `lib/system.sh`. For standalone scripts, see the minimal boilerplate below.
@@ -29,7 +20,8 @@ Use for scripts that belong to the Lumina library ecosystem and depend on `lib/u
 set -Eeuo pipefail
 shopt -s inherit_errexit
 
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_DIR
 
 # --- Cleanup and Errors ---
 trap 'printf "\n\033[0;31m❌ Error at %s:%d\033[0m\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
@@ -76,7 +68,8 @@ Use for scripts that do not depend on Lumina libraries.
 set -Eeuo pipefail
 shopt -s inherit_errexit
 
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_DIR
 
 trap 'printf "\n\033[0;31mError at %s:%d\033[0m\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
 trap '[[ -n "${_tmpdir:-}" ]] && rm -rf -- "$_tmpdir"' EXIT
@@ -85,6 +78,7 @@ trap '[[ -n "${_tmpdir:-}" ]] && rm -rf -- "$_tmpdir"' EXIT
 
 main() {
     # Logic here
+    :
 }
 
 main "$@"
@@ -98,10 +92,13 @@ main "$@"
 
 2. **Local scope in functions:** use `local` for variables, `local -r` for constants.
 
-3. **Preserve exit codes** — separate declaration from assignment:
+3. **Preserve exit codes** — separate declaration (`local`, `readonly`, `export`) from assignment:
    ```bash
-   local result
-   result=$(command_that_might_fail)
+   get_value() {
+       local result
+       result=$(command_that_might_fail)
+       printf '%s\n' "$result"
+   }
    ```
 
 4. **Flag protection** — terminate options with `--` before variable arguments:
@@ -152,7 +149,7 @@ printf '%b\n' "${C4}Info: using apt${RESET}"
 Standard: `y` or `s` confirms, any other key cancels.
 
 ```bash
-printf '%s' "Continue? (${C3}y${RESET}/N): "
+printf '%b' "Continue? (${C3}y${RESET}/N): "
 read -r confirm
 [[ ! "$confirm" =~ ^[yYsS]$ ]] && return 0
 ```
@@ -161,7 +158,7 @@ read -r confirm
 
 ```bash
 # =============================================================================
-# Exibe o cabeçalho ASCII padrão Lumina. $1 = subtítulo (opcional).
+# Prints the default Lumina ASCII header. $1 = subtitle (optional).
 # =============================================================================
 show_lumina_header() {
     local subtitle="${1:-LUMINA CLI ENGINE}"
@@ -194,14 +191,18 @@ show_header() {
 
 ### Atomic write
 
-Prevents file corruption on write failures.
+Prevents file corruption on write failures: the content goes to a temporary file in the destination's own directory, which is then renamed over the destination (a rename is only atomic within the same filesystem, so never stage the file in `/tmp`).
 
 ```bash
+# $1 = destination, $2 = file mode (default 644). Content comes from stdin.
 atomic_write() {
-    local tmp; tmp=$(mktemp)
-    cat > "$tmp"
-    mv -- "$tmp" "$1"
-    chmod 644 "$1"
+    local dest="$1" mode="${2:-644}" tmp
+    tmp=$(mktemp -- "$(dirname -- "$dest")/.tmp.XXXXXX")
+    if ! cat > "$tmp" || ! chmod -- "$mode" "$tmp"; then
+        rm -f -- "$tmp"
+        return 1
+    fi
+    mv -f -- "$tmp" "$dest"
 }
 
 generate_config | atomic_write "/etc/app/config.conf"
@@ -230,10 +231,11 @@ require_cmd() {
 Create with restricted permissions **before** writing data. Always wrap in a function — `local` is only valid inside a function.
 
 ```bash
+# $1 = token to store.
 store_secret() {
-    local secret_file="$HOME/.secrets"
+    local secret_file="$HOME/.secrets" token="$1"
     (umask 077; touch "$secret_file")
-    printf 'TOKEN=%q\n' "$user_token" >> "$secret_file"
+    printf 'TOKEN=%q\n' "$token" >> "$secret_file"
 }
 ```
 
