@@ -17,8 +17,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeElement, evalIn, loadScripts, scriptOrder } from "./harness.mjs";
 
-const { ctx, calls } = loadScripts(scriptOrder(), {
-  fixtures: { GetPostinstallProfile: { supported: true, label: "Ubuntu" } },
+const { ctx, calls, element } = loadScripts(scriptOrder(), {
+  fixtures: {
+    GetPostinstallProfile: { supported: true, label: "Ubuntu" },
+    GetRepoFolders: [{ path: "/home/u/a", name: "a" }, { path: "/home/u/b", name: "b" }],
+  },
 });
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -179,3 +182,32 @@ test("multiselect extras", async () => {
   evalIn(ctx, "running = false; activeRun = null");
   await tick();
 });
+
+test("repos cards keep a single Novo repositório card", async () => {
+  const cards = element("repos-list-cards").children;
+  const addCards = () => cards.filter((c) => c.children[0].children[0].textContent === "Novo repositório");
+
+  ctx.renderReposScreen({ actionId: "repos" });
+  await tick();
+  ctx.renderReposScreen({ actionId: "repos" }); // reopening the screen
+  await tick();
+  ctx.selectRepoFolder("/home/u/a"); // "Selecionar"
+  await tick();
+  ctx.loadRepoFolders(); // after adding/removing a folder
+  await tick();
+
+  assert.equal(addCards().length, 1);
+  assert.equal(cards.length, 3, "two folders plus the add card");
+  assert.equal(cards[cards.length - 1], addCards()[0], "the add card stays last");
+});
+
+test("Moodle version select keeps a saved value that is no longer offered", () => {
+  const catalog = { moodleVersions: ["3.x", "4.1", "5.1+"], phpVersions: ["8.1"], nodeVersions: [], mariadbReady: true };
+  const legacy = ctx.buildContainerFieldsHTML("edit", "moodle", catalog, { moodleVersion: "4.x" });
+  assert.match(legacy, /<option value="4\.x" selected>4\.x<\/option>/);
+
+  const current = ctx.buildContainerFieldsHTML("dc", "moodle", catalog, { moodleVersion: "4.1" });
+  assert.match(current, /<option value="4\.1" selected>/);
+  assert.doesNotMatch(current, /value="4\.x"/);
+});
+

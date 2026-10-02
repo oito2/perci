@@ -98,7 +98,7 @@ func TestDesktopExecQuote(t *testing.T) {
 	}
 }
 
-// The autostart entry starts Perci hidden in the tray (main.go honors it).
+// The autostart entry starts Perci hidden in the tray.
 func TestWriteAutostartDesktopFile_StartsHidden(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := writeAutostartDesktopFile(); err != nil {

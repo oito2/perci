@@ -59,7 +59,7 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
   </tr>
 </table>
 
-![Menu da bandeja do sistema — Contêineres, Repositórios e Atualizar Sistema abrem a janela compacta](../../img/screenshots/tray-window.png)
+![Menu da bandeja do sistema — Abrir Aplicativo mostra a janela principal; Contêineres, Repositórios e Atualizar Sistema abrem a janela compacta](../../img/screenshots/tray-window.png)
 
 ## Sensível à Distro, Não Agnóstico
 

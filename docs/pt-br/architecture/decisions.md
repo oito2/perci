@@ -254,3 +254,11 @@ uma recusa.
 **Decisão** (escolhas do usuário): o Alacritty instala via `distro.InstallPkgs` (um lote; o pacote está no main do Debian e no universe do Ubuntu, habilitado por padrão). Desinstalar o OpenCode remove `~/.opencode/bin` (`~/.opencode` só se ficar vazio) e só as linhas `# opencode` exatas que o instalador escreveu; as configurações em `~/.config/opencode` ficam. `SetWorkspacePath` aceita só uma pasta escolhida no diálogo nativo nesta sessão (`requireApprovedPath`), já que o Docker cria pastas dentro do workspace e o monta nos contêineres.
 
 **Rever se**: uma distro suportada da família Debian vier sem o `universe` habilitado, ou o instalador do OpenCode mudar a pasta de instalação ou as linhas do rc.
+
+## 2026-10-02 — Faixas de versão do Moodle seguem a faixa de PHP de cada release
+
+**Contexto**: A faixa "5.1+" oferecia PHP 8.2–8.4, mas cobre o Moodle 5.1, 5.2 e 5.3, e o 5.2/5.3 exigem PHP 8.3–8.4. A faixa única "4.x" oferecia PHP 8.0–8.1, enquanto o Moodle 4.1 suporta 7.4–8.1, o 4.2/4.3 suportam 8.0–8.2 e o 4.4/4.5 suportam 8.1–8.3 (requisitos de PHP do docs.moodle.org).
+
+**Decisão** (escolhas do usuário): "5.1+" oferece só PHP 8.3/8.4 (continua válido para o 5.1). "4.x" foi dividido em três faixas com os intervalos exatos: `4.1` (7.4–8.1), `4.2-4.3` (8.0–8.2) e `4.4-4.5` (8.1–8.3), todas com a receita clássica do Nginx. `4.x` deixa de ser oferecido, mas continua válido, com a faixa do 4.1, para contêineres já salvos com ele, e o formulário de edição continua mostrando esse valor.
+
+**Rever se**: uma nova versão do Moodle mudar a faixa de PHP ou o layout do Nginx, ou o perci adicionar uma versão de PHP.

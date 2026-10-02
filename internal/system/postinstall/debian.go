@@ -25,15 +25,13 @@ import (
 
 // Shared building blocks of the Debian-family profiles (Mint, Ubuntu,
 // Zorin, Pop!_OS): every action they have in common is defined once here,
-// and each profile file only composes its own list — the four used to carry
-// near-identical copies of these functions, so a fix in one could miss the
-// others. IDs, labels and descriptions are what the GUI's checklist shows
-// and what DependsOn refers to.
+// and each profile file only composes its own list. IDs, labels and
+// descriptions are what the GUI's checklist shows and what DependsOn
+// refers to.
 
 // aptBaseOpts are the options every apt-get call here runs with: no
-// progress bars or colors in the GUI's terminal, and no interactive
-// prompt — a conffile question or a debconf dialog has no terminal to be
-// answered on, and --force-confold keeps the user's own config files.
+// progress bars or colors, no interactive prompt, and --force-confold to
+// keep the user's own config files.
 var aptBaseOpts = []string{"-o", "Dpkg::Use-Pty=0", "-o", "Dpkg::Progress-Fancy=0", "-o", "APT::Color=0", "-o", "Dpkg::Options::=--force-confold"}
 
 // aptStep runs one privileged, non-interactive apt-get command.
@@ -137,9 +135,9 @@ func actAptVAAPIIntel(dependsOn string) Action {
 		}}
 }
 
-// actAptVAAPIAMD installs mesa-va-drivers — a real package up to Ubuntu
-// 24.04 and a virtual one provided by mesa-libgallium on 26.04 (checked
-// against both archives on 2026-09-29); apt resolves either.
+// actAptVAAPIAMD installs mesa-va-drivers, which is a real package up to
+// Ubuntu 24.04 and a virtual one provided by mesa-libgallium on 26.04; apt
+// resolves either.
 func actAptVAAPIAMD(dependsOn string) Action {
 	return Action{ID: "vaapi-amd", Label: "Driver de vídeo AMD (VA-API)",
 		Description: "Instala a aceleração de vídeo por hardware para GPUs AMD. Marque só se sua GPU for AMD.",

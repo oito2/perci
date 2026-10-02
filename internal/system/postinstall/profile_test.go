@@ -61,9 +61,7 @@ func TestProfiles_ActionIDsAreUnique(t *testing.T) {
 }
 
 // TestProfiles_DependsOnResolves catches a DependsOn referencing an ID
-// that doesn't exist in the same Profile (typo, or a leftover reference
-// after renaming an action) — the GUI would silently never unlock that
-// action's checkbox.
+// that doesn't exist in the same Profile.
 func TestProfiles_DependsOnResolves(t *testing.T) {
 	for _, p := range allProfiles() {
 		t.Run(p.ID, func(t *testing.T) {
@@ -136,8 +134,7 @@ func TestSwapfileScript_Syntax(t *testing.T) {
 }
 
 // Every action of every profile runs under DryRun without error and asks
-// for the password at most once — pkexec has no session cache, so a second
-// privileged call in one action is a second dialog.
+// for the password at most once.
 func TestProfiles_EveryActionAtMostOnePrompt(t *testing.T) {
 	t.Setenv("HOME", t.TempDir()) // default config: Flatpak system scope
 	for _, flatpakPresent := range []bool{true, false} {

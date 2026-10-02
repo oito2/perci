@@ -15,12 +15,9 @@
 
 package main
 
-// Bound methods for "Dev Tools :: IA: SKILLs" (catalog.go) — a thin layer
-// over internal/dev/agentskills (`npx skills add/remove/update`).
-// config.yaml's AgentSkills field is the source of truth for which skills
-// are installed, per scope — there's no documented structured output from
-// `npx skills list` to derive this from instead, same reasoning as
-// cfg.Docker.Apps for containers.
+// Bound methods for "Dev Tools :: IA: SKILLs" — a thin layer over
+// internal/dev/agentskills (`npx skills add/remove/update`). config.yaml's
+// AgentSkills field records which skills are installed, per scope.
 
 import (
 	"context"
@@ -32,8 +29,7 @@ import (
 )
 
 // PickAgentSkillsFolder opens the native folder picker for a "Local"
-// install target — same CanCreateDirectories convenience as the
-// Repositórios screen's "pasta de trabalho".
+// install target, with CanCreateDirectories enabled.
 func (t *DevToolsService) PickAgentSkillsFolder() (string, error) {
 	return t.pickFolder("Selecionar pasta do projeto")
 }
@@ -47,7 +43,7 @@ type AgentSkillRow struct {
 
 // findAgentSkillInstall returns the index of cfg.AgentSkills matching
 // (slug, global, folder) — folder is only compared for local (non-global)
-// entries, matching AgentSkillInstall's own doc comment.
+// entries.
 func findAgentSkillInstall(installs []config.AgentSkillInstall, slug string, global bool, folder string) int {
 	return indexOfScoped(installs, agentSkillKey, slug, global, folder)
 }

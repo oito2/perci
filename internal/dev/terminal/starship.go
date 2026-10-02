@@ -40,7 +40,7 @@ func InstallStarship(ctx context.Context, exe *executor.Executor, stdout io.Writ
 	if preset == "" {
 		preset = StarshipPresets[0]
 	}
-	// Checked before downloading anything, not after the install.
+	// Validated before anything is downloaded.
 	if !slices.Contains(StarshipPresets, preset) {
 		return fmt.Errorf("preset do starship desconhecido: %q", preset)
 	}
@@ -72,8 +72,7 @@ curl -fsSL https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.loc
 }
 
 // UninstallStarship removes the Starship binary and shell init hooks. The
-// config file is renamed to starship.toml.perci-bak, not deleted: it may
-// hold the user's own customizations, not just the preset Perci applied.
+// config file is renamed to starship.toml.perci-bak, not deleted.
 func UninstallStarship(stdout io.Writer) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -134,11 +133,8 @@ func appendLineIfMissing(path, line string) bool {
 	return err == nil && appended
 }
 
-// stripStarshipLine removes line from path, if present, via shellrc.RemoveEntry
-// (atomic — a plain os.WriteFile here previously left a window where a crash
-// mid-write could corrupt the user's rc file). Best-effort: errors are
-// swallowed, matching UninstallStarship's existing "always report success"
-// behavior for this step.
+// stripStarshipLine removes line from path, if present, via
+// shellrc.RemoveEntry. Best-effort: errors are ignored.
 func stripStarshipLine(path, line string) {
 	shellrc.RemoveEntry([]string{path}, "", line)
 }

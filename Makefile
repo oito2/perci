@@ -22,11 +22,8 @@ DIST     := dist
 
 .PHONY: build run test test-frontend lint clean install release generate-bindings
 
-# No build tag is needed since the Wails v3 migration: GTK4 + WebKitGTK
-# 6.0 is v3's default stack, no `-tags` required (the opposite of v2, which
-# required `desktop,production,webkit2_41` — see
-# docs/en/architecture/decisions.md). -trimpath keeps the builder's local
-# paths out of the binary.
+# Builds without a `-tags` flag: GTK4 + WebKitGTK 6.0 is the default
+# stack. -trimpath keeps the builder's local paths out of the binary.
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(CMD)
 
@@ -36,8 +33,8 @@ run: build
 test:
 	go test -race ./...
 
-# Frontend smoke test: syntax of every script, then the node:test suite in
-# cmd/prci-gui/frontend/test (plain Node, no npm dependencies).
+# Frontend smoke test: syntax of every script, then the node:test suite
+# (plain Node, no npm dependencies).
 test-frontend:
 	for f in cmd/prci-gui/frontend/dist/js/*.js cmd/prci-gui/frontend/dist/js/screens/*.js; do node --check "$$f" || exit 1; done
 	node --test cmd/prci-gui/frontend/test/*.test.mjs
@@ -51,14 +48,11 @@ clean:
 	rm -f $(BINARY)
 	rm -rf $(DIST)
 
-# The icons and .desktop entry installed here are the same ones install.sh
-# fetches from the repository (packaging/perci.desktop, packaging/icons/
-# blue/hicolor) — a single source for both install paths, so Perci shows up
-# in the desktop's application menu either way, not just reachable via the
-# terminal or the system tray. Always the blue set: "Home :: Configurações
-# :: Ícone do Aplicativo" reinstalls the chosen color afterwards. The old
-# /usr/share/pixmaps/perci.png (pre-hicolor installs) is removed, and the
-# icon cache refresh is best-effort.
+# Installs the application menu entry (the .desktop file and the blue
+# hicolor icon set), so Perci shows up in the desktop's application menu,
+# not just via the terminal or the system tray. The legacy
+# /usr/share/pixmaps/perci.png is removed, and the icon cache refresh is
+# best-effort.
 ICON_SIZES := 512 256 128 64 48 32
 HICOLOR    := /usr/share/icons/hicolor
 
@@ -72,26 +66,21 @@ install: build
 	-sudo gtk-update-icon-cache -q -t -f $(HICOLOR)
 	sudo install -m 644 packaging/perci.desktop /usr/share/applications/perci.desktop
 
-# release only builds linux/amd64 — Wails uses cgo (GTK4/WebKitGTK 6.0 via
-# C bindings), so a plain "GOARCH=arm64 go build" doesn't cross-compile the
-# way it did for the old pure-Go TUI/CLI binary: that needs an arm64 cross
-# toolchain (CC=aarch64-linux-gnu-gcc) and the arm64 gtk4/webkitgtk-6.0 -dev
-# packages installed, which this pipeline doesn't provision yet — arm64
-# stays out of scope until someone invests in a native arm64 runner or a
-# dedicated cross-toolchain.
+# Only linux/amd64 is built — Wails uses cgo (GTK4/WebKitGTK 6.0 via C
+# bindings), so a plain "GOARCH=arm64 go build" doesn't cross-compile; that
+# would need an arm64 cross toolchain (CC=aarch64-linux-gnu-gcc) and the
+# arm64 gtk4/webkitgtk-6.0 -dev packages, which this target doesn't
+# provision.
 #
-# The asset name ("prci-linux-amd64") is kept identical to the old binary's
-# on purpose — internal/selfupdate.LatestRelease builds that same name
-# (fmt.Sprintf("prci-linux-%s", runtime.GOARCH)) to look up in the release;
-# changing it here without changing it there (or vice versa) breaks
-# "Home :: Atualizar Perci".
+# The asset name ("prci-linux-amd64") matches the one
+# internal/selfupdate.LatestRelease builds
+# (fmt.Sprintf("prci-linux-%s", runtime.GOARCH)) to look up in the release.
 #
-# perci-menu.tar.gz is the application menu entry install.sh installs
-# (share/applications/perci.desktop + share/icons/hicolor/*/apps/perci.png,
-# extracted into /usr) — published as a release asset and listed in
-# checksums.txt so install.sh verifies it like the binary, instead of
-# fetching loose files from the repository. Built reproducibly (sorted
-# entries, fixed owner/mtime, gzip -n) so the same tag yields the same hash.
+# perci-menu.tar.gz is the application menu entry archive
+# (share/applications/perci.desktop + share/icons/hicolor/*/apps/perci.png)
+# — published as a release asset and listed in checksums.txt. Built
+# reproducibly (sorted entries, fixed owner/mtime, gzip -n) so the same tag
+# yields the same hash.
 MENU_STAGE := $(DIST)/menu
 
 release:
@@ -113,11 +102,8 @@ release:
 # generate-bindings regenerates frontend/dist/bindings/ (JS generated from
 # the exported methods of cmd/prci-gui's 6 services — HomeService/
 # LinuxService/DevSetupService/DockerService/DevToolsService/TrayService)
-# via the `wails3` CLI — not part of build/release: the generated files are
-# versioned on disk (same convention as the hand-vendored frontend/dist/
-# vendor/xterm/), so only whoever changes a bound method's signature (or
-# adds a new one) needs to run this and commit the result. Requires the
-# `wails3` CLI installed once (same version pinned in go.mod):
+# via the `wails3` CLI. Not part of build/release: the generated files are
+# versioned on disk. Requires the `wails3` CLI installed once:
 # `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.22`.
 generate-bindings:
 	cd $(CMD) && wails3 generate bindings -names -b -d frontend/dist/bindings ./...

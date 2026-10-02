@@ -15,11 +15,9 @@
 
 package main
 
-// Bound methods for "Dev Tools :: IA: MCPs" (catalog.go) — a thin layer
-// over internal/dev/mcpservers. config.yaml's MCPServers field is the
-// source of truth for which servers are registered, per scope — same
-// principle as AgentSkills (there's no way to derive this back by querying
-// the 3 agents in a unified way).
+// Bound methods for "Dev Tools :: IA: MCPs" — a thin layer over
+// internal/dev/mcpservers. config.yaml's MCPServers field records which
+// servers are registered, per scope.
 
 import (
 	"context"
@@ -34,7 +32,7 @@ import (
 )
 
 // PickMCPFolder opens the native folder picker for a "Local" install
-// target — same pattern as Repositórios/IA: SKILLs.
+// target.
 func (t *DevToolsService) PickMCPFolder() (string, error) {
 	return t.pickFolder("Selecionar pasta do projeto")
 }
@@ -80,7 +78,8 @@ type MCPServerRow struct {
 	ManualNote string `json:"manualNote"`
 }
 
-// findMCPServerInstall is findAgentSkillInstall's counterpart (see scoped.go).
+// findMCPServerInstall is findAgentSkillInstall's counterpart for MCP
+// server records.
 func findMCPServerInstall(installs []config.MCPServerInstall, slug string, global bool, folder string) int {
 	return indexOfScoped(installs, mcpServerKey, slug, global, folder)
 }

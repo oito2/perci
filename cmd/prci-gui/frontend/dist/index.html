@@ -22,26 +22,19 @@
 
 <!--
   daisyUI 5.7.33 + Tailwind CSS v4 (@tailwindcss/browser 4.3.3), no build
-  step — vendored under ./vendor/ (like xterm/lucide), copied from the
-  official npm tarballs after checking the registry's sha512 integrity
-  (MIT, LICENSE next to each). Not loaded from a CDN: that was third-party
-  JavaScript running with access to every Wails binding, and jsDelivr
-  serves a re-minified @tailwindcss/browser, so SRI can't pin it either.
-  To upgrade, replace the files from the new npm tarballs.
+  step — vendored, like xterm/lucide. Not loaded from a
+  CDN, so no third-party JavaScript runs with access to every Wails
+  binding.
 
-  Implementation note: daisyUI's official CDN page warns that the
-  `is-drawer-open:`/`is-drawer-close:` variants aren't included in the
-  pre-compiled CSS files (only in @tailwindcss/browser's JIT engine, in a
-  not-fully-documented way). To avoid depending on unconfirmed
-  behavior, the sidebar collapse here is done with plain custom CSS (see
-  <style> below, `#sidebar[data-collapsed]`) instead of those variants —
-  same visual effect (icon-only vs. icon+text), without relying on
-  something unverified.
+  The sidebar collapse is plain custom CSS (`#sidebar[data-collapsed]` in
+  the <style> below) instead of daisyUI's `is-drawer-open:`/
+  `is-drawer-close:` variants, which aren't included in the pre-compiled
+  CSS files.
 -->
 <!--
   Content-Security-Policy: only same-origin resources, and no inline
   scripts at all (script-src 'self', no 'unsafe-inline') — the app's code
-  lives in ./js/ (cmd/prci-gui/csp_test.go keeps it that way).
+  lives in ./js/.
   style-src needs 'unsafe-inline': @tailwindcss/browser injects the
   generated CSS as a <style> element at runtime (and this file has its own
   <style> block and style="" attributes). img-src/font-src allow data:
@@ -54,8 +47,7 @@
 <link rel="stylesheet" href="./vendor/xterm/xterm.css" />
 
 <style>
-  /* Sidebar collapse — see the note above on why we don't use
-     is-drawer-open:/is-drawer-close:. Two views per category: the normal
+  /* Sidebar collapse, in plain CSS. Two views per category: the normal
      one (accordion-view, inline items) and the rail one (rail-view, just
      the icon + a flyout with the items) — only one of them is visible at
      a time, based on data-collapsed. */
@@ -74,24 +66,15 @@
   #accordion { overflow-y: auto; }
   #sidebar[data-collapsed="true"] #accordion { overflow: visible; }
 
-  /* Real root cause of the flyout "disappearing behind the content"
-     (found by actually running the page in Chrome via a browser
-     automation tool and inspecting getComputedStyle/elementsFromPoint —
-     not just reading docs, after two wrong guesses): daisyUI's own
-     `.drawer-side` ships with `overflow: hidden auto` baked into the
-     component. That clips (not a z-index or hover bug) anything that
-     spills outside the collapsed sidebar's ~4.5rem band — including the
-     flyout below, which is geometrically correct (opacity, position,
-     rect all fine) but never actually painted. This overflow needs to be
-     overridden here. */
+  /* daisyUI's `.drawer-side` has `overflow: hidden auto`, which clips
+     anything that spills outside the collapsed sidebar's ~4.5rem band,
+     including the rail flyout below. Overridden so the flyout is
+     painted. */
   .drawer-side { overflow: visible; }
 
-  /* Rail flyout: does NOT use daisyUI's `dropdown` component — also
-     confirmed with real Chrome that the CDN version's `.dropdown-content`
-     stays stuck at opacity:0 even with :focus-within active. Custom
-     implementation below, same reasoning already used for the sidebar
-     collapse (is-drawer-open/is-drawer-close): plain hover/focus, without
-     depending on undocumented behavior of the ready-made component. */
+  /* Rail flyout: custom implementation, not daisyUI's `dropdown`
+     component — plain focus-within, without depending on the
+     ready-made component. */
   .rail-item { position: relative; }
   .rail-flyout {
     position: absolute; left: 100%; top: 0; margin-left: .5rem;
@@ -109,27 +92,29 @@
     align-items: center; justify-content: center; font-size: .7rem; font-weight: 700;
     flex-shrink: 0;
   }
+  /* Rail icons have no background; hovering (or opening the flyout)
+     makes the stroke heavier — the icon's "bold". */
+  .cat-badge svg { stroke-width: 2; transition: stroke-width .1s ease; }
+  .rail-item:hover .cat-badge svg,
+  .rail-item:focus-within .cat-badge svg { stroke-width: 2.75; }
 
-  /* Sidebar scrolling was leaking into the whole app — the height chain
-     (body → .drawer-content → aside#sidebar) used min-h-*, which only
-     sets a MINIMUM, not a ceiling: the accordion's content grows and
-     pushes everything, including <body>, to scroll along with it. A
-     locked height (h-screen/h-full) is needed through the whole chain so
-     #accordion (which already has overflow-y:auto) scrolls on its own,
-     contained. Same reasoning for <main>/tabs, so the terminal doesn't
-     spill outside the content area. */
+  /* The sidebar logo shrinks to fit the collapsed rail (4.5rem wide,
+     minus 1rem padding on each side and the 1px border). */
+  #sidebar[data-collapsed="true"] #sidebar-logo-img { width: 2.25rem; height: 2.25rem; }
+
+  /* Locked height (h-screen/h-full) through the whole chain (body →
+     .drawer-content → aside#sidebar), so #accordion (which has
+     overflow-y:auto) scrolls on its own, contained, instead of pushing
+     <body> to scroll. Same for <main>/tabs, so the terminal doesn't spill
+     outside the content area. */
   html, body { height: 100%; overflow: hidden; }
   body { background: var(--color-base-100, #1e1e2e); }
 
   #terminal { height: 100%; }
 
-  /* Tabs (Definições/Execução): downloaded the component's real CSS
-     (daisyui@5.7.33/components/tab.css) and confirmed there's no
-     `display:none` rule for an inactive `.tab-content` — verified for
-     real in Chrome, both panels stayed visible at the same time, one
-     under the other. Explicitly showing/hiding here, same approach as
-     the rest of the page (not depending on a ready-made component's
-     mechanism that wasn't confirmed working). */
+  /* Tabs (Definições/Execução): each panel is explicitly shown/hidden
+     by the checked radio, since daisyUI's `.tab-content` has no
+     `display:none` rule for an inactive tab. */
   #panel-desc, #panel-terminal, #panel-repos-list { display: none; }
   .tabs:has(#tab-radio-desc:checked) #panel-desc { display: block; }
   .tabs:has(#tab-radio-terminal:checked) #panel-terminal { display: flex; }
@@ -148,12 +133,11 @@
      <input>/<select> inside. The .dc-form-grid class turns into the
      2-column grid; inside it, that wrapper becomes `display: contents`
      (generates no box of its own) so the <div class="label"> and the
-     field land directly into the grid's two columns — same technique for
-     the "<div id="*-phpVersion-wrap">" wrapper (exists only so
+     field land directly into the grid's two columns — same for the
+     "<div id="*-phpVersion-wrap">" wrapper (exists only so
      wireMoodlePHPFilter can rewrite "Versão PHP" without re-rendering the
-     whole row), which without this rule became its own box and threw off
-     the alignment of everything after it ("Versão PHP"/"Limite de memória
-     PHP" misaligned). */
+     whole row), which would otherwise be its own box and misalign
+     everything after it. */
   .dc-form-grid {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -190,15 +174,14 @@
 </head>
 <body class="h-screen">
 
-<div class="drawer lg:drawer-open">
+<div class="drawer lg:drawer-open h-full">
   <input id="mobile-drawer-toggle" type="checkbox" class="drawer-toggle" />
 
   <div class="drawer-content flex flex-col h-full min-h-0">
-    <!-- top: menu button (only shows on narrow screens, lg:hidden) +
-         collapse sidebar. The tray's compact window (735px) is narrower
-         than Tailwind's lg breakpoint, so this "mobile" bar was showing up
-         there too for no reason — hidden separately in compact mode (see
-         id="mobile-topbar" in the <script>). -->
+    <!-- top: menu button (only shows on narrow screens, lg:hidden) + collapse
+         sidebar. Hidden in compact mode (see id="mobile-topbar" in
+         activateCompactMode), whose 735px window is narrower than the lg
+         breakpoint. -->
     <div id="mobile-topbar" class="flex items-center gap-2 p-3 border-b border-base-300 lg:hidden flex-none">
       <label for="mobile-drawer-toggle" class="btn btn-square btn-ghost btn-sm" aria-label="Abrir menu">☰</label>
       <span class="font-semibold">Perci</span>
@@ -212,17 +195,15 @@
         </div>
       </div>
 
-      <!-- Compact window opened by the system tray (a single window with
-           tabs, not 3 separate windows — reference size 735×825): a fixed
-           header with image+"Perci"+"Abrir Aplicativo" inside an outline
-           alert whose border uses the theme's accent color (border-primary),
-           and right below it the 3 tabs Contêineres/Repositórios/Atualizar
-           Sistema (tabs-box) that pick which item to show in the rest of
-           the screen — all of this in place of the normal
-           sidebar+breadcrumb. Hidden by default; only activated when the
-           page loads with ?compact=<tab> or receives the
-           "compact-switch-tab" event (see activateCompactMode/
-           switchCompactTab in the <script>). -->
+      <!-- Compact window opened by the system tray (reference size 735×825): a
+           fixed header with image+"Perci"+"Abrir Aplicativo" inside an outline
+           alert whose border uses the theme's accent color (border-primary), and
+           right below it the 3 tabs Contêineres/Repositórios/Atualizar Sistema
+           (tabs-box) that pick which item to show in the rest of the screen —
+           all of this in place of the normal sidebar+breadcrumb. Hidden by
+           default; only activated when the page loads with ?compact=<tab> or
+           receives the "compact-switch-tab" event (see
+           activateCompactMode/switchCompactTab). -->
       <div id="compact-header" class="hidden alert alert-outline border-primary items-center gap-3 mb-4 flex-none">
         <img id="compact-header-icon" src="./assets/perci-blue.png" alt="Perci" class="w-10 h-10 rounded-full object-cover" />
         <span class="font-semibold flex-1">Perci</span>
@@ -250,12 +231,11 @@
           <span class="mr-1">📝</span><span id="tab-desc-label">Perci</span>
         </label>
         <div id="panel-desc" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
-          <!-- "dashboard" mode (Home :: Visão Geral): a system summary
-               plus the "Atualizar Perci" and "Desinstalar Perci" screens
-               embedded right here (no longer their own menu items — see
-               catalog.go). This is also the screen's initial state,
-               before any sidebar selection — shown by default (no
-               class="hidden") instead of inside selectItem's dispatch. -->
+          <!-- "dashboard" mode (Home :: Visão Geral): a system summary plus the
+               "Atualizar Perci" and "Desinstalar Perci" screens embedded right
+               here. This is also the screen's initial state, before any sidebar
+               selection — shown by default (no class="hidden") instead of inside
+               selectItem's dispatch. -->
           <div id="dashboard-container">
             <div class="stats stats-vertical sm:stats-horizontal shadow mb-8 w-full bg-base-200">
               <div class="stat">
@@ -272,10 +252,7 @@
               </div>
             </div>
 
-            <!-- "Atualizar Perci" (used to be its own menu item, ActionID
-                 "self-update" — moved into the Visão Geral overview,
-                 replacing the per-category shortcuts that used to be
-                 here). -->
+            <!-- "Atualizar Perci" (ActionID "self-update"). -->
             <div class="mb-8">
               <h3 class="font-semibold mb-3">Atualizar Perci</h3>
               <p id="su-status" class="opacity-80 mb-4">Verificando...</p>
@@ -285,11 +262,9 @@
               </div>
             </div>
 
-            <!-- "Desinstalar Perci" (used to be its own menu item, ActionID
-                 "self-uninstall" — same move as above). The Docker
-                 container removal and configuration backup checkboxes
-                 are added alongside the original "Também remover
-                 configurações" checkbox; the "Desinstalar" button comes
+            <!-- "Desinstalar Perci" (ActionID "self-uninstall"): the "Também
+                 remover configurações", Docker container removal and
+                 configuration backup checkboxes, with the "Desinstalar" button
                  after all three. -->
             <div>
               <h3 class="font-semibold mb-3">Desinstalar Perci</h3>
@@ -317,11 +292,10 @@
           <!-- Simple mode: static description + a single button (most
                screens, e.g. "Atualizar Sistema"). -->
           <div id="simple-container" class="hidden">
-            <!-- Same status bar as Home :: Visão Geral, but with only
-                 "Sistema" — #simple-container is only used today by
-                 "Linux :: Atualizar Sistema" (the only item still falling
-                 into the generic "simple" mode), so it's always visible
-                 here, with no actionId check. -->
+            <!-- Same status bar as Home :: Visão Geral, but with only "Sistema"
+                 — #simple-container is only used by "Linux :: Atualizar Sistema"
+                 (the only item falling into the generic "simple" mode), so it's
+                 always visible here, with no actionId check. -->
             <div class="stats shadow mb-6 bg-base-200">
               <div class="stat">
                 <div class="stat-title">Sistema</div>
@@ -352,18 +326,12 @@
             </p>
           </div>
 
-          <!-- "self-config" mode (Home :: Configurações) — consolidates
-               what used to be the "Configurar" screen (workspace/Flatpak)
-               with what used to be the "Configurações" gear-icon modal in
-               the sidebar footer (theme only), merging both into one
-               screen and removing the footer button/modal. Tema/Logo/
-               Ícone apply (and persist) immediately on swatch click — same
-               pattern the old modal already used for the theme. Workspace
-               became an alert card (same pattern as "Dev Tools :: IA:
-               Contextos") that persists on its own when "Criar Workspace"
-               is clicked; Flatpak now applies immediately too, like Tema/
-               Logo/Ícone — none of this screen's actions are async/
-               streamed, so the "Execução" tab stays hidden here (see
+          <!-- "self-config" mode (Home :: Configurações): Tema/Logo/Ícone apply
+               (and persist) immediately on swatch click. Workspace is an alert
+               card (same pattern as "Dev Tools :: IA: Contextos") that persists
+               on its own when "Criar Workspace" is clicked; Flatpak applies
+               immediately too — none of this screen's actions are
+               async/streamed, so the "Execução" tab stays hidden here (see
                selectItem). -->
           <div id="selfconfig-container" class="hidden">
             <div class="mb-8">
@@ -423,10 +391,9 @@
             </div>
           </div>
 
-          <!-- Checklist-with-dependency mode: screens whose actions vary
-               by detected OS (e.g. "Pós-instalação") — item.actionId ===
-               "postinstall" in catalog.go triggers this mode instead of
-               the simple one above. -->
+          <!-- Checklist-with-dependency mode: screens whose actions vary by
+               detected OS (e.g. "Pós-instalação") — item.actionId ===
+               "postinstall" triggers this mode instead of the simple one above. -->
           <div id="postinstall-container" class="hidden">
             <div id="postinstall-unsupported" class="hidden">
               <p class="opacity-80">Seu Sistema Operacional não é suportado pelo Perci</p>
@@ -441,11 +408,10 @@
             </div>
           </div>
 
-          <!-- Simple checklist mode (installed ⇄ unchecked): "toggle
-               install state via multi-select" screens with no dependency
-               between items — the same pattern reused across fonts,
-               templates, Flatpak, prerequisites (internal/sets.Diff).
-               Triggered via the MULTISELECT_SCREENS registry below, one
+          <!-- Simple checklist mode (installed ⇄ unchecked): "toggle install
+               state via multi-select" screens with no dependency between items —
+               the same pattern reused across fonts, templates, Flatpak,
+               prerequisites. Triggered via the MULTISELECT_SCREENS registry, one
                entry per actionId. -->
           <div id="multiselect-container" class="hidden">
             <p id="multiselect-intro" class="opacity-80 mb-4" style="white-space: pre-line;"></p>
@@ -590,16 +556,14 @@
             </div>
           </div>
 
-          <!-- "Dev Tools :: Repositórios": 2 internal tabs — "Identidade
-               Global" (the "Alterar identidade Global" checkbox only
-               shows once one is already configured) and "Repositórios"
-               (working-folder picker + Clonar/Iniciar Repositório/
-               Identidade Local/Arquivos horizontal menu, disabled until
-               the folder is chosen). -->
-          <!-- "Dev Tools :: Repositórios" — "Identidade Global" (the old
-               sub-tab, now direct content of #panel-desc for this item;
-               the other sub-tab, "Repositórios", became its own top-level
-               tab #panel-repos-list, see above). -->
+          <!-- "Dev Tools :: Repositórios": 2 tabs — "Identidade Global" (the
+               "Alterar identidade Global" checkbox only shows once one is
+               already configured) and "Repositórios" (working-folder picker +
+               Clonar/Iniciar Repositório/Identidade Local/Arquivos horizontal
+               menu, disabled until the folder is chosen). -->
+          <!-- "Dev Tools :: Repositórios" — "Identidade Global" is the direct
+               content of #panel-desc for this item; the "Repositórios" tab is
+               the top-level tab #panel-repos-list. -->
           <div id="repos-container" class="hidden">
             <p class="opacity-70 mb-4">Defina a Identidade Global que será usada.</p>
             <div id="repos-identity-checkbox-wrap" class="hidden mb-3">
@@ -621,17 +585,16 @@
             <button id="btn-repos-identity-apply" class="btn btn-primary mt-4">Aplicar Identidade Global</button>
           </div>
 
-          <!-- "Dev Tools :: IA: SKILLs": Global/Local select (Local
-               requires a folder, same pattern as Repositórios) + a table
-               with Instalar/Atualizar/Remover per skill, backed by
-               internal/dev/agentskills (npx skills). -->
+          <!-- "Dev Tools :: IA: SKILLs": Global/Local select (Local requires a
+               folder, same pattern as Repositórios) + a table with
+               Instalar/Atualizar/Remover per skill (npx skills). -->
           <div id="agentskills-container" class="hidden">
             <p class="opacity-80 mb-4">
               O Perci oferece atalhos para a instalação de SKILLs disponibilizadas pelo
               <a href="#" id="as-skills-sh-link" class="link link-primary">skills.sh</a>.
             </p>
 
-            <label class="form-control max-w-xs mb-4">
+            <label class="form-control max-w-xs mb-8">
               <div class="label"><span class="label-text">Tipo de Instalação </span></div>
               <select id="as-scope" class="select select-bordered">
                 <option value="global">Global</option>
@@ -679,10 +642,10 @@
           </div>
 
           <!-- "Dev Tools :: IA: MCPs": same Global/Local structure as IA:
-               SKILLs, but each row has its own per-agent registration
-               mechanism (not a single tool) — internal/dev/mcpservers. -->
+               SKILLs, but each row has its own per-agent registration mechanism
+               (not a single tool). -->
           <div id="mcpservers-container" class="hidden">
-            <label class="form-control max-w-xs mb-4">
+            <label class="form-control max-w-xs mb-8">
               <div class="label"><span class="label-text">Tipo de Instalação </span></div>
               <select id="mcp-scope" class="select select-bordered">
                 <option value="global">Global</option>
@@ -713,13 +676,9 @@
           </div>
         </div>
 
-        <!-- Own top-level tab for "Dev Tools :: Repositórios" — used to
-             be an internal sub-tab of #repos-container (alongside
-             "Identidade Global", which became the direct content of
-             #panel-desc for this item — see #repos-container below),
-             promoted to a top-level tab, between the generic one and
-             "Execução". Only visible when the selected item is "repos"
-             (hidden class toggled in selectItem) — every other item
+        <!-- Own top-level tab for "Dev Tools :: Repositórios", between the
+             generic one and "Execução". Only visible when the selected item is
+             "repos" (hidden class toggled in selectItem) — every other item
              keeps the usual 2 tabs. -->
         <label id="tab-label-repos-list" class="tab flex-none hidden">
           <input type="radio" name="content-tabs" id="tab-radio-repos-list" />
@@ -828,8 +787,8 @@
 <script src="./vendor/xterm/xterm.js"></script>
 <script src="./vendor/xterm/addon-fit.js"></script>
 <script src="./vendor/lucide/icons.js"></script>
-<!-- App scripts: js/bootstrap.js (the only module: bindings + runtime) first,
-     then classic scripts sharing one global scope, in this order. -->
+<!-- App scripts: the bootstrap module (bindings + runtime) first, then classic
+     scripts sharing one global scope, in this order. -->
 <script type="module" src="./js/bootstrap.js"></script>
 <script defer src="./js/core.js"></script>
 <script defer src="./js/screens/checklists.js"></script>

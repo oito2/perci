@@ -43,10 +43,9 @@ var ubuntuPackages = []string{
 	"gnome-software-plugin-flatpak",
 }
 
-// ubuntuActions is the checklist for both Ubuntu 24.04 and 26.04 — they
-// have no differences that change these apt commands (sudo-rs, dracut and
-// GNOME 50/Wayland-only are internal OS changes), kept as two Profiles (one
-// per version) as requested. Built from the shared blocks in debian.go.
+// ubuntuActions is the checklist for both Ubuntu 24.04 and 26.04, which
+// share the same apt commands; each version has its own Profile. Built
+// from the shared Debian-family blocks.
 func ubuntuActions() []Action {
 	return []Action{
 		actEnableUbuntuComponents(),

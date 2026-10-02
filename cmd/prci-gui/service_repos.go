@@ -15,11 +15,11 @@
 
 package main
 
-// Bound methods for "Dev Tools :: Repositórios" (catalog.go) — a thin
-// layer over internal/manager/repo and internal/manager/gitignore.
-// Init/CreateConduct/Generate take a `dir` parameter: "" preserves the
-// CLI's old behavior (the shell's current folder); the GUI, which has no
-// "current directory" of its own, passes whichever folder the user picked.
+// Bound methods for "Dev Tools :: Repositórios" — a thin layer over
+// internal/manager/repo and internal/manager/gitignore.
+// Init/CreateConduct/Generate take a `dir` parameter: "" means the
+// shell's current folder; the GUI, which has no "current directory" of
+// its own, passes whichever folder the user picked.
 
 import (
 	"context"
@@ -36,11 +36,8 @@ import (
 )
 
 // DevToolsService binds the "Dev Tools" category: Repositórios, IA:
-// Contextos, IA: SKILLs, IA: MCPs — one struct, methods spread across 4
-// files (service_repos.go/service_agentskills.go/service_aicontext.go/
-// service_mcpservers.go), one per sub-screen; the Wails bindings generator
-// merges methods for the same struct across files automatically, so this
-// split costs nothing at the binding layer.
+// Contextos, IA: SKILLs, IA: MCPs — one struct, with one group of
+// methods per sub-screen.
 type DevToolsService struct {
 	serviceBase
 }

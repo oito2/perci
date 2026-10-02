@@ -36,12 +36,8 @@ var Catalogue = []IDE{
 	{Name: "VSCodium", Cmd: "codium"},
 }
 
-// InstalledMap returns which IDEs are currently installed (by Name) — via
-// localbin.Which (sources nvm before checking PATH), same as
-// internal/dev/llm and internal/dev/terminal, instead of a bare
-// exec.LookPath: none of the 3 IDEs here actually need nvm's PATH, but
-// this keeps the detection mechanism consistent across all 3
-// "checklist"-shaped packages instead of diverging without a real reason.
+// InstalledMap returns which IDEs are currently installed (by Name),
+// detected through localbin.Which.
 func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 	result := make(map[string]bool, len(Catalogue))
 	var mu sync.Mutex

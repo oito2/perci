@@ -75,7 +75,7 @@ func parseSemver(v string) (semver, bool) {
 	return s, true
 }
 
-// compareSemver follows semver.org's precedence rules: core numbers
+// compareSemver orders versions by semantic precedence: core numbers
 // first, then a release ranks above any of its prereleases, then
 // prerelease identifiers one by one (numeric ones numerically and below
 // alphanumeric ones; more identifiers rank higher when all else is equal).

@@ -28,17 +28,15 @@ import (
 	"github.com/oito2/perci/internal/config"
 )
 
-// TrayService binds the system tray / compact window domain. mainWindow is
-// captured by main.go on the main window's creation; tray is non-nil only
-// while TrayEnabled is on; compactWindow is the single compact window the
-// 3 tray menu items open/focus — Contêineres/Repositórios/Atualizar
+// TrayService binds the system tray / compact window domain. mainWindow
+// is captured on the main window's creation; tray is non-nil only while
+// TrayEnabled is on; compactWindow is the single compact window the 3
+// tray menu items open/focus — Contêineres/Repositórios/Atualizar
 // Sistema become tabs inside it (one reused window, not one per item).
 // windowMu protects tray and compactWindow — each bound method the
-// frontend calls runs on its own goroutine (Wails v3 dispatches every
-// incoming message this way), so a quick double-click on the tray toggle
-// could fire SetTrayEnabled concurrently and leave `tray` inconsistent
-// (nil pointer dereference) if it weren't for this same mutex, which also
-// already protected compactWindow.
+// frontend calls runs on its own goroutine, so concurrent SetTrayEnabled
+// calls (e.g. a quick double-click on the tray toggle) can't leave `tray`
+// inconsistent.
 type TrayService struct {
 	serviceBase
 
@@ -48,12 +46,11 @@ type TrayService struct {
 	compactWindow *application.WebviewWindow
 }
 
-// compactTabs is the fixed set of tabs the single compact window's tab bar
-// offers — each one matches frontend/dist/index.html's `?compact=` query
-// value / "compact-switch-tab" event payload, which the frontend resolves
-// back to a MenuItem by actionId (catalog.go) — the 3 keys here are
-// literally the actionId of the 3 items ("docker-manage"/"repos"/
-// "system-update").
+// compactTabs is the fixed set of tabs the single compact window's tab
+// bar offers — each one matches the `?compact=` query value /
+// "compact-switch-tab" event payload, which the frontend resolves back to
+// a MenuItem by actionId — the 3 keys here are literally the actionId of
+// the 3 items ("docker-manage"/"repos"/"system-update").
 var compactTabs = map[string]bool{
 	"docker-manage": true,
 	"repos":         true,
@@ -71,11 +68,10 @@ func (t *TrayService) GetTrayEnabled() bool {
 }
 
 // SetTrayEnabled turns the system tray icon on/off (Home ::
-// Configurações) — applies instantly, unlike SetAppIcon: SystemTray has
-// real New()/Destroy() calls at runtime, no restart needed. Always
-// reloads the config before writing, same reasoning as
-// SetWorkspacePath/SetFlatpakScope (service_home.go) — don't overwrite
-// fields another process changed while the GUI was open.
+// Configurações) — applies instantly, no restart needed: SystemTray has
+// real New()/Destroy() calls at runtime. Always reloads the config
+// before writing — don't overwrite fields another process changed while
+// the GUI was open.
 func (t *TrayService) SetTrayEnabled(enabled bool) error {
 	if err := config.Update(func(cfg *config.Config) error {
 		cfg.TrayEnabled = enabled
@@ -98,15 +94,10 @@ func (t *TrayService) SetTrayEnabled(enabled bool) error {
 // SetTrayEnabled(true)).
 //
 // No AttachWindow: that method ties a left click to an automatic
-// Show()/Hide() of the main window — a behavior never requested (the ask
-// was always just the menu: Contêineres/Repositórios/Atualizar
-// Sistema/Sair) and one that lands right on an area Wails itself documents
-// as unstable across Linux distros (github.com/wailsapp/wails#4494 — each
-// distro decides on its own whether a physical click becomes the Activate
-// or SecondaryActivate DBus signal; there's no reliable way to
-// distinguish left/right). Instead of depending on which signal the
-// environment sends, both handlers (OnClick/OnRightClick) open the same
-// menu — deterministic on any distro/DE.
+// Show()/Hide() of the main window. Linux distros differ on whether a
+// physical click becomes the Activate or SecondaryActivate DBus signal,
+// so both handlers (OnClick/OnRightClick) open the same menu —
+// deterministic on any distro/DE.
 func (t *TrayService) ensureTray() {
 	t.windowMu.Lock()
 	defer t.windowMu.Unlock()
@@ -138,13 +129,18 @@ func (t *TrayService) destroyTray() {
 	t.tray = nil
 }
 
-// buildTrayMenu builds the tray menu — Contêineres/Repositórios/Atualizar
-// Sistema (each opens/focuses the single compact window, already on the
-// matching tab — one window with 3 tabs, not 3 separate windows) + Sair
-// (the only way to quit Perci while the tray is enabled, since closing the
-// main window only hides it).
+// buildTrayMenu builds the tray menu — Abrir Aplicativo (shows/focuses the
+// main window, same as the compact window's header button) +
+// Contêineres/Repositórios/Atualizar Sistema (each opens/focuses the
+// single compact window, already on the matching tab — one window with 3
+// tabs, not 3 separate windows) + Sair (the only way to quit Perci while
+// the tray is enabled, since closing the main window only hides it).
 func (t *TrayService) buildTrayMenu() *application.Menu {
 	menu := t.wailsApp.NewMenu()
+	menu.Add("Abrir Aplicativo").OnClick(func(_ *application.Context) {
+		t.FocusMainWindow()
+	})
+	menu.AddSeparator()
 	menu.Add("Contêineres").OnClick(func(_ *application.Context) {
 		t.openCompactWindow("docker-manage")
 	})
@@ -161,10 +157,10 @@ func (t *TrayService) buildTrayMenu() *application.Menu {
 	return menu
 }
 
-// FocusMainWindow brings the main window to the front — used by the "Abrir
-// Aplicativo" button in the compact window's header (frontend/dist/
-// index.html, #compact-header), to scale up from the compact screen to the
-// full app.
+// FocusMainWindow brings the main window to the front — used by the tray
+// menu's "Abrir Aplicativo" item and the button of the same name in the
+// compact window's header (#compact-header), to scale up from the tray to
+// the full app (also when it starts hidden).
 func (t *TrayService) FocusMainWindow() {
 	if t.mainWindow == nil {
 		return
@@ -176,10 +172,9 @@ func (t *TrayService) FocusMainWindow() {
 // doesn't exist yet) already on the requested tab, or — if it's already
 // open — just focuses it and tells the frontend to switch tabs via an
 // event (one window with 3 tabs — Contêineres/Repositórios/Atualizar
-// Sistema — instead of 3 separate windows; sized 735×825 to match the
-// provided visual reference). The header (image+"Perci"+"Abrir
+// Sistema — sized 735×825). The header (image+"Perci"+"Abrir
 // Aplicativo") and the tabs themselves live entirely in the frontend
-// (index.html handles ?compact=<tab> by skipping the sidebar).
+// (?compact=<tab> skips the sidebar).
 func (t *TrayService) openCompactWindow(tab string) {
 	if !compactTabs[tab] {
 		return
@@ -215,10 +210,9 @@ func (t *TrayService) openCompactWindow(tab string) {
 	})
 }
 
-// trayIconSource returns which 512 px square icon (iconBlue/iconPink,
-// main.go) to use as the window icon (main window via main.go, compact
-// window via openCompactWindow above) — mirrors the same AppIconOrDefault
-// choice main.go already makes for the main window.
+// trayIconSource returns which 512 px square icon (iconBlue/iconPink) to
+// use as the window icon of the main and compact windows — follows the
+// AppIconOrDefault choice.
 func (t *TrayService) trayIconSource() []byte {
 	if cfg, err := config.Load(); err == nil && cfg.AppIconOrDefault() == "pink" {
 		return iconPink
@@ -227,9 +221,8 @@ func (t *TrayService) trayIconSource() []byte {
 }
 
 // traySmallIconSource returns the tray's dedicated square icon
-// (iconBlueTray/iconPinkTray, main.go) — not the window's large PNG:
-// StatusNotifierItem expects a small icon, and dedicated art exists for
-// that instead of cropping/resizing the large PNG at runtime.
+// (iconBlueTray/iconPinkTray) — not the window's large PNG:
+// StatusNotifierItem expects a small icon.
 func (t *TrayService) traySmallIconSource() []byte {
 	if cfg, err := config.Load(); err == nil && cfg.AppIconOrDefault() == "pink" {
 		return iconPinkTray
@@ -249,15 +242,11 @@ func autostartDesktopPath() (string, error) {
 	return filepath.Join(home, ".config", "autostart", "perci.desktop"), nil
 }
 
-// writeAutostartDesktopFile creates/updates the hidden tray autostart entry
-// — called from inside SetTrayEnabled(true), not from the installer:
-// install.sh/Makefile never touch ~/.config, and ~/.perci/config.yaml is
-// also lazily created by the binary itself at runtime, not by the
-// installer — same convention followed here. Exec points at the real
-// binary resolved via os.Executable() (the same function
-// internal/selfupdate uses to find/replace the binary itself), not the
-// `perci` symlink — which may not even exist, depending on how the user
-// installed it.
+// writeAutostartDesktopFile creates/updates the hidden tray autostart
+// entry — called from inside SetTrayEnabled(true). Exec points at the
+// real binary resolved via os.Executable() (the same function
+// internal/selfupdate uses to find the binary itself), not the `perci`
+// symlink — which may not exist, depending on how it was installed.
 func writeAutostartDesktopFile() error {
 	exe, err := os.Executable()
 	if err != nil {
@@ -286,15 +275,15 @@ Terminal=false
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
-// hiddenFlag starts Perci with its main window hidden (main.go) — passed by
-// the tray's autostart entry, so logging in doesn't pop the full window up.
+// hiddenFlag starts Perci with its main window hidden — passed by the
+// tray's autostart entry, so logging in doesn't pop the full window up.
 const hiddenFlag = "--hidden"
 
 // desktopExecQuote renders one argument for a Desktop Entry's Exec key: in
 // double quotes, with double quote, backtick, dollar sign and backslash
 // backslash-escaped (the spec's quoting rule), every backslash then escaped
 // again (its string escaping rule, applied first when reading), and `%`
-// doubled (field codes). An unquoted path with a space broke the entry.
+// doubled (field codes).
 func desktopExecQuote(arg string) (string, error) {
 	if strings.ContainsAny(arg, "\n\r") {
 		return "", fmt.Errorf("caminho inválido para um arquivo .desktop: %q", arg)

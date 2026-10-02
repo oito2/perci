@@ -54,14 +54,12 @@ func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, re
 		}
 	}
 
-	// 'perci' alias (a symlink to the 'prci' binary above, created by
-	// install.sh/`make install`) — without this, a broken symlink pointing
-	// at the just-removed binary would be left behind. os.Executable()
-	// always resolves to the symlink's real target (confirmed — it never
-	// returns the symlink itself), so currentExe here is always
-	// ".../prci", and the alias lives right next to it under a fixed
-	// name. Best-effort, same as the block below: doesn't abort the
-	// uninstall if it fails.
+	// 'perci' alias (a symlink to the 'prci' binary above) — removed too, so
+	// no broken symlink pointing at the just-removed binary is left behind.
+	// os.Executable() always resolves to the symlink's real target, so
+	// currentExe here is always ".../prci", and the alias lives right next
+	// to it under a fixed name. Best-effort, same as the block below:
+	// doesn't abort the uninstall if it fails.
 	if aliasPath := filepath.Join(filepath.Dir(currentExe), "perci"); aliasPath != currentExe {
 		if err := os.Remove(aliasPath); err != nil && !os.IsNotExist(err) {
 			if sudoErr := exe.Run(ctx,
@@ -73,13 +71,12 @@ func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, re
 		}
 	}
 
-	// Application menu entry + icon (install.sh/`make install`) — removed
-	// alongside the binary, best-effort: without this, a .desktop entry
-	// pointing at the binary that just disappeared would be left behind
-	// as a "ghost" in the menu. Doesn't abort the uninstall if it fails
-	// (same spirit as the removeConfig block below — removing the binary
-	// itself already succeeded). Files that need root are removed by a
-	// single privileged rm, so pkexec asks once instead of once per icon.
+	// Application menu entry + icons — removed alongside the binary,
+	// best-effort, so no .desktop entry pointing at the removed binary is
+	// left behind as a "ghost" in the menu. Doesn't abort the uninstall if
+	// it fails (removing the binary itself already succeeded). Files that
+	// need root are removed by a single privileged rm, so pkexec asks once
+	// instead of once per icon.
 	menuPaths := uninstallMenuPaths()
 	var privileged []string
 	for _, path := range menuPaths {

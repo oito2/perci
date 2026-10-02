@@ -26,21 +26,7 @@ import (
 
 // SignedRepo describes a GPG-signed APT/DNF repository to add (skipping
 // the add step if the repo file already exists) before installing PkgName
-// from it — the shared shape behind VS Code's and VSCodium's installers
-// (internal/dev/ide/install.go), extracted after ~90 lines of
-// near-identical script were duplicated between the two.
-//
-// NOT used for every "add a signed repo, then install" case in the
-// project — GitHub CLI's installer (internal/dev/prereqs/catalogue.go)
-// stayed a separate function on purpose, found while doing this
-// extraction: its Debian path downloads an already-dearmored keyring
-// (skips `gpg --dearmor`) and adds a `chmod go+r` step neither VS Code nor
-// VSCodium need, and its Fedora path uses `dnf config-manager --add-repo
-// <url>` instead of `rpm --import` + a hand-written .repo file — a
-// genuinely different installation mechanism, not just different
-// parameters. Forcing it through this same struct would either hide those
-// differences silently or need enough extra fields/flags that it stops
-// being simpler than its own function.
+// from it.
 type SignedRepo struct {
 	// KeyringPath is where the dearmored GPG keyring is written on
 	// Debian — ex. "/usr/share/keyrings/vscode.gpg".
@@ -66,12 +52,10 @@ type SignedRepo struct {
 }
 
 // InstallFromSignedRepo adds r (idempotent — skips re-adding the repo if
-// its list/repo file already exists, same as the hand-written scripts
-// this replaces) and installs r.PkgName from it. The keyring only counts as
-// present when non-empty, and is downloaded to a temp file first: a failed
-// download used to leave an empty keyring behind (dd creates its output
-// right away), which every later run then skipped, failing apt-get update
-// with NO_PUBKEY for good.
+// its list/repo file already exists) and installs r.PkgName from it. The
+// keyring only counts as present when non-empty, and is downloaded to a
+// temp file first, so a failed download never leaves an empty keyring
+// behind.
 func InstallFromSignedRepo(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string, r SignedRepo) error {
 	if err := requireHTTPS(r.KeyURL); err != nil {
 		return fmt.Errorf("chave de assinatura do repositório: %w", err)

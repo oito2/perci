@@ -15,23 +15,18 @@
 
 // Home :: Visão Geral (dashboard, Atualizar/Desinstalar Perci) and Home :: Configurações.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // --- "Home :: Visão Geral" (dashboard — also the screen's initial
-// state: #dashboard-container is visible by default in the HTML, without
-// going through selectItem). Brings together 3 blocks: the stats (reusing
-// bindings that already existed for other screens — GetAppVersion,
-// GetPostinstallProfile, GetContainerRows — no new endpoint was created
-// just for them), "Atualizar Perci" and "Desinstalar Perci" — the latter
-// two used to be their own menu items until they were moved into Visão
-// Geral (in place of the per-category shortcuts that lived there before)
-// and removed from the main menu (catalog.go). dashboardRunningAction
-// marks which of the two embedded actions is in progress — App's
-// "action-done" event only has the actionId "dashboard" to go on (both
-// now live on the same screen), so this extra flag is needed to know what
-// to reload. ---------------------------------------------------------
+// state: #dashboard-container is visible by default, without going
+// through selectItem). Brings together 3 blocks: the stats (GetAppVersion,
+// GetPostinstallProfile, GetContainerRows), "Atualizar Perci" and
+// "Desinstalar Perci". dashboardRunningAction marks which of the two
+// embedded actions is in progress — App's "action-done" event only has
+// the actionId "dashboard" to go on, so this extra flag is needed to know
+// what to reload. ---------------------------------------------------------
 let dashboardRunningAction = null;
 
 function renderDashboardStats() {
@@ -92,8 +87,8 @@ btnSuUpdate.addEventListener("click", function () {
 // --- "Desinstalar Perci" (embedded in Visão Geral) — three independent
 // checkboxes (also remove config / remove Docker containers / back up
 // config before uninstalling), a "Desinstalar" button after them. The
-// backup reuses the same "Exportar configurações" that "Docker ::
-// Gerenciar Containers" already uses (appstack.ExportConfig, via
+// backup is the same "Exportar configurações" that "Docker ::
+// Gerenciar Containers" uses (appstack.ExportConfig, via
 // App.PickUninstallBackupPath + the path passed to RunSelfUninstall) — if
 // the user checks that option and then cancels the "Salvar Como" dialog,
 // the whole uninstall is aborted instead of proceeding without the
@@ -166,8 +161,7 @@ function renderImagePickerGrid(container, values, current, srcFor, onPick) {
   });
 }
 
-// Tema — the same swatches that used to live in the gear icon's
-// "Configurações" modal (now removed); a click applies and persists
+// Tema — a click on a swatch applies and persists
 // right away, with no "Salvar" button involved.
 function renderThemeGrid(current) {
   cfgThemeGrid.innerHTML = "";
@@ -210,10 +204,9 @@ function renderLogoGrid(current) {
 
 // Ícone do Aplicativo — persists right away like the two above, but the
 // window icon can't be applied in this session: it's only read once, at
-// Wails startup (cmd/prci-gui/main.go, before Window.NewWithOptions —
-// Wails' API has no "swap the icon live" call). The application menu
-// icon, when installed, is replaced by SetAppIcon itself (one pkexec
-// prompt). Hence the fixed notice below the grid (see HTML). On failure
+// Wails startup (Wails has no call to swap the icon live). The
+// application menu icon, when installed, is replaced by SetAppIcon itself
+// (one pkexec prompt). A fixed notice below the grid says so. On failure
 // (e.g. a cancelled prompt) nothing was saved, so the grid goes back to
 // the persisted value.
 function renderIconGrid(current) {

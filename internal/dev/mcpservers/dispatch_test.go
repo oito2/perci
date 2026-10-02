@@ -113,8 +113,8 @@ func TestInstall_FilesystemGlobal(t *testing.T) {
 	}
 }
 
-// Local scope: Claude Code runs in the project folder, Codex is skipped
-// (no confirmed per-project scope), Antigravity writes .agents/.
+// Local scope: Claude Code runs in the project folder, Codex is skipped,
+// Antigravity writes .agents/.
 func TestInstall_SQLiteLocal(t *testing.T) {
 	env := newAgentsEnv(t)
 	folder := t.TempDir()
@@ -208,8 +208,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 			}
 		}
 	})
-	// Regression: Codex was given a bare "dart-flutter", which it refuses
-	// on remove without a marketplace.
+	// Codex is given the PLUGIN@MARKETPLACE reference, not a bare name.
 	t.Run("remove global", func(t *testing.T) {
 		env := newAgentsEnv(t)
 		if err := Remove(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, ""); err != nil {

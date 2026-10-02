@@ -43,8 +43,8 @@ var mintPackages = []string{
 }
 
 // mintActions is the checklist shared by Mint Cinnamon and Mint XFCE — the
-// steps are desktop-neutral. Each choice that could have been a prompt
-// (e.g. Intel/AMD/none for VA-API) is its own checklist item instead.
+// steps are desktop-neutral. Choices such as Intel/AMD/none for VA-API are
+// separate checklist items.
 func mintActions() []Action {
 	return []Action{
 		actEnableUbuntuComponents(),

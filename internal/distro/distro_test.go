@@ -115,7 +115,7 @@ func TestDetectDE(t *testing.T) {
 		{"cinnamon", "X-Cinnamon", "cinnamon"},
 		{"gnome", "GNOME", "gnome"},
 		{"xfce", "XFCE", "xfce"},
-		{"cosmic", "COSMIC", "cosmic"}, // Pop!_OS 24.04, added 2026-09-10
+		{"cosmic", "COSMIC", "cosmic"}, // Pop!_OS 24.04
 		{"unrecognized", "KDE", "other"},
 		{"empty", "", "other"},
 	}

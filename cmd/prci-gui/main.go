@@ -14,9 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Command prci-gui is Perci's graphical interface, built on Wails v3 (GTK4
-// + WebKitGTK 6.0 on Linux) — the app's only interface, wiring together
-// the 6 domain services (HomeService/LinuxService/DevSetupService/
-// DockerService/DevToolsService/TrayService) and the main window.
+// + WebKitGTK 6.0 on Linux), wiring together the domain services
+// (HomeService/LinuxService/DevSetupService/DockerService/DevToolsService/
+// TrayService) and the main window.
 package main
 
 import (
@@ -40,8 +40,7 @@ import (
 var assets embed.FS
 
 // iconBlue/iconPink back "Home :: Configurações :: Ícone do Aplicativo" —
-// the square 512 px icon from packaging/icons (the same hicolor set the
-// application menu entry uses), not the non-square sidebar mascot PNGs.
+// the square 512 px icon PNGs, not the non-square sidebar mascot PNGs.
 // Wails' window icon (application.LinuxWindow.Icon) takes PNG bytes.
 //
 // Wails has no runtime API to change a window's icon after creation, so
@@ -52,10 +51,8 @@ var (
 	iconPink = packaging.MustIcon("pink", 512)
 )
 
-// iconBlueTray/iconPinkTray back the system tray icon (service_tray.go) —
-// dedicated 64×64 square assets, replacing an earlier version that
-// cropped/resized the large mascot PNGs at runtime — no need for that once
-// purpose-made square art exists.
+// iconBlueTray/iconPinkTray back the system tray icon — dedicated 64×64
+// square assets.
 //
 //go:embed frontend/dist/assets/perci-blue-systray.png
 var iconBlueTray []byte
@@ -75,10 +72,9 @@ func main() {
 	if cfgErr != nil {
 		fmt.Fprintln(os.Stderr, "aviso: não foi possível ler as configurações, usando os padrões:", cfgErr)
 	}
-	// The tray's autostart entry launches `prci --hidden` (service_tray.go):
-	// on login Perci starts in the tray only. Honored only while the tray is
-	// enabled — without it, a hidden window would leave no way to reach
-	// the app.
+	// The tray's autostart entry launches `prci --hidden`: on login Perci
+	// starts in the tray only. Honored only while the tray is enabled —
+	// without it, a hidden window would leave no way to reach the app.
 	startHidden := slices.Contains(os.Args[1:], hiddenFlag) && cfgErr == nil && cfg.TrayEnabled
 	icon := iconBlue
 	if cfgErr == nil && cfg.AppIconOrDefault() == "pink" {
@@ -149,12 +145,12 @@ func main() {
 	})
 	tray.mainWindow = mainWindow
 
-	// Closing (X) only hides into the tray when it's enabled
-	// (service_tray.go) — read from config on every close, not from an
-	// in-memory flag, so toggling it at runtime (SetTrayEnabled) takes
-	// effect immediately with no extra synchronization. With the tray
-	// disabled (the default), X still quits as usual — otherwise the app
-	// would vanish with no way to reopen it, since the tray is opt-in.
+	// Closing (X) only hides into the tray when it's enabled — read from
+	// config on every close, not from an in-memory flag, so toggling it at
+	// runtime (SetTrayEnabled) takes effect immediately with no extra
+	// synchronization. With the tray disabled (the default), X still quits
+	// as usual — otherwise the app would vanish with no way to reopen it,
+	// since the tray is opt-in.
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		if trayCfg, err := config.Load(); err == nil && trayCfg.TrayEnabled {
 			e.Cancel()
@@ -164,9 +160,8 @@ func main() {
 
 	if cfgErr == nil && cfg.TrayEnabled {
 		tray.ensureTray()
-		// Rewritten on every start while the tray is on, so an entry written
-		// by an older version (no --hidden, unquoted Exec) or pointing at a
-		// moved binary is brought up to date.
+		// Rewritten on every start while the tray is on, so an entry with an
+		// outdated format or pointing at a moved binary is brought up to date.
 		if err := writeAutostartDesktopFile(); err != nil {
 			fmt.Fprintln(os.Stderr, "aviso: não foi possível atualizar o autostart da bandeja:", err)
 		}

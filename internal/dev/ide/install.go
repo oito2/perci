@@ -41,13 +41,8 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, e
 	return fmt.Errorf("instalador desconhecido para %s", e.Name)
 }
 
-// installVSCode/installVSCodium build on distro.InstallFromSignedRepo,
-// which centralizes the keyring+repo-add+install script both used to
-// hand-write themselves (~30 near-identical lines each); see that
-// function's doc comment for why GitHub CLI's installer
-// (internal/dev/prereqs/catalogue.go) stayed separate instead of joining
-// this same abstraction. Neither needs its own executor.Options anymore —
-// InstallFromSignedRepo builds its own RequiresSudo:true internally.
+// installVSCode installs VS Code from Microsoft's signed apt/dnf
+// repository through distro.InstallFromSignedRepo.
 func installVSCode(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
 	return distro.InstallFromSignedRepo(ctx, exe, stdout, family, distro.SignedRepo{
 		KeyringPath:    "/usr/share/keyrings/microsoft-archive-keyring.gpg",

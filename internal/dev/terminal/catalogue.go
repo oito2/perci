@@ -32,11 +32,8 @@ type Terminal struct {
 	MenuExec string // exec command for context menus; defaults to Cmd when empty
 }
 
-// Catalogue lists all terminal emulators managed by perci.gnl. Starship
-// (prompt customizer, not a terminal emulator) deliberately isn't listed
-// here — GUI :: "Desenvolvimento :: Aplicativos - Terminais" (decidido
-// 2026-09-11) applies it via its own "Aplicar Starship" button
-// (terminal.InstallStarship) instead of a checklist entry; see starship.go.
+// Catalogue lists all terminal emulators managed by perci.gnl. Starship is
+// not listed; it is applied through InstallStarship.
 var Catalogue = []Terminal{
 	{Name: "Kitty", Cmd: "kitty", DirFlag: "--directory"},
 	{Name: "Alacritty", Cmd: "alacritty", DirFlag: "--working-directory"},

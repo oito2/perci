@@ -247,11 +247,10 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, rel *R
 
 	// Download next to the current binary when possible so the final swap is
 	// a same-filesystem rename. The system temp dir is often a separate
-	// mount (e.g. tmpfs), which always fails os.Rename with EXDEV — a
-	// distinct error from permission denied that was previously
-	// misclassified as "no permission" and triggered an unnecessary sudo
-	// prompt. sameFS tracks which directory tmp actually landed in so the
-	// swap logic below knows whether a plain rename can even work.
+	// mount (e.g. tmpfs), where os.Rename fails with EXDEV, a distinct error
+	// from permission denied. sameFS tracks which directory tmp actually
+	// landed in so the swap logic below knows whether a plain rename can
+	// even work.
 	sameFS := true
 	tmp, err := os.CreateTemp(filepath.Dir(currentExe), "perci-*.new")
 	if err != nil {

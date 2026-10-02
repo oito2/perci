@@ -159,9 +159,9 @@ func TestApply_DryRun(t *testing.T) {
 	}
 }
 
-// Regression: uninstalling the native Claude Code removed only the
-// ~/.local/bin/claude symlink, leaving every downloaded version in
-// ~/.local/share/claude. Settings in ~/.claude stay.
+// Uninstalling the native Claude Code removes the ~/.local/bin/claude
+// symlink and every downloaded version in ~/.local/share/claude. Settings
+// in ~/.claude stay.
 func TestUninstallOne_ClaudeNativeRemovesVersions(t *testing.T) {
 	home, bin := isolate(t)
 	dataDir := filepath.Join(home, ".local", "share", "claude")

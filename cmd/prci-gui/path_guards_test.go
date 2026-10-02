@@ -136,8 +136,8 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 	}
 }
 
-// Regression: SetWorkspacePath stored any path the frontend sent. A folder
-// picked in the native dialog is accepted and saved.
+// A folder picked in the native dialog is accepted and saved by
+// SetWorkspacePath.
 func TestSetWorkspacePath_AcceptsOnlyPickedFolder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

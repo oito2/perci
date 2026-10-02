@@ -32,6 +32,14 @@ func TestValidMoodleVersion(t *testing.T) {
 			t.Errorf("ValidMoodleVersion(%q) = false, want true (MoodleVersions() entry)", v)
 		}
 	}
+	if !ValidMoodleVersion(MoodleVersion4x) {
+		t.Error("ValidMoodleVersion(MoodleVersion4x) = false, want true (containers saved with it)")
+	}
+	for _, v := range MoodleVersions() {
+		if v == MoodleVersion4x {
+			t.Error("MoodleVersions() offers MoodleVersion4x, want only the split 4.x buckets")
+		}
+	}
 	if ValidMoodleVersion("6.0") {
 		t.Error(`ValidMoodleVersion("6.0") = true, want false`)
 	}
@@ -46,9 +54,12 @@ func TestPHPVersionsForMoodleVersion(t *testing.T) {
 		want          []string
 	}{
 		{MoodleVersion3x, []string{"7.4"}},
-		{MoodleVersion4x, []string{"8.0", "8.1"}},
+		{MoodleVersion41, []string{"7.4", "8.0", "8.1"}},
+		{MoodleVersion42to43, []string{"8.0", "8.1", "8.2"}},
+		{MoodleVersion44to45, []string{"8.1", "8.2", "8.3"}},
+		{MoodleVersion4x, []string{"7.4", "8.0", "8.1"}},
 		{MoodleVersion50, []string{"8.2", "8.3", "8.4"}},
-		{MoodleVersion51Plus, []string{"8.2", "8.3", "8.4"}},
+		{MoodleVersion51Plus, []string{"8.3", "8.4"}},
 	}
 	for _, tt := range tests {
 		got := PHPVersionsForMoodleVersion(tt.moodleVersion)
@@ -139,13 +150,20 @@ func TestValidPHPVersionForMoodleVersion(t *testing.T) {
 	}{
 		{"3.x accepts 7.4", MoodleVersion3x, "7.4", true},
 		{"3.x rejects 8.0", MoodleVersion3x, "8.0", false},
-		{"4.x accepts 8.0", MoodleVersion4x, "8.0", true},
-		{"4.x accepts 8.1", MoodleVersion4x, "8.1", true},
-		{"4.x rejects 7.4", MoodleVersion4x, "7.4", false},
-		{"4.x rejects 8.2", MoodleVersion4x, "8.2", false},
+		{"4.1 accepts 7.4", MoodleVersion41, "7.4", true},
+		{"4.1 rejects 8.2", MoodleVersion41, "8.2", false},
+		{"4.2-4.3 accepts 8.2", MoodleVersion42to43, "8.2", true},
+		{"4.2-4.3 rejects 7.4", MoodleVersion42to43, "7.4", false},
+		{"4.2-4.3 rejects 8.3", MoodleVersion42to43, "8.3", false},
+		{"4.4-4.5 accepts 8.3", MoodleVersion44to45, "8.3", true},
+		{"4.4-4.5 rejects 8.0", MoodleVersion44to45, "8.0", false},
+		{"4.x (saved containers) accepts 8.0", MoodleVersion4x, "8.0", true},
+		{"4.x (saved containers) accepts 8.1", MoodleVersion4x, "8.1", true},
+		{"4.x (saved containers) rejects 8.2", MoodleVersion4x, "8.2", false},
 		{"5.0 accepts 8.2 (raised its PHP floor, moodledev.io/general/releases/5.0)", MoodleVersion50, "8.2", true},
 		{"5.0 rejects 8.1", MoodleVersion50, "8.1", false},
-		{"5.1+ accepts 8.2 (exact minimum)", MoodleVersion51Plus, "8.2", true},
+		{"5.1+ rejects 8.2 (5.2 and 5.3 require 8.3)", MoodleVersion51Plus, "8.2", false},
+		{"5.1+ accepts 8.3", MoodleVersion51Plus, "8.3", true},
 		{"5.1+ accepts 8.4", MoodleVersion51Plus, "8.4", true},
 		{"5.1+ rejects 8.1", MoodleVersion51Plus, "8.1", false},
 		{"unrecognized Moodle version rejects everything", "6.0", "8.4", false},

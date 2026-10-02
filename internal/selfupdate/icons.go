@@ -28,14 +28,14 @@ import (
 	"github.com/oito2/perci/packaging"
 )
 
-// hicolorDir is the system-wide hicolor icon theme root where install.sh/
-// `make install` put the application menu icon (packaging/perci.desktop's
-// Icon=perci resolves against it).
+// hicolorDir is the system-wide hicolor icon theme root holding the
+// application menu icon (the desktop entry's Icon=perci resolves against
+// it).
 const hicolorDir = "/usr/share/icons/hicolor"
 
-// legacyIconPath is where the menu icon lived before the hicolor set
-// (a single non-square PNG referenced by absolute path) — still removed by
-// Uninstall and by the install paths, for installs made before the switch.
+// legacyIconPath is the single non-square PNG, referenced by absolute
+// path, that older installs used as the menu icon; Uninstall and the
+// install paths still remove it.
 const legacyIconPath = "/usr/share/pixmaps/perci.png"
 
 // menuIconPaths returns every installed hicolor icon file, one per size.
@@ -49,7 +49,7 @@ func menuIconPaths() []string {
 
 // MenuIconsInstalled reports whether the application menu icon set is
 // installed system-wide — false for a binary run straight from the build
-// folder (no install.sh/`make install`), where there's nothing to replace.
+// folder, where there's nothing to replace.
 func MenuIconsInstalled() bool {
 	_, err := os.Stat(menuIconPaths()[0])
 	return err == nil

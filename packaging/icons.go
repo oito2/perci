@@ -14,12 +14,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Package packaging embeds the application icon sets under icons/ — one
-// freedesktop hicolor tree per mascot color ("blue"/"pink",
-// internal/config.AppIcons), square, 5% transparent margin. The same files
-// are installed by `make install`/install.sh (straight from this folder)
-// and by "Home :: Configurações :: Ícone do Aplicativo" (from this embed,
-// internal/selfupdate.InstallMenuIcons), and the 512 px one doubles as the
-// window icon (cmd/prci-gui/main.go).
+// freedesktop hicolor tree per mascot color ("blue"/"pink"), square, 5%
+// transparent margin. The 512 px icon doubles as the window icon.
 package packaging
 
 import (
@@ -33,8 +29,8 @@ var icons embed.FS
 // IconSizes lists every hicolor size shipped for each color, largest first.
 var IconSizes = []int{512, 256, 128, 64, 48, 32}
 
-// IconName is the icon's freedesktop name — packaging/perci.desktop's
-// Icon= key and the installed file's basename.
+// IconName is the icon's freedesktop name — the desktop entry's Icon= key
+// and the installed file's basename.
 const IconName = "perci"
 
 // IconRelPath returns the icon's path relative to a hicolor theme root

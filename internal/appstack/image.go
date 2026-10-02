@@ -46,61 +46,56 @@ func ValidPHPVersion(v string) bool {
 
 func phpTag(version string) string { return strings.ReplaceAll(version, ".", "") }
 
-// Moodle version range identifiers — the four release-series buckets the
+// Moodle version range identifiers: the release-series buckets the
 // "Versão do Moodle" question (Container Aplicativo, AppTypeMoodle only)
 // offers. Each one fixes both which PHP versions are valid
 // (PHPVersionsForMoodleVersion) and which Nginx routing recipe applies
-// (appstack/nginx.go's buildAppServerBlock) — confirmed against Moodle's
-// own docs (docs.moodle.org/{311,401,402,500,502}/en/Nginx, checked
-// 2026-08-21) rather than assumed:
-//   - 3.x and 4.x serve straight from the project root via index.php, no
-//     r.php, no /public split.
-//   - 5.0 introduced r.php as the front controller but still has no
-//     /public split (root stays at the project folder).
-//   - 5.1+ additionally moved all web-accessible files under /public
-//     (moodledev.io/docs/5.1/guides/restructure) — the layout
-//     appMoodleRouting already implemented before this file's version
-//     ranges existed.
+// (buildAppServerBlock):
+//   - 3.x and every 4.x bucket serve straight from the project root via
+//     index.php, no r.php, no /public split.
+//   - 5.0 uses r.php as the front controller but has no /public split
+//     (root stays at the project folder).
+//   - 5.1+ additionally serves all web-accessible files from /public.
 //
-// 3.x and 4.x share one Nginx recipe (appMoodleClassicRouting) but keep
-// separate identifiers because their PHP ranges differ (7.4 vs 8.0/8.1).
-// 5.0 and 5.1+ share one PHP range but keep separate identifiers because
-// their Nginx recipes differ (r.php-only vs the /public split) — this is
-// exactly why MoodleVersion has to be its own persisted
-// config.AppContainer field instead of being inferred back from PHPVersion
-// (see that field's doc comment).
+// 3.x and the 4.x buckets share one Nginx recipe (appMoodleClassicRouting)
+// but keep separate identifiers because their PHP ranges differ.
+// MoodleVersion4x is the former single 4.x bucket: still accepted (with the
+// 4.1 PHP range) for containers already saved with it, but no longer offered.
+// 5.0 and 5.1+ overlap in PHP (8.3/8.4) and differ in Nginx recipe (r.php-only
+// vs the /public split), so MoodleVersion is its own persisted
+// config.AppContainer field instead of being inferred from PHPVersion.
 const (
 	MoodleVersion3x     = "3.x"
+	MoodleVersion41     = "4.1"
+	MoodleVersion42to43 = "4.2-4.3"
+	MoodleVersion44to45 = "4.4-4.5"
 	MoodleVersion4x     = "4.x"
 	MoodleVersion50     = "5.0"
 	MoodleVersion51Plus = "5.1+"
 )
 
 // moodleVersionPHP maps each Moodle version range to the PHP versions valid
-// for it. Every SupportedPHPVersions entry appears in exactly one range, so
-// the ranges partition the full PHP list.
-//
-// MoodleVersion50: {"8.0", "8.1"} was wrong — confirmed against Moodle's own
-// release notes (moodledev.io/general/releases/5.0, moodledev.io/docs/5.0/
-// gettingstarted/requirements, 2026-08-24): Moodle 5.0 raised its PHP floor
-// to 8.2 ("minimum PHP version has increased in this Moodle version"),
-// supporting 8.2/8.3/8.4 — same range as 5.1+, not 4.x. Found while
-// installing a real Moodle 5.0/PHP 8.1 Container Aplicativo (PHP 8.1 is
-// what 4.x/5.0 needed one Moodle version range ago).
+// for every release in it. MoodleVersion51Plus covers 5.1, 5.2 and 5.3, so
+// it offers only PHP 8.3/8.4: 5.2 and 5.3 require PHP 8.3 or later.
 var moodleVersionPHP = map[string][]string{
 	MoodleVersion3x:     {"7.4"},
-	MoodleVersion4x:     {"8.0", "8.1"},
+	MoodleVersion41:     {"7.4", "8.0", "8.1"},
+	MoodleVersion42to43: {"8.0", "8.1", "8.2"},
+	MoodleVersion44to45: {"8.1", "8.2", "8.3"},
+	MoodleVersion4x:     {"7.4", "8.0", "8.1"},
 	MoodleVersion50:     {"8.2", "8.3", "8.4"},
-	MoodleVersion51Plus: {"8.2", "8.3", "8.4"},
+	MoodleVersion51Plus: {"8.3", "8.4"},
 }
 
-// MoodleVersions returns the four Moodle version range identifiers, in the
-// order the "Versão do Moodle" select offers them.
+// MoodleVersions returns the Moodle version range identifiers offered for
+// new containers, in the order the "Versão do Moodle" select lists them.
+// MoodleVersion4x is not included.
 func MoodleVersions() []string {
-	return []string{MoodleVersion3x, MoodleVersion4x, MoodleVersion50, MoodleVersion51Plus}
+	return []string{MoodleVersion3x, MoodleVersion41, MoodleVersion42to43, MoodleVersion44to45, MoodleVersion50, MoodleVersion51Plus}
 }
 
-// ValidMoodleVersion reports whether v is one of MoodleVersions().
+// ValidMoodleVersion reports whether v is one of MoodleVersions() or
+// MoodleVersion4x.
 func ValidMoodleVersion(v string) bool {
 	_, ok := moodleVersionPHP[v]
 	return ok
@@ -179,10 +174,10 @@ RUN usermod -u ${UID} www-data
 WORKDIR /var/www/html
 `
 
-// DefaultPHPMemoryLimit is the memory_limit baked into phpIni below — what
+// DefaultPHPMemoryLimit is the memory_limit baked into phpIni below: what
 // every Container Aplicativo gets unless its own config.AppContainer.
 // PHPMemoryLimit overrides it via a per-app bind-mounted conf.d snippet
-// (see WritePHPMemoryLimitConf) rather than a rebuild of this shared image.
+// (see WritePHPMemoryLimitConf).
 const DefaultPHPMemoryLimit = "512M"
 
 // phpIni is the php.ini every perci-php<version> image bakes in.
@@ -229,19 +224,16 @@ xdebug.start_with_request = yes
 xdebug.log = /var/log/php/xdebug.log
 `
 
-// phpImageDockerfile is phpDockerfile plus one extra COPY: one image is
-// shared by every Container Aplicativo on that PHP version, with no
-// per-project compose file to bind-mount php.ini from, so it's baked into
-// the image at build time instead. phpIni is written into the build
+// phpImageDockerfile is phpDockerfile plus one extra COPY that bakes
+// phpIni into the image at build time. phpIni is written into the build
 // context as a sibling file; see EnsureImage.
 const phpImageDockerfile = phpDockerfile + "\nCOPY php.ini /usr/local/etc/php/php.ini\n"
 
 // EnsureImage builds ImageName(version), using phpDockerfile plus phpIni
 // baked in (see phpImageDockerfile), when it's missing or was built from
-// different content (see ensureImage). Building the image bakes in the
-// invoking user's UID (matching the legacy stack's own ARG UID / usermod
-// dance), so every Container Aplicativo on this version shares one image
-// without a permission mismatch on the bind-mounted html folder.
+// different content (see ensureImage). The build bakes in the invoking
+// user's UID, so every Container Aplicativo on this version shares one
+// image without a permission mismatch on the bind-mounted html folder.
 func EnsureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, version string) error {
 	if !ValidPHPVersion(version) {
 		return fmt.Errorf("versão PHP não suportada: %s", version)
@@ -284,10 +276,9 @@ func (b imageBuild) hash() string {
 }
 
 // ensureImage builds b when the image is missing or its perci.hash label
-// differs from b.hash() — an image built by an older Perci (no label, or
-// another Dockerfile/php.ini/supervisord.conf) is rebuilt, so fixes to
-// them reach machines that already have it. Existing containers keep the
-// image they were created from: the rebuild names the ones that need
+// differs from b.hash(): an image with no label or built from another
+// Dockerfile/php.ini/supervisord.conf is rebuilt. Existing containers keep
+// the image they were created from: the rebuild names the ones that need
 // "Recriar".
 func ensureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, b imageBuild) error {
 	want := b.hash()
@@ -333,11 +324,10 @@ func ensureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 	return nil
 }
 
-// PHPConfDir returns ~/.perci/appstack/php-conf/<folder> — where perci
+// PHPConfDir returns ~/.perci/appstack/php-conf/<folder>, where perci
 // writes an app's per-container php.ini override (see
-// WritePHPMemoryLimitConf). Perci-generated state, not project content —
-// same placement reasoning as CertsDir/NginxConfDir (nginx.go), which live
-// under ~/.perci rather than inside cfg.WorkspacePath.
+// WritePHPMemoryLimitConf). It lives under ~/.perci rather than inside
+// cfg.WorkspacePath.
 func PHPConfDir(folder string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -347,28 +337,20 @@ func PHPConfDir(folder string) (string, error) {
 }
 
 // phpMemoryLimitOverrideFile is the fixed filename perci writes inside
-// PHPConfDir(folder). "zz-" makes it sort (and load, and therefore win)
-// after any extension .ini files the base php image's own
-// docker-php-ext-enable already drops into the same conf.d directory at
-// build time — the official php image's own mechanism for layering ini
-// directives without touching the main php.ini, already relied on
-// implicitly by phpDockerfile above.
+// PHPConfDir(folder). The "zz-" prefix makes it sort (and load, and
+// therefore win) after the extension .ini files that docker-php-ext-enable
+// drops into the same conf.d directory at build time.
 const phpMemoryLimitOverrideFile = "zz-perci-overrides.ini"
 
 // WritePHPMemoryLimitConf (re)writes folder's php.ini override with
 // memoryLimit (DefaultPHPMemoryLimit if empty) and returns its path, meant
 // to be bind-mounted read-only into /usr/local/etc/php/conf.d/ inside the
-// app's own container (appRunArgs/comboAppRunArgs) — never into the shared
-// image or the container's writable layer, so it takes effect per-app and
-// survives Recriar/Editar. Fixes a real durability problem found on the
-// learnerflow app (2026-08-28): a memory_limit raised by hand inside the
-// running container (editing php.ini + reloading php-fpm) was silently
-// lost the next time the container was recreated from the shared image.
+// app's own container (appRunArgs/comboAppRunArgs). It is never part of
+// the shared image or the container's writable layer, so it takes effect
+// per-app and survives Recriar/Editar.
 func WritePHPMemoryLimitConf(folder, memoryLimit string) (string, error) {
-	// Enforced here too, not just by CreateApp's caller-side check — this
-	// value is interpolated verbatim into an .ini file loaded by php-fpm
-	// inside the container, so this function must not trust a future caller
-	// to have validated it already.
+	// memoryLimit is validated here too, since it is interpolated verbatim
+	// into an .ini file loaded by php-fpm inside the container.
 	if memoryLimit != "" && !ValidPHPMemoryLimit.MatchString(memoryLimit) {
 		return "", fmt.Errorf("limite de memória PHP inválido: %s", memoryLimit)
 	}

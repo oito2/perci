@@ -70,8 +70,8 @@ func Clone(ctx context.Context, exe *executor.Executor, stdout io.Writer, url, d
 }
 
 // cloneTargetName is the directory `git clone <url>` creates on its own:
-// the last path segment without ".git" — also for scp-style URLs
-// (git@host:org/repo.git), where filepath.Base kept "git@host:org".
+// the last path segment without ".git", also for scp-style URLs
+// (git@host:org/repo.git).
 func cloneTargetName(url string) string {
 	u := strings.TrimRight(url, "/")
 	if i := strings.LastIndexAny(u, "/:"); i >= 0 {

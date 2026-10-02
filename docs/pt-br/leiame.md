@@ -33,7 +33,6 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 > Sinta-se à vontade para usar e adaptar como quiser — mas é bom saber que ele resolve problemas bem específicos meus, não é uma ferramenta genérica pra qualquer setup.
 
 ![Perci — Home → Visão Geral](../img/screenshots/main-window.png)
-<!-- TODO: capturar de novo depois da primeira release (a verificação de atualização mostra 404 até existir uma release) -->
 
 Uma interface gráfica de desktop (Go + [Wails](https://wails.io)), cinco categorias na barra lateral, sem daemon, sem banco de dados — só `~/.perci/config.yaml`:
 

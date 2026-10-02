@@ -177,8 +177,7 @@ func TestDownload(t *testing.T) {
 	})
 }
 
-// Regression: each privileged step was its own pkexec call (up to 7
-// password prompts); now the whole replacement is one batch.
+// The whole replacement runs as one privileged batch.
 func TestInstallTarball_OnePrompt(t *testing.T) {
 	var buf bytes.Buffer
 	if err := installTarball(context.Background(), dryRun(&buf), &buf, "/tmp/x.tar.gz", "abc"); err != nil {
@@ -299,8 +298,8 @@ func readRC(t *testing.T, path string) string {
 	return string(b)
 }
 
-// Regression: the unquoted line broke PATH under fish. Install replaces it
-// with the quoted one, once; uninstall removes both forms.
+// Install replaces the unquoted PATH line with the quoted one, once;
+// uninstall removes both forms.
 func TestPathEntry_FishLegacyReplacedAndRemoved(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -385,7 +384,7 @@ func TestInstalledVersion(t *testing.T) {
 	if ok, _ := InstalledVersion(context.Background(), exe); ok {
 		t.Error("unexpected output must not count as installed")
 	}
-	// DryRun's placeholder output used to be read as version "[version]".
+	// DryRun's placeholder output is not read as a version.
 	if ok, v := InstalledVersion(context.Background(), &executor.Executor{DryRun: true}); ok {
 		t.Errorf("DryRun reported Go installed (%q)", v)
 	}

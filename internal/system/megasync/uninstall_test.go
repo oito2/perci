@@ -63,7 +63,7 @@ func TestUninstall_Fedora(t *testing.T) {
 	if !strings.Contains(buf.String(), dnfRepoFile) {
 		t.Errorf("expected %s to be removed, got: %s", dnfRepoFile, buf.String())
 	}
-	// Regression: the key imported with rpm --import stayed trusted.
+	// The key imported with rpm --import is removed as well.
 	if !strings.Contains(buf.String(), "rpmkeys --delete") || !strings.Contains(buf.String(), "MegaLimited") {
 		t.Errorf("expected MEGA's rpm key to be removed, got: %s", buf.String())
 	}

@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Loads the frontend's classic scripts (frontend/dist/js) into a Node vm
-// context, the way index.html loads them into one global scope, with just
+// Loads the frontend's classic scripts into a Node vm
+// context, the way the page loads them into one global scope, with just
 // enough of the browser stubbed for their top-level code to run: every
 // DOM element, the Wails bindings (App/Events/Browser) and xterm are inert
 // stand-ins. Tests then call the scripts' own functions from the returned
@@ -97,8 +97,8 @@ export class FakeElement {
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
 }
 
-// loadScripts runs files (relative to dist/js), in order, in one context.
-// calls records every App.<method>(args); fixtures maps a method name to
+// loadScripts runs files (relative to the scripts folder), in order, in one
+// context. calls records every App.<method>(args); fixtures maps a method name to
 // the value its promise resolves to.
 export function loadScripts(files, { fixtures = {} } = {}) {
   const calls = [];
@@ -147,7 +147,7 @@ export function loadScripts(files, { fixtures = {} } = {}) {
   return { ctx: context, calls, element };
 }
 
-// Every classic script under dist/js, in index.html's order.
+// Every classic script, in page load order.
 export function scriptOrder() {
   const html = fs.readFileSync(path.join(jsDir, "..", "index.html"), "utf8");
   return [...html.matchAll(/<script defer src="\.\/js\/([^"]+)"/g)].map((m) => m[1]);

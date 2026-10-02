@@ -15,8 +15,8 @@
 
 // Generic UI helpers shared by every screen: confirm/message/logs modals, status badges, escaping (escHTML/escAttr), form field builders and reconcileKeyedList.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // --- generic modals (confirm / message / logs) --------------------------
@@ -35,9 +35,9 @@ function openConfirm(title, message, onConfirm) {
   confirmModal.showModal();
 }
 
-// error-modal is reused as a generic message modal (title and color
-// class vary) — avoids a 4th modal just for "success" (e.g. Exportar
-// configurações, which doesn't go through the Execução tab).
+// error-modal doubles as a generic message modal (title and color class
+// vary), e.g. for success messages like Exportar configurações, which
+// doesn't go through the Execução tab.
 const errorModalTitleEl = errorModal.querySelector("h3");
 function openMessage(title, message, isError) {
   errorModalTitleEl.textContent = title;
@@ -103,8 +103,8 @@ btnLogsExport.addEventListener("click", function () {
 // it only runs if no newer request for the same key started meanwhile.
 // Without it, switching quickly between screens that share one container
 // (the 7 checklist screens, the Docker table, the SKILLs/MCPs tables when
-// changing scope) mixed items from two screens — and left "Executar" bound
-// to whichever response arrived last.
+// changing scope) would mix items from two screens and leave "Executar"
+// bound to whichever response arrived last.
 const renderTokens = {};
 function latestOnly(key, fn) {
   const token = (renderTokens[key] = (renderTokens[key] || 0) + 1);
@@ -117,7 +117,7 @@ function startExecution(label, buttonsToDisable, maxSteps, announceText) {
   running = true;
   const buttons = (buttonsToDisable || []).filter(Boolean);
   buttons.forEach(function (btn) { btn.disabled = true; });
-  // Remembered so finishRun (core.js) releases exactly these buttons and
+  // Remembered so finishRun releases exactly these buttons and
   // knows which screen started the run — see activeRun.
   activeRun = {
     actionId: window.__selectedItem ? window.__selectedItem.actionId : null,
@@ -131,7 +131,7 @@ function startExecution(label, buttonsToDisable, maxSteps, announceText) {
   selectTab("terminal");
 }
 
-// --- status → "Status with ping animation" (docs.daisyui.com/components/status) ---
+// --- status → daisyUI "Status with ping animation" ---
 
 const CONTAINER_TYPE_LABELS = {
   nginx: "Nginx", mariadb: "MariaDB", moodle: "Moodle", php: "PHP",
@@ -162,7 +162,7 @@ function statusBadgeHTML(status) {
 }
 
 // --- escaping (a convention for the whole file, not just this section) -
-// Any text that isn't a fixed literal from index.html/catalog.go itself
+// Any text that isn't a fixed literal
 // (a folder name, a path chosen in a native dialog, command output,
 // whatever it is) must never go into innerHTML without passing through
 // escHTML() (loose text) or escAttr() (inside an attribute, e.g.
@@ -179,8 +179,8 @@ function escHTML(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
-// escAttr also escapes & — without it a value like "a&amp;b" (a password,
-// a dev command) came back as "a&b" after an Editar round trip.
+// escAttr also escapes &, so a value like "a&amp;b" (a password, a dev
+// command) survives an Editar round trip unchanged.
 function escAttr(s) {
   return escHTML(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -326,7 +326,10 @@ function buildContainerFieldsHTML(prefix, kind, catalog, values) {
 
   if (kind === "moodle") {
     const mv = values.moodleVersion || catalog.moodleVersions[catalog.moodleVersions.length - 1];
-    html += selectFieldHTML(p + "-moodleVersion", "Versão do Moodle", catalog.moodleVersions, mv);
+    // A saved value no longer offered (e.g. "4.x") stays selectable, so
+    // editing the container keeps it unless the user picks another one.
+    const moodleOptions = catalog.moodleVersions.indexOf(mv) >= 0 ? catalog.moodleVersions : catalog.moodleVersions.concat([mv]);
+    html += selectFieldHTML(p + "-moodleVersion", "Versão do Moodle", moodleOptions, mv);
   }
   if (isPHPFamily) {
     html += '<div id="' + p + '-phpVersion-wrap">' + selectFieldHTML(p + "-phpVersion", "Versão PHP", catalog.phpVersions, values.phpVersion || catalog.phpVersions[0]) + "</div>";

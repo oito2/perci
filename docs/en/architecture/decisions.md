@@ -253,3 +253,11 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): Alacritty installs through `distro.InstallPkgs` (one batch; the package is in Debian's main and in Ubuntu's universe, enabled by default). Uninstalling OpenCode removes `~/.opencode/bin` (`~/.opencode` only when left empty) and only the exact `# opencode` lines its installer wrote; settings in `~/.config/opencode` stay. `SetWorkspacePath` accepts only a folder picked in the native dialog this session (`requireApprovedPath`), since Docker creates folders under the workspace and mounts it into containers.
 
 **Revisit if**: a supported Debian-family distro ships without `universe` enabled, or OpenCode's installer changes its install directory or rc lines.
+
+## 2026-10-02 — Moodle version buckets follow each release's PHP range
+
+**Context**: The "5.1+" bucket offered PHP 8.2–8.4, but it covers Moodle 5.1, 5.2 and 5.3, and 5.2/5.3 require PHP 8.3–8.4. The single "4.x" bucket offered PHP 8.0–8.1, while Moodle 4.1 supports 7.4–8.1, 4.2/4.3 support 8.0–8.2 and 4.4/4.5 support 8.1–8.3 (docs.moodle.org PHP requirements).
+
+**Decision** (the user's choices): "5.1+" offers only PHP 8.3/8.4 (still valid for 5.1). "4.x" is split into three buckets with their exact ranges: `4.1` (7.4–8.1), `4.2-4.3` (8.0–8.2) and `4.4-4.5` (8.1–8.3), all on the classic Nginx recipe. `4.x` is no longer offered but stays valid, with the 4.1 range, for containers already saved with it, and the edit form keeps showing it.
+
+**Revisit if**: a new Moodle release changes its PHP range or Nginx layout, or perci adds a PHP version.

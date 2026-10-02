@@ -24,10 +24,7 @@ import (
 )
 
 // Apply installs prerequisites listed in toInstall and removes those in
-// toRemove — GUI-only screen ("Desenvolvimento :: Pré-requisitos"), same
-// pattern as internal/system/fonts.Apply: one ui.Step per processed item,
-// with the total coming for free from the selection itself
-// (internal/checklist.Apply).
+// toRemove, one ui.Step per processed item (via checklist.Apply).
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
 	return checklist.Apply(stdout, Catalogue, func(p Prereq) string { return p.Name }, toInstall, toRemove,
 		func(p Prereq) error { return InstallOne(ctx, exe, stdout, p) },

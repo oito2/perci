@@ -68,9 +68,8 @@ func TestParseFlatpakIDs(t *testing.T) {
 	}
 }
 
-// Regression: with flatpak already installed, EnsureFlatpak returned before
-// adding the Flathub remote, so every "flatpak install ... flathub" failed
-// on distros that ship flatpak without it.
+// With flatpak already installed, EnsureFlatpak still adds the Flathub
+// remote.
 func TestEnsureFlatpak_AddsRemoteWhenFlatpakAlreadyInstalled(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	var out strings.Builder

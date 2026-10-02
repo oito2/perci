@@ -41,10 +41,8 @@ func Installed(ctx context.Context, exe *executor.Executor) bool {
 }
 
 // Install detects the running distribution and installs MegaSync from
-// MEGA's official signed repository (mega.nz/linux/repo) — the GUI's
-// "Instalar" button click is itself the confirmation, no prompt. Enforces
-// an amd64-only check: automatic install is only available for amd64/x86_64
-// packages.
+// MEGA's official signed repository, without a confirmation prompt. Only
+// amd64/x86_64 is supported; other architectures return an error.
 func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	if runtime.GOARCH != "amd64" {
 		return fmt.Errorf("arquitetura não suportada: %s — instale manualmente em https://mega.nz/sync", runtime.GOARCH)
@@ -54,9 +52,8 @@ func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer) erro
 
 // installCore resolves MEGA's repository for the distro id/version and
 // installs MegaSync from it, letting the system package manager verify the
-// GPG signature (no bare .deb/.rpm download with no integrity check
-// involved). id/ver are parameters so it's testable independent of the
-// machine running the tests, like uninstall's family.
+// GPG signature. id and ver are parameters rather than read from the
+// machine.
 func installCore(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, ver string) error {
 	repo, err := resolveRepo(id, ver)
 	if err != nil {
@@ -91,15 +88,12 @@ const (
 )
 
 // installFromAPT adds MEGA's signed APT repository for the given path (e.g.
-// "xUbuntu_24.04") and installs megasync, following MEGA's documented setup
-// (https://mega.nz/linux/repo/<path>/Release.key, dearmored into a keyring
-// referenced via signed-by — the modern replacement for apt-key).
+// "xUbuntu_24.04") and installs megasync. The repository key is dearmored
+// into a keyring referenced via signed-by.
 //
-// Safe to re-run (reinstall, retry, install after uninstall): the key is
-// dearmored with --batch --yes into a temp file and installed over the
-// keyring — a plain `gpg --dearmor -o` over an existing file asks
-// "Overwrite?" on /dev/tty, which fails without a terminal and aborted the
-// whole script — and a failed download never leaves a truncated keyring.
+// Safe to re-run: the key is dearmored with --batch --yes into a temp file
+// and installed over the keyring, so an existing keyring never triggers an
+// overwrite prompt and a failed download never leaves a truncated keyring.
 func installFromAPT(ctx context.Context, exe *executor.Executor, sudo executor.Options, path string) error {
 	return exe.Run(ctx, sudo, "bash", "-c", aptInstallScript(path))
 }
@@ -134,8 +128,7 @@ dnf install -y megasync
 }
 
 // resolveRepo maps the given distro id and version to MEGA's repository
-// path segment. Accepting id and ver as parameters makes the logic testable
-// without file I/O.
+// path segment.
 func resolveRepo(id, ver string) (repoInfo, error) {
 	if id == "" {
 		return repoInfo{}, fmt.Errorf(

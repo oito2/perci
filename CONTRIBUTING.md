@@ -110,6 +110,7 @@ See [docs/en/index.md](docs/en/index.md) for the full documentation site — thi
 ## Coding Conventions
 
 - **Language:** All source code, comments, and documentation must be in English; all strings displayed to the user must be in Brazilian Portuguese (pt-BR).
+- **Comments:** Explain strictly what the code does (behavior, inputs, outputs, side effects). Never reference external material — documentation, code reviews, issues, conversations, decision logs or other files — and never narrate the code's history.
 - **Error Handling:** Always wrap errors using `fmt.Errorf("context: %w", err)`.
 - **No Direct Sudo:** All privileged operations must go through `executor.Executor` using `RequiresSudo: true` (single command) or `RunSudoSequence` (a batch that must authenticate only once).
 - **No Interactive Prompts in Domain Packages:** Domain functions (`internal/system/*`, `internal/dev/*`, `internal/manager/*`, `internal/appstack`) take plain parameters and never read stdin or show a form — all input/confirmation happens in the GUI (Wails frontend + the bound services in `cmd/prci-gui`, one `application.Service` per domain: `HomeService`/`LinuxService`/`DevSetupService`/`DockerService`/`DevToolsService`/`TrayService`). A GUI button click is itself the confirmation; there is no "are you sure?" prompt inside domain code.

@@ -15,7 +15,7 @@
 
 package main
 
-// Bound methods for the "Desenvolvimento" category (catalog.go).
+// Bound methods for the "Desenvolvimento" category.
 
 import (
 	"context"
@@ -42,8 +42,8 @@ type DevSetupService struct {
 
 // ── Pré-requisitos (checklist simples) ──────────────────────────────────────
 
-// prereqsChecklist builds prereqs.Catalogue's checklistCatalog — the only
-// one of the 7 pairs that uses descOf (p.Description).
+// prereqsChecklist builds prereqs.Catalogue's checklistCatalog, setting
+// descOf (p.Description).
 func (d *DevSetupService) prereqsChecklist() checklistCatalog[prereqs.Prereq] {
 	return checklistCatalog[prereqs.Prereq]{
 		items:   prereqs.Catalogue,
@@ -61,8 +61,7 @@ func (d *DevSetupService) prereqsChecklist() checklistCatalog[prereqs.Prereq] {
 }
 
 // GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs)
-// with its current installed state — same pattern as GetFontsInfo
-// (service_linux.go).
+// with its current installed state.
 func (d *DevSetupService) GetPrereqsInfo() []MultiSelectItemInfo {
 	return getChecklistInfo(d.prereqsChecklist())
 }
@@ -148,7 +147,7 @@ func (d *DevSetupService) terminalsChecklist() checklistCatalog[terminal.Termina
 }
 
 // GetTerminalsInfo lists the terminal catalogue (internal/dev/terminal,
-// excluding Starship — see catalogue.go) with its current installed state.
+// excluding Starship) with its current installed state.
 func (d *DevSetupService) GetTerminalsInfo() []MultiSelectItemInfo {
 	return getChecklistInfo(d.terminalsChecklist())
 }
@@ -189,8 +188,8 @@ func findIDE(cmd string) (ide.IDE, bool) {
 
 // GetIDEInfo reports whether the IDE identified by cmd ("zed"/"code"/
 // "codium" — internal/dev/ide.Catalogue) is currently installed. cmd is
-// derived from catalog.go's actionId ("ide-zed" → "zed", etc.) by the
-// frontend.
+// derived by the frontend from the item's actionId ("ide-zed" → "zed",
+// etc.).
 func (d *DevSetupService) GetIDEInfo(cmd string) SingleAppInfo {
 	e, ok := findIDE(cmd)
 	if !ok {
@@ -274,8 +273,7 @@ func (d *DevSetupService) GetAndroidStudioInfo() SingleAppInfo {
 
 // InstallAndroidStudio extracts tarballPath (chosen via
 // PickAndroidStudioTarball) into /opt/android-studio and launches the setup
-// wizard. Also used to "update" by re-running with a newer tarball — there's
-// no dedicated button for that, see the screen's Notes (catalog.go).
+// wizard. Also used to "update" by re-running with a newer tarball.
 func (d *DevSetupService) InstallAndroidStudio(tarballPath string) error {
 	return d.runAction(func(stdout io.Writer) error {
 		if err := validateTarballPath(tarballPath); err != nil {

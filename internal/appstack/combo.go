@@ -25,73 +25,45 @@ import (
 )
 
 // ComboImageName returns the perci-managed base image tag for a PHP+Node
-// combo, e.g. "perci-php82-node24" for ("8.2", "24") — built once per
-// (PHP version, Node version) pair and reused by every AppTypePHPNode
-// container on that pair.
+// combo, e.g. "perci-php82-node24" for ("8.2", "24"). The image is built
+// once per (PHP version, Node version) pair and reused by every
+// AppTypePHPNode container on that pair.
 func ComboImageName(phpVersion, nodeVersion string) string {
 	return "perci-php" + phpTag(phpVersion) + "-node" + nodeVersion
 }
 
-// comboSupervisordConf is baked into every combo image as-is — its content
-// never varies per app, only the DEV_COMMAND environment variable
-// supervisord itself resolves at container-start time does: supervisord's
-// own %(ENV_X)s syntax reads literally from the process environment
-// (confirmed against supervisord.org's docs, 2026-08-21 — "if you reference an environment
-// variable that doesn't exist, supervisord will fail to start", so
-// comboAppRunArgs must always pass -e DEV_COMMAND=...). That's why this can
-// be a build-time constant instead of something written per-app and
-// bind-mounted the way nginx.conf/01-permissions.sql are: the *value* is
-// per-container, but the *config* isn't.
+// comboSupervisordConf is baked into every combo image as-is. Only the
+// DEV_COMMAND environment variable, which supervisord resolves at
+// container-start time through its %(ENV_X)s syntax, varies per container,
+// so comboAppRunArgs must always pass -e DEV_COMMAND=... (supervisord
+// fails to start when a referenced variable does not exist).
 //
-// [program:php-fpm] has no user= — php-fpm's master process needs to start
-// as root (same as it already implicitly does for every other PHP-family
-// container here), and its own pool config (inherited from the official
-// php-fpm image) already drops its *worker* processes to www-data
-// internally. [program:dev-server] does set user=www-data — npm/vite has
-// no privilege-dropping of its own, and www-data's UID is already
-// usermod'd to match the host in phpDockerfile (image.go), so this reuses
-// that existing user instead of creating a second one just for Node.
+// [program:php-fpm] has no user=: php-fpm's master process starts as root
+// and its pool config drops the worker processes to www-data.
+// [program:dev-server] sets user=www-data, whose UID matches the host user
+// (see phpDockerfile).
 //
-// command=%(ENV_DEV_COMMAND)s is NOT run through a shell — supervisord
-// splits it into argv the way a shell would (respecting quotes), but never
-// interprets shell operators (&&, ;, pipes, $VAR). Simple commands
-// ("npm run dev") work directly; anyone who needs a compound command can
-// still type e.g. `sh -c "cd /app && npm run dev"` as their own
-// DevCommand — supervisord's quoting handles that correctly too, since the
-// whole quoted string becomes one argv element passed to sh -c.
+// command=%(ENV_DEV_COMMAND)s is not run through a shell: supervisord
+// splits it into argv respecting quotes, but never interprets shell
+// operators (&&, ;, pipes, $VAR). A compound command can be given as e.g.
+// `sh -c "cd /app && npm run dev"`.
 //
-// [supervisord] is mandatory — confirmed against a real "Error: .ini file
-// does not include supervisord section" from every AppTypePHPNode
-// container during testing (2026-08-24): comboDockerfile's CMD
-// points supervisord's -c straight at this file (not Debian's own
-// /etc/supervisor/supervisord.conf, which carries that section plus an
-// [include] pulling in conf.d/*.conf), so this file has to be a complete,
-// self-contained config, not just a program-definitions fragment.
-// nodaemon isn't set here — comboDockerfile's CMD already passes
-// supervisord its own -n flag for that.
+// [supervisord] is mandatory because comboDockerfile's CMD points
+// supervisord's -c straight at this file, so it is a complete,
+// self-contained config. nodaemon is not set here because the CMD passes
+// supervisord its own -n flag.
 //
-// [program:worker] is an optional extra background process — a queue/job
-// consumer such as Symfony Messenger or a Laravel queue worker
-// (config.AppContainer.WorkerCommand). It's baked into every combo image
-// unconditionally (like [program:dev-server]) because the image is shared
-// across every AppTypePHPNode container on that (PHP, Node) pair — it
-// can't be conditionally included per app at build time. Unlike
-// dev-server, though, its command isn't `%(ENV_WORKER_COMMAND)s` directly:
-// supervisord requires every %(ENV_X)s it references to exist in the
-// process environment or it refuses to start at all (confirmed against
-// supervisord.org's docs, 2026-08-21 — see dev-server's own comment above),
-// which would break every combo app that leaves WorkerCommand empty (the
-// common case). So this program's own `command=` is a fixed shell wrapper
-// that reads $WORKER_COMMAND from its inherited container environment at
-// *run* time instead of supervisord's config-parse-time substitution —
-// comboAppRunArgs always sets that env var (possibly to an empty string).
-// When empty, the wrapper execs `sleep infinity` — an idle placeholder,
-// not a real workload — instead of leaving the field unset entirely, so
-// the program still starts cleanly and never busy-loop-restarts. When set,
-// it runs through its own sh -c, so a command with variables, && or a pipe
-// works as typed (a bare exec $WORKER_COMMAND word-split it). Found
-// missing while working on the learnerflow app's async job queue,
-// 2026-08-28.
+// [program:worker] is an optional extra background process, such as a
+// queue/job consumer (config.AppContainer.WorkerCommand). It is baked into
+// every combo image unconditionally, since the image is shared across
+// every AppTypePHPNode container on that (PHP, Node) pair. Its command is
+// a fixed shell wrapper that reads $WORKER_COMMAND from the container
+// environment at run time (comboAppRunArgs always sets it, possibly to an
+// empty string), so the program starts cleanly when WorkerCommand is
+// empty. When empty, the wrapper execs `sleep infinity` as an idle
+// placeholder, so the program never busy-loop-restarts. When set, the
+// command runs through its own sh -c, so variables, && and pipes work as
+// typed.
 const comboSupervisordConf = `[supervisord]
 logfile=/dev/null
 logfile_maxbytes=0
@@ -126,18 +98,12 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 `
 
-// comboDockerfile extends phpImageDockerfile (PHP + php.ini, the same
-// foundation the standalone PHP image already builds — see image.go) with
-// Node (via the official NodeSource apt setup script — the standard way to
-// install a specific Node major version via apt on Debian, confirmed
-// 2026-08-21) and supervisor (Debian's own `supervisor` package), plus the
-// baked-in supervisord.conf above. CMD is overridden to launch supervisord
-// instead of php-fpm directly — supervisord then starts php-fpm itself as
-// one of its two managed programs. The base image's ENTRYPOINT
-// (docker-php-entrypoint, inherited from the official php-fpm image via
-// phpDockerfile) is untouched: it execs whatever CMD it's given verbatim
-// once its argv doesn't match one of its own recognized php-specific
-// patterns, which "supervisord" doesn't.
+// comboDockerfile extends phpImageDockerfile (PHP + php.ini) with Node
+// (via the NodeSource apt setup script) and supervisor (Debian's
+// `supervisor` package), plus the baked-in supervisord.conf above. CMD is
+// overridden to launch supervisord, which starts php-fpm as one of its two
+// managed programs. The base image's ENTRYPOINT (docker-php-entrypoint) is
+// untouched and execs the given CMD verbatim.
 const comboDockerfile = phpImageDockerfile + `
 ARG NODE_VERSION=24
 
@@ -153,7 +119,7 @@ CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 `
 
 // EnsureComboImage builds ComboImageName(phpVersion, nodeVersion) when
-// it's missing or out of date — same rules as EnsureImage (see
+// it is missing or out of date, with the same rules as EnsureImage (see
 // ensureImage).
 func EnsureComboImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, phpVersion, nodeVersion string) error {
 	if !ValidPHPVersion(phpVersion) {

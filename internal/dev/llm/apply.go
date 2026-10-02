@@ -24,10 +24,7 @@ import (
 )
 
 // Apply installs LLM CLIs listed in toInstall and removes those in
-// toRemove — backs the GUI's "Desenvolvimento :: Aplicativos - IA" screen,
-// same pattern as internal/system/fonts.Apply: one ui.Step per tool
-// processed, with the total coming for free from the selection itself
-// (internal/checklist.Apply).
+// toRemove, one ui.Step per tool processed (via checklist.Apply).
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
 	return checklist.Apply(stdout, Catalogue, func(l LLM) string { return l.Name }, toInstall, toRemove,
 		func(l LLM) error { return InstallOne(ctx, exe, stdout, l) },

@@ -31,13 +31,11 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// serviceBase is embedded by value in every domain service struct
-// (HomeService/LinuxService/DevSetupService/DockerService/DevToolsService/
-// TrayService) — one application.Service per domain, each sharing the
-// plumbing common to all of them (wailsApp/exe, pickFolder, runAction,
-// eventWriter) instead of duplicating it. pickFolder/runAction stay
-// unexported so they're never bindable by `wails3 generate bindings` even
-// though they're promoted onto every embedding struct.
+// serviceBase is embedded by value in every domain service struct,
+// sharing the plumbing common to all of them (wailsApp/exe, pickFolder,
+// runAction, eventWriter). pickFolder/runAction stay unexported so
+// they're never bindable by `wails3 generate bindings` even though
+// they're promoted onto every embedding struct.
 type serviceBase struct {
 	wailsApp *application.App
 	exe      *executor.Executor
@@ -97,8 +95,7 @@ func requireApprovedPath(path string) error {
 // anything acts on it: an absolute path to an existing directory. The
 // domain functions treat "" as "the current directory" — in a GUI that's
 // wherever Perci was launched from ($HOME, or / from autostart), so an
-// empty value used to write CODE_OF_CONDUCT.md, .agents/ or a git repo
-// there.
+// empty value would write project files or a git repo there.
 func requireFolder(p string) error {
 	if !filepath.IsAbs(p) {
 		return fmt.Errorf("selecione uma pasta válida (recebido: %q)", p)
@@ -139,8 +136,8 @@ func (b *serviceBase) pickFolder(title string) (string, error) {
 // becomes a "log-line" event. Safe for concurrent use (a command's stdout
 // and stderr are copied from different goroutines), and an incomplete
 // UTF-8 sequence at the end of a Write is held back until the next one —
-// emitted on its own it became "�" in the terminal. Flush emits whatever
-// is left once the action ends.
+// emitted on its own it would show as "�" in the terminal. Flush emits
+// whatever is left once the action ends.
 type eventWriter struct {
 	emit func(string)
 	mu   sync.Mutex
@@ -189,12 +186,12 @@ func completeUTF8Prefix(b []byte) int {
 	return n
 }
 
-// runMu serializes long-running actions across every service and window
-// (decided with the user on 2026-09-29): package-level because each service
-// embeds its own serviceBase, and the tray's compact window runs actions
-// through the same services. Two actions at once would interleave their
-// output in the terminal, race on the package manager's lock and on the
-// Nginx config, and prompt for the password twice.
+// runMu serializes long-running actions across every service and window:
+// package-level because each service embeds its own serviceBase, and the
+// tray's compact window runs actions through the same services.
+// Two actions at once would interleave their output in the terminal, race
+// on the package manager's lock and on the Nginx config, and prompt for the
+// password twice.
 var runMu sync.Mutex
 
 // errActionRunning is returned (synchronously, to the one caller) when
@@ -237,8 +234,8 @@ func runRecovered(fn func() error) (err error) {
 	return fn()
 }
 
-// emitDone sends the "action-done" event the frontend's run lifecycle waits
-// for (js/core.js).
+// emitDone sends the "action-done" event the frontend's run lifecycle
+// waits for.
 func (b *serviceBase) emitDone(err error) {
 	msg := ""
 	if err != nil {

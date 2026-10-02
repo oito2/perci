@@ -15,10 +15,8 @@
 
 // Package appstack manages perci's per-project Docker application stack —
 // each project gets its own container, its own *.localhost URL, and (for
-// PHP-family types) its own PHP version. This is what the GUI and this
-// codebase's comments call a "Container Aplicativo". Nginx, MariaDB, and
-// the app containers themselves (moodle/php/generic/node/php_node types)
-// are each managed by their own file — nginx.go, mariadb.go, image.go and
-// app.go — with shared helpers in validate.go (input validation) and
-// wrappers.go (per-container CLI tool wrappers under ~/.local/bin).
+// PHP-family types) its own PHP version. Nginx, MariaDB, and the app
+// containers (moodle/php/generic/node/php_node types) are managed
+// separately, with shared input validation and per-container CLI tool
+// wrappers under ~/.local/bin.
 package appstack

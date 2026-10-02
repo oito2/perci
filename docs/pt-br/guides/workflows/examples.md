@@ -42,7 +42,7 @@ Opcionalmente: **Gerenciar Fontes**, **Gerenciar Templates de Arquivos**, **Apli
 
 1. **Nginx** — configuração única, cria o proxy reverso, a rede compartilhada e o certificado HTTPS wildcard `*.localhost`.
 2. **MariaDB** — configuração única, pede um usuário/senha de banco.
-3. **Moodle** — versão de PHP ≥ 8.2, URL (ex.: `mdle.localhost`), Acesso a banco = sim.
+3. **Moodle** — Versão do Moodle `5.1+`, PHP 8.3 ou 8.4, URL (ex.: `mdle.localhost`), Acesso a banco = sim.
 
 O container do app sobe automaticamente como parte da criação — sem passo separado de "iniciar". Veja o [guia da stack Docker de aplicativos](../environments/docker.md) para o ciclo de vida completo.
 

@@ -15,14 +15,13 @@
 
 // Dev Tools :: IA: MCPs.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // ===========================================================================
-// "Dev Tools :: IA: MCPs" — backed by internal/dev/mcpservers (a
-// different mechanism per agent — Claude Code/Codex via CLI, Antigravity
-// by editing mcp_config.json — not a single tool like skills.sh).
+// "Dev Tools :: IA: MCPs" — a different mechanism per agent (Claude Code/
+// Codex via CLI, Antigravity by editing mcp_config.json).
 // ===========================================================================
 
 const mcpTable = createScopedTable({

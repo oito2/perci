@@ -31,8 +31,7 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, t
 
 	switch t.Cmd {
 	case "kitty":
-		// pipefail: without it a failed download piped an empty script to
-		// sh, which exited 0 — reported as installed, with dangling links.
+		// pipefail makes a failed download fail the whole command.
 		script := `set -Eeuo pipefail; curl -fsSL https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin`
 		if err := exe.Run(ctx, opts, "bash", "-c", script); err != nil {
 			return err
@@ -45,8 +44,7 @@ ln -sf "$HOME/.local/kitty.app/bin/kitten" "$HOME/.local/bin/kitten"
 		return exe.Run(ctx, opts, "bash", "-c", linkScript)
 
 	case "alacritty":
-		// Debian's main and Ubuntu's universe (enabled by default on Ubuntu
-		// and its derivatives) both carry it: one batch, one password.
+		// One privileged batch, so the password is asked once.
 		return distro.InstallPkgs(ctx, exe, stdout, family, "alacritty")
 
 	case "blackbox-terminal":

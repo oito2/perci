@@ -24,8 +24,8 @@ import (
 )
 
 // Init runs git init and applies local identity in dir, the folder the
-// user picked (empty means the process's current directory). `git init [<dir>]` itself creates dir if it
-// doesn't exist yet, same as running it after `mkdir -p`.
+// user picked (empty means the process's current directory). git init
+// itself creates dir if it doesn't exist yet.
 func Init(ctx context.Context, exe *executor.Executor, stdout io.Writer, dir, name, email string) error {
 	if err := checkIdentityPair(name, email); err != nil {
 		return err

@@ -60,8 +60,8 @@ func Dir() (string, error) {
 	}
 
 	// xdg-user-dir falls back to $HOME itself when user-dirs.dirs isn't
-	// configured; that fallback must be rejected, not treated as a valid
-	// templates dir, or PresentNames ends up looking in the wrong place.
+	// configured; that fallback is rejected rather than used as the
+	// templates dir.
 	out, err := exec.Command("xdg-user-dir", "TEMPLATES").Output()
 	resolved := strings.TrimSpace(string(out))
 	if err == nil && resolved != "" && resolved != home {
@@ -96,9 +96,7 @@ func PresentNames(dir string) map[string]bool {
 
 // Apply creates templates in toCreate and removes those in toRemove.
 // toRemove may contain filenames not in the Catalogue (e.g. external
-// templates). Reports one ui.Step per template processed (created or
-// removed) — same pattern as fonts.Apply — with the total coming for
-// free from the selection itself (len(toCreate)+len(toRemove)).
+// templates). Reports one ui.Step per template processed.
 func Apply(stdout io.Writer, dir string, toCreate, toRemove []string) error {
 	if len(toCreate) > 0 {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -156,10 +154,9 @@ func create(dest string, t Template) error {
 	}
 }
 
-// zipEntry is a stored-first (uncompressed) archive member — ODF's
+// zipEntry is a stored-first (uncompressed) archive member. ODF's
 // "mimetype" file must be the archive's first entry and must not be
-// deflated (createOdt/createOds below pass one; the OOXML formats don't
-// need this and pass nil).
+// deflated; the OOXML formats pass nil instead.
 type zipEntry struct {
 	name    string
 	content string
@@ -167,10 +164,7 @@ type zipEntry struct {
 
 // createZip builds dest as a zip archive containing entries (name→
 // content, deflated), optionally preceded by storedFirst written
-// uncompressed — shared by createDocx/createXlsx/createPptx (storedFirst
-// nil) and createOdt/createOds (storedFirst = their "mimetype" member),
-// so neither hand-rolls its own open/write/close-with-cleanup-on-error
-// sequence.
+// uncompressed.
 //
 // dest is created exclusively (never overwriting a file that appeared in
 // the meantime), and entries are written in name order, so the same

@@ -91,10 +91,9 @@ func TestFindBinary_PrefersShallowestWithSandboxSibling(t *testing.T) {
 	}
 }
 
-// TestFindBinary_RejectsInvalidCharacters covers a security fix: a
-// candidate whose filename contains characters outside validBinName must
-// be discarded, not selected — even when it's the only
-// "antigravity*"-prefixed entry.
+// TestFindBinary_RejectsInvalidCharacters covers a candidate whose filename
+// contains characters outside validBinName: it must be discarded, not
+// selected, even when it's the only "antigravity*"-prefixed entry.
 func TestFindBinary_RejectsInvalidCharacters(t *testing.T) {
 	workdir := t.TempDir()
 	// A newline in the filename would let this name inject extra lines into

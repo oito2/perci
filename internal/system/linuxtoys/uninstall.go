@@ -26,23 +26,17 @@ import (
 )
 
 // pkgName is the package name the official installer registers Linux Toys
-// under with the native package manager — confirmed from the release asset
-// names in psygreg/linuxtoys (linuxtoys_<ver>_amd64.deb,
-// linuxtoys-<ver>.x86_64.rpm) and the install script's own `rpm -qi
-// linuxtoys` presence check, not guessed.
+// under with the native package manager.
 const pkgName = "linuxtoys"
 
-// Uninstall removes Linux Toys via the distro's native package manager —
-// the official installer (install.go) installs it that way (.deb/.rpm), so
-// removal goes the same route, same convention as internal/dev/ide's
-// aptDnfRemove.
+// Uninstall removes Linux Toys via the distro's native package manager,
+// the same route the official installer (.deb/.rpm) used to install it.
 func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return uninstall(ctx, exe, stdout, distro.Detect())
 }
 
-// uninstall takes family as a parameter (rather than calling distro.Detect()
-// itself) so it's testable independent of the machine running the tests —
-// same convention as internal/system/update's updatePackages.
+// uninstall takes family as a parameter rather than calling
+// distro.Detect() itself.
 func uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
 	opts := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
 	switch family {

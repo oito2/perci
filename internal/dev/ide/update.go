@@ -23,12 +23,9 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// UpdateOne updates a single IDE — backs the GUI's "Desenvolvimento :: IDE:
-// Zed Editor/VS Code/VSCodium" screens.
-// "Atualizar" is, for all three IDEs in this catalogue, the same command
-// as install (Zed's official script always fetches the latest version;
-// apt-get/dnf install on top of an already-installed package upgrades it)
-// — no separate update logic to duplicate.
+// UpdateOne updates a single IDE by running its install again: Zed's
+// script always fetches the latest version, and apt-get/dnf install upgrade
+// an already-installed package.
 func UpdateOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, e IDE, family string) error {
 	ui.Info(stdout, "Atualizando "+e.Name+"...")
 	if err := InstallOne(ctx, exe, stdout, e, family); err != nil {

@@ -27,9 +27,7 @@ import (
 // ContainerStatus returns a Container Aplicativo/Nginx/MariaDB's current
 // Docker status (docker inspect's .State.Status: "running", "exited",
 // "created", "paused", "restarting", "dead"), or "" if no container by
-// that name exists — which can legitimately happen even for an entry
-// registered in cfg.Docker (the source of truth for the *list*) if it was
-// removed outside perci, e.g. a plain `docker rm`.
+// that name exists (e.g. it was removed outside perci with `docker rm`).
 func ContainerStatus(ctx context.Context, exe *executor.Executor, name string) string {
 	out, err := exe.Output(ctx, executor.Options{}, "docker", "inspect", "-f", "{{.State.Status}}", "--", name)
 	if err != nil {
@@ -38,26 +36,15 @@ func ContainerStatus(ctx context.Context, exe *executor.Executor, name string) s
 	return strings.TrimSpace(out)
 }
 
-// ContainerStatuses is the batched form of ContainerStatus — one `docker
-// inspect` for every name at once instead of one subprocess per name,
-// which matters because DockerService.GetContainerRows (cmd/prci-gui)
-// calls this for every row (Nginx + MariaDB + every Container Aplicativo)
-// each time the Docker screen loads or a single row's status refreshes
-// after an action.
+// ContainerStatuses is the batched form of ContainerStatus: one `docker
+// inspect` for every name at once instead of one subprocess per name.
 //
-// `docker inspect` exits non-zero the moment ANY requested name doesn't
-// exist (e.g. a container listed in config.yaml but removed outside perci
-// via a plain `docker rm` — the same case ContainerStatus above already
-// treats as "" instead of an error) — but it still prints every
-// successfully-inspected container to stdout before failing on the
-// missing one. Run via `bash -c ... || true` so the overall exit code
-// stays 0 and exe.Output (which discards stdout on any non-zero exit,
-// internal/executor.Output) still returns what WAS captured, instead of
-// throwing away every container's status just because one of many was
-// missing — confirmed empirically against real running containers before
-// writing this. Names come from ValidAppFolder-validated app folders plus
-// the two fixed Nginx/MariaDB container name constants, so ShellQuote here
-// is defense in depth, not a requirement for today's inputs to be safe.
+// `docker inspect` exits non-zero as soon as any requested name does not
+// exist, but still prints every successfully inspected container to
+// stdout. The command runs via `bash -c ... || true` so the exit code stays
+// 0 and exe.Output still returns the captured statuses; a missing
+// container is simply absent from the result. Names are shell-quoted with
+// ShellQuote.
 func ContainerStatuses(ctx context.Context, exe *executor.Executor, names []string) map[string]string {
 	result := make(map[string]string, len(names))
 	if len(names) == 0 {
@@ -78,9 +65,8 @@ func ContainerStatuses(ctx context.Context, exe *executor.Executor, names []stri
 }
 
 // parseContainerStatuses parses `docker inspect -f '{{.Name}}\t{{.State.Status}}'`
-// output (one "/name\tstatus" per line) into a name->status map — split out
-// from ContainerStatuses so this parsing is testable without a real Docker
-// daemon.
+// output (one "/name\tstatus" per line) into a name->status map, without
+// needing a Docker daemon.
 func parseContainerStatuses(out string) map[string]string {
 	result := make(map[string]string)
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -94,7 +80,7 @@ func parseContainerStatuses(out string) map[string]string {
 }
 
 // removeContainer force-removes name via `docker rm -f`, wrapping any
-// failure with label for the caller's own error message — shared by
+// failure with label in the returned error. Shared by
 // RemoveApp/RemoveNginx/RemoveMariaDB.
 func removeContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, name, label string) error {
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", "rm", "-f", "--", name); err != nil {
@@ -104,8 +90,8 @@ func removeContainer(ctx context.Context, exe *executor.Executor, stdout io.Writ
 }
 
 // StartContainer, StopContainer and RestartContainer work identically for
-// Nginx, MariaDB and any Container Aplicativo — plain `docker
-// start/stop/restart` by name, with no per-type distinction needed.
+// Nginx, MariaDB and any Container Aplicativo: plain `docker
+// start/stop/restart` by name.
 func StartContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, name string) error {
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", "start", "--", name); err != nil {
 		return fmt.Errorf("iniciar %s: %w", name, err)

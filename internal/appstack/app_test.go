@@ -124,8 +124,7 @@ func TestNodeAppRunArgs(t *testing.T) {
 		t.Errorf("expected the image to be followed by \"sh -c <devCommand>\" as CMD, got tail %v", got[len(got)-3:])
 	}
 	// devCommand must land as a single argv element (not split by spaces)
-	// so a multi-word command survives intact — confirmed above by the
-	// exact tail check, not just a substring match.
+	// so a multi-word command survives intact.
 }
 
 func TestComboAppRunArgs(t *testing.T) {

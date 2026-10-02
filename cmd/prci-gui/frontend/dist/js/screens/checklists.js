@@ -15,8 +15,8 @@
 
 // Checklist screens (fonts, templates, apps...), single-app install/uninstall screens, IDE screens and the local-file app screens (Android Studio, Antigravity IDE).
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // --- "checklist simples" screens (installed ⇄ unchecked, no dependency
@@ -52,8 +52,8 @@ const MULTISELECT_SCREENS = {
   terminals: {
     fetch: function () { return App.GetTerminalsInfo(); },
     run: function (ids) { return App.RunTerminals(ids); },
-    // Extra buttons — not part of the checklist (Starship isn't an item in
-    // terminal.Catalogue, see internal/dev/terminal/catalogue.go), run
+    // Extra buttons — not part of the checklist (Starship isn't a
+    // checklist item), run
     // independent of selection. confirm (optional) is asked first.
     extras: [
       {
@@ -228,8 +228,8 @@ function runScreenAction(item, label, buttons, fn) {
 
 // --- "IDE install/atualizar/desinstalar" screens: three buttons —
 // Atualizar/Desinstalar enabled only once already installed, same
-// backend (internal/dev/ide) for all three, differentiated by the cmd
-// parameter. IDE_SCREENS maps actionId (catalog.go: "ide-zed"/
+// backend call for all three, differentiated by the cmd
+// parameter. IDE_SCREENS maps actionId ("ide-zed"/
 // "ide-code"/"ide-codium") to the cmd the bound methods expect. -------
 const IDE_SCREENS = {
   "ide-zed": { cmd: "zed" },
@@ -261,7 +261,7 @@ function renderIDEScreen(item) {
 // Studio, Antigravity IDE) before being able to install/update —
 // Desinstalar doesn't depend on any file. FILEAPP_SCREENS maps actionId
 // to the bound methods; update is optional (Android Studio doesn't have
-// one — it updates itself, see Observações/notes). --------------------
+// one — it updates itself). ---------------------------------------------
 const FILEAPP_SCREENS = {
   androidstudio: {
     pick: function () { return App.PickAndroidStudioTarball(); },

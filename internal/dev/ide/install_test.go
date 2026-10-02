@@ -28,12 +28,10 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// TestInstallVSCode/TestInstallVSCodium confirm that building on
-// distro.InstallFromSignedRepo preserves the essential content of the
-// scripts each function used to hand-write on its own — keyring, key URL,
-// repository path/content, idempotency check, and package name — without
-// installing anything for real (DryRun captures the assembled command
-// instead of running it).
+// TestInstallVSCode/TestInstallVSCodium confirm that the assembled install
+// script has the keyring, key URL, repository path/content, idempotency
+// check and package name, without installing anything (DryRun captures the
+// command instead of running it).
 func TestInstallVSCode(t *testing.T) {
 	t.Run("debian", func(t *testing.T) {
 		out := dryRunScript(t, func(exe *executor.Executor, stdout *bytes.Buffer) error {

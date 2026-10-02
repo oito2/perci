@@ -15,13 +15,12 @@
 
 // Dev Tools :: Repositórios.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // ===========================================================================
-// "Dev Tools :: Repositórios" — backed by internal/manager/repo +
-// internal/manager/gitignore.
+// "Dev Tools :: Repositórios".
 // ===========================================================================
 
 // --- aba "Identidade Global" ------------------------------------------------
@@ -57,9 +56,8 @@ btnReposIdentityApply.addEventListener("click", function () {
 });
 
 // --- "Repositórios" tab: list of known folders (cards) + horizontal menu
-// — config.yaml keeps the whole remembered list (App.GetRepoFolders/
-// AddRepoFolder underneath), so it persists across sessions instead of
-// asking the user to pick a working folder every visit. ----------------
+// — the remembered list is persisted (App.GetRepoFolders/AddRepoFolder),
+// so it survives across sessions. ----------------------------------------
 
 let reposFolderPath = "";
 let reposFolderState = null;
@@ -149,11 +147,16 @@ function buildRepoCard(r) {
 
 // One card per remembered folder (reconciled by key — path — instead of
 // innerHTML="" + full rebuild on every call) plus one last "Centered card
-// with neutral color" card to add a new one (daisyUI's own example
-// patterns, named this way by the user) — that last one is always
+// with neutral color" card to add a new one — that last one is always
 // rebuilt fresh (static, no per-folder state) and re-appended last, which
 // also keeps its position at the end of the list after reconciliation.
+// reconcileKeyedList only manages keyed cards, so the previous "Novo
+// repositório" card has to be removed here, or every re-render (adding a
+// folder, "Selecionar") would leave one more behind.
+let reposAddCard = null;
+
 function renderRepoCards() {
+  if (reposAddCard) reposAddCard.remove();
   reconcileKeyedList(
     reposListCards,
     reposFolders,
@@ -184,7 +187,7 @@ function renderRepoCards() {
         .then(function () { return App.GetRepoFolders(); })
         .then(function (folders) {
           reposFolders = folders || [];
-          selectRepoFolder(path); // já renderiza os cards com a lista atualizada
+          selectRepoFolder(path); // renders the cards with the updated list
         });
     });
   });
@@ -194,6 +197,7 @@ function renderRepoCards() {
   addBody.appendChild(addActions);
   addCard.appendChild(addBody);
   reposListCards.appendChild(addCard);
+  reposAddCard = addCard;
 }
 
 function loadRepoFolders() {

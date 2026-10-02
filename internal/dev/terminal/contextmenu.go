@@ -97,9 +97,7 @@ func menuSlug(t Terminal) string {
 }
 
 // shellescapeWords quotes each whitespace-separated word in s individually
-// via executor.ShellQuote — the project's single, exported shell-escaping
-// mechanism, instead of reimplementing the same single-quote-wrapping
-// algorithm by hand.
+// via executor.ShellQuote.
 func shellescapeWords(s string) string {
 	words := strings.Fields(s)
 	for i, w := range words {

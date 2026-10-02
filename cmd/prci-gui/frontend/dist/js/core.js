@@ -15,8 +15,8 @@
 
 // Shared state and plumbing: DOM references, compact (tray) window, theme, sidebar logo/collapse, tabs, the xterm terminal and the Execução run lifecycle (startExecution, log-line/step/action-done events).
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // Any rejected backend call nobody handled (a Go method returning an error,
@@ -38,18 +38,14 @@ const tabRadioDesc = document.getElementById("tab-radio-desc");
 const tabRadioTerminal = document.getElementById("tab-radio-terminal");
 const sidebar = document.getElementById("sidebar");
 
-// --- compact window (system tray: a single window with tabs, not 3
-// separate windows) ------------------------------------------------------
-// Wails opens this same index.html with ?compact=<tab>
-// (service_tray.go's openCompactWindow) — no URL routing existed in the
-// project before this. Sidebar/breadcrumb disappear, the compact header
-// (image + "Perci" + "Abrir Aplicativo") and the Contêineres/
-// Repositórios/Atualizar Sistema tab bar appear in their place; the rest
-// of the screen (Definições/Execução tabs, containers, render*Screen) is
-// 100% reused — the new tabs just pick, via selectItem, WHICH item to
-// show. Clicking a tray item again while the window is already open
-// doesn't recreate anything — it just focuses the window and sends the
-// "compact-switch-tab" event (see Events.On below).
+// --- compact window (system tray: a single window with tabs) -----------
+// Opened with ?compact=<tab>. Sidebar/breadcrumb are hidden and the
+// compact header (image + "Perci" + "Abrir Aplicativo") and the
+// Contêineres/Repositórios/Atualizar Sistema tab bar are shown instead;
+// the rest of the screen (Definições/Execução tabs, containers,
+// render*Screen) is shared with the main window — the tabs just pick, via
+// selectItem, WHICH item to show. The "compact-switch-tab" event (see
+// Events.On below) switches the tab of an already open window.
 const compactAction = new URLSearchParams(location.search).get("compact");
 const drawerSideEl = document.querySelector(".drawer-side");
 const mobileTopbar = document.getElementById("mobile-topbar");
@@ -133,10 +129,8 @@ function activateCompactMode(cats) {
 }
 
 // --- theme -----------------------------------------------------------------
-// Just the essentials to paint the page right on load (data-theme) —
-// the swatches themselves (clickable grid) live in the "Home ::
-// Configurações" screen (renderSelfConfigScreen), which replaced the old
-// gear-icon modal in the sidebar footer (removed).
+// Applies the saved theme (data-theme) on load; the swatch grid is built
+// by renderSelfConfigScreen.
 function applyTheme(name) {
   document.documentElement.setAttribute("data-theme", name);
   // If the logo "easter egg" (below) already has an active mask, its
@@ -148,29 +142,25 @@ function applyTheme(name) {
 App.GetTheme().then(applyTheme);
 
 // --- sidebar logo --------------------------------------------------------
-// Same reasoning as the theme above: only the initial application lives
-// here, the clickable grid lives in "Home :: Configurações".
+// Applies the saved sidebar logo on load; the clickable grid is built by
+// renderSelfConfigScreen.
 App.GetSidebarLogo().then(function (name) {
   sidebarLogoImg.src = "./assets/perci-" + name + ".png";
   compactHeaderIcon.src = "./assets/perci-" + name + ".png";
 });
 
 // --- sidebar logo easter egg: each click on the image applies a
-// different daisyUI mask (daisyui.com/components/mask/), cycling
-// through a fixed list of shapes. Both mascot variants
-// (perci-blue.png/perci-pink.png, see Home :: Configurações) have a
-// transparent background — coloring the <img> itself (background-color,
-// behind the PNG) makes that color show through clipped exactly to the
-// mask's shape, with no extra element needed underneath. Color per
-// theme: "synthwave"/"retro"/"valentine"/"halloween"/"garden" use the
-// theme's primary color (`var(--color-primary)`, same daisyUI 5
-// variable convention already used in the <style> above for the page
-// background); every other theme uses the fixed pink #FEC5C4. Purely
-// client-side, no persistence — resets (back to the original circle)
-// every time Perci reopens. Uses `document.getElementById` (not the
-// `sidebarLogoImg` const declared further below) because this snippet
-// runs before that const exists — same reason `logoImgEl` has its own
-// name, so it doesn't collide with that const once it's declared. -----
+// different daisyUI mask, cycling through a fixed list of shapes. Both
+// mascot variants (perci-blue.png/perci-pink.png) have a transparent
+// background, so coloring the <img> itself (background-color) shows that
+// color clipped exactly to the mask's shape. Color per theme:
+// "synthwave"/"retro"/"valentine"/"halloween"/"garden" use the theme's
+// primary color (`var(--color-primary)`); every other theme uses the
+// fixed pink #FEC5C4. Purely client-side, no persistence — resets (back
+// to the original circle) every time Perci reopens. Uses
+// `document.getElementById` (not the `sidebarLogoImg` const declared
+// further below) because this snippet runs before that const exists;
+// `logoImgEl` has its own name so it doesn't collide with that const. ---
 const SIDEBAR_LOGO_MASKS = [
   "mask-squircle", "mask-heart", "mask-hexagon", "mask-hexagon-2",
   "mask-decagon", "mask-pentagon", "mask-diamond", "mask-star",
@@ -196,7 +186,7 @@ function applySidebarLogoMask() {
   logoImgEl.style.backgroundColor = sidebarLogoMaskColor();
 }
 
-// Keyboard: the logo is focusable (index.html) and Enter/Space act as a click.
+// Keyboard: the logo is focusable and Enter/Space act as a click.
 logoImgEl.addEventListener("keydown", function (ev) {
   if (ev.key === "Enter" || ev.key === " ") {
     ev.preventDefault();
@@ -214,15 +204,14 @@ document.getElementById("btn-collapse-sidebar").addEventListener("click", functi
   sidebar.setAttribute("data-collapsed", collapsed ? "false" : "true");
 });
 
-// --- tabs (Definições / Execução) — daisyUI's radio tabs-lift, each
-// tab-content's visibility is already handled via CSS by the matching
-// radio's :checked; we just need to check the right radio. --
+// --- tabs (Definições / Execução) — each tab-content's visibility is
+// handled via CSS by the matching radio's :checked; the code only checks
+// the right radio. --
 function selectTab(which) {
   (which === "desc" ? tabRadioDesc : tabRadioTerminal).checked = true;
 }
 
-// --- terminal + real execution (first screen: Linux :: Atualizar
-// Sistema) --------------------------------------------------------------
+// --- terminal + run lifecycle ---------------------------------------------
 // getPostinstallProfile memoizes App.GetPostinstallProfile — the detected
 // distribution can't change while Perci runs, and three screens read it.
 // A failed call isn't cached.
@@ -249,7 +238,7 @@ const terminalEl = document.getElementById("terminal");
 term.open(terminalEl);
 term.writeln("Nenhuma ação em execução.");
 
-// FitAddon (vendor/xterm/addon-fit.js) sizes the terminal to its panel
+// FitAddon sizes the terminal to its panel
 // instead of xterm's fixed 80x24. The observer also fires when the
 // Execução tab becomes visible (0 → real size); a hidden panel is skipped.
 const termFit = new FitAddon.FitAddon();
@@ -377,7 +366,7 @@ const scFlatpak = document.getElementById("sc-flatpak");
 const scTrayEnabled = document.getElementById("sc-tray-enabled");
 const sidebarLogoImg = document.getElementById("sidebar-logo-img");
 
-// ACTIONS maps catalog.go's actionId to the corresponding bound method
+// ACTIONS maps each catalog actionId to the corresponding bound method
 // — every real screen gets an entry here.
 const suOptJournal = document.getElementById("su-opt-journal");
 const suOptAutoremove = document.getElementById("su-opt-autoremove");
@@ -387,16 +376,16 @@ const ACTIONS = {
 
 let running = false;
 
-// activeRun describes the action THIS window started (startExecution in
-// widgets.js): the actionId of the screen it was started from and the
+// activeRun describes the action THIS window started (startExecution):
+// the actionId of the screen it was started from and the
 // buttons it disabled. null when this window isn't running anything — the
 // log-line/step/action-done events reach every window (main + the tray's
 // compact window), and only the one that started the action handles them.
 let activeRun = null;
 
 // Events.On delivers the payload inside ev.data.
-// Output is written once per frame: apt or docker build emit thousands of
-// small events, each a separate term.write before.
+// Output is written once per frame instead of once per event: apt or
+// docker build emit thousands of small events.
 let pendingLog = "";
 Events.On("log-line", function (ev) {
   if (!activeRun) return;

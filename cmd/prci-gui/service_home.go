@@ -31,16 +31,14 @@ import (
 	"github.com/oito2/perci/internal/version"
 )
 
-// HomeService binds the "Home" category (catalog.go). GetCategories/
-// GetTheme/SetTheme/GetGUIThemes are transversal to the whole sidebar
-// rather than specific to Home, but don't justify a 7th service on their
-// own — folded in here as an accepted, documented exception.
+// HomeService binds the "Home" category. GetCategories/GetTheme/SetTheme/
+// GetGUIThemes are transversal to the whole sidebar rather than specific
+// to Home.
 type HomeService struct {
 	serviceBase
 }
 
-// GetCategories returns the sidebar's categories and items — see
-// catalog.go for the actual data.
+// GetCategories returns the sidebar's categories and items.
 func (h *HomeService) GetCategories() []MenuCategory {
 	return categories
 }
@@ -93,12 +91,10 @@ type SelfUpdateInfo struct {
 }
 
 // GetSelfUpdateInfo checks GitHub Releases (internal/selfupdate.
-// LatestRelease — same checksum-gated lookup RunSelfUpdate itself will redo
-// before applying, never trusting this earlier check) and compares against
-// the running version. A 10s timeout keeps a dead network from hanging the
-// screen open indefinitely (LatestRelease itself has no timeout of its
-// own — Run's 5-minute one is meant for the whole download+apply flow, too
-// long for just checking).
+// LatestRelease) and compares against the running version; RunSelfUpdate
+// redoes the lookup before applying, never trusting this earlier check. A
+// 10s timeout keeps a dead network from hanging the screen open
+// indefinitely (LatestRelease itself has no timeout of its own).
 func (h *HomeService) GetSelfUpdateInfo() SelfUpdateInfo {
 	info := SelfUpdateInfo{CurrentVersion: version.Version}
 
@@ -116,11 +112,9 @@ func (h *HomeService) GetSelfUpdateInfo() SelfUpdateInfo {
 }
 
 // RunSelfUpdate checks for and applies an update — internal/selfupdate.Run.
-// The GUI's "Atualizar agora" button click is itself the confirmation, same
-// convention as InstallLinuxToys/InstallMegaSync. Recalculates the latest
-// release itself instead of trusting GetSelfUpdateInfo's earlier result —
-// same "don't trust what the frontend cached" principle as RunFonts/
-// RunPostinstall.
+// The GUI's "Atualizar agora" button click is itself the confirmation.
+// Recalculates the latest release itself instead of trusting
+// GetSelfUpdateInfo's earlier result.
 func (h *HomeService) RunSelfUpdate() error {
 	return h.runAction(func(stdout io.Writer) error {
 		return selfupdate.Run(context.Background(), h.exe, stdout)
@@ -130,8 +124,7 @@ func (h *HomeService) RunSelfUpdate() error {
 // SelfConfigInfo is what "Home :: Configurar" needs to render its form —
 // the two fields internal/selfupdate.Configure lets the user edit.
 // Distro/DE and Theme are deliberately left out: Distro/DE are
-// auto-detected elsewhere and not user-facing settings here, and GUITheme
-// already has its own screen (the sidebar's "Configurações" modal).
+// auto-detected, and the theme has its own setter.
 type SelfConfigInfo struct {
 	WorkspacePath string `json:"workspacePath"`
 	FlatpakScope  string `json:"flatpakScope"`
@@ -150,20 +143,17 @@ func (h *HomeService) GetSelfConfigInfo() SelfConfigInfo {
 	return SelfConfigInfo{WorkspacePath: cfg.WorkspacePath, FlatpakScope: scope}
 }
 
-// PickWorkspaceFolder opens the native folder picker for "Home ::
-// Configurações :: Caminho do Workspace" — same CanCreateDirectories
-// convenience as Repositórios/IA: Contextos/IA: SKILLs/IA: MCPs' pickers.
+// PickWorkspaceFolder opens the native folder picker for the workspace
+// path, with CanCreateDirectories enabled.
 func (h *HomeService) PickWorkspaceFolder() (string, error) {
 	return h.pickFolder("Selecionar pasta do workspace")
 }
 
 // SetWorkspacePath persists the workspace folder path chosen via
-// PickWorkspaceFolder (expanding a leading ~) — "Criar Workspace"'s action.
-// Synchronous, no Execução tab involved (a config load+save is instant,
-// same reasoning as SetTheme/SetSidebarLogo/SetAppIcon — nothing here
-// benefits from the terminal/progress panel). Always reloads the config
-// first: don't clobber other fields (e.g. Docker containers) another
-// process may have changed while the GUI was open.
+// PickWorkspaceFolder (expanding a leading ~). Synchronous, no Execução
+// tab involved. Always reloads the config first: don't clobber other
+// fields (e.g. Docker containers) another process may have changed while
+// the GUI was open.
 //
 // Only a path picked in that dialog this session is accepted
 // (requireApprovedPath): Docker creates folders under the workspace and
@@ -182,9 +172,8 @@ func (h *HomeService) SetWorkspacePath(path string) error {
 	})
 }
 
-// SetFlatpakScope persists the Flatpak install scope — applies instantly on
-// select, same pattern as SetTheme/SetSidebarLogo/SetAppIcon (same
-// reasoning as SetWorkspacePath above).
+// SetFlatpakScope persists the Flatpak install scope — applies instantly
+// on select, synchronously like SetWorkspacePath.
 func (h *HomeService) SetFlatpakScope(scope string) error {
 	if scope != "user" {
 		scope = "system"
@@ -223,9 +212,8 @@ func (h *HomeService) GetSidebarLogos() []string {
 }
 
 // GetAppIcon returns the persisted window/taskbar icon variant
-// ("blue"/"pink") — the one cmd/prci-gui/main.go read at startup, not
-// necessarily what's showing right now if the user just changed it (see
-// SetAppIcon).
+// ("blue"/"pink") — the one read at startup, not necessarily what's
+// showing right now if the user just changed it (see SetAppIcon).
 func (h *HomeService) GetAppIcon() string {
 	cfg, err := config.Load()
 	if err != nil {
@@ -235,16 +223,13 @@ func (h *HomeService) GetAppIcon() string {
 }
 
 // SetAppIcon persists the chosen window/taskbar icon variant. Unlike
-// SetSidebarLogo, this has no live effect on the running window — Wails has
-// no runtime API to change a window's icon after creation, only
-// application.WebviewWindowOptions.Linux.Icon at the one call to
-// Window.NewWithOptions() in main.go — so the new window icon only shows
-// up the next time Perci is started. The frontend shows a fixed note next
-// to this option instead of promising something this API can't do.
+// SetSidebarLogo, this has no live effect on the running window — the
+// icon is only applied when the window is created, so the new window
+// icon only shows up the next time Perci is started.
 //
-// When the application menu icon set is installed system-wide (install.sh/
-// `make install`), it's replaced with the chosen color first — one pkexec
-// prompt. The choice is only persisted if that succeeds, so a cancelled
+// When the application menu icon set is installed system-wide, it's
+// replaced with the chosen color first — one pkexec prompt.
+// The choice is only persisted if that succeeds, so a cancelled
 // prompt leaves config and menu icon consistent.
 func (h *HomeService) SetAppIcon(name string) error {
 	name = oneOf(name, config.AppIcons(), config.DefaultAppIcon)
@@ -266,11 +251,10 @@ func (h *HomeService) GetAppIcons() []string {
 	return config.AppIcons()
 }
 
-// PickUninstallBackupPath opens the native "Salvar Como" dialog for "Home ::
-// Visão Geral :: Desinstalar Perci"'s "Fazer backup das configurações"
-// checkbox — a distinct picker from PickExportConfigPath (service_docker.go)
-// only for its title/default filename; both save through the same
-// appstack.ExportConfig underneath.
+// PickUninstallBackupPath opens the native "Salvar Como" dialog for the
+// uninstall's "Fazer backup das configurações" checkbox — it differs from
+// PickExportConfigPath only in its title/default filename; both save
+// through the same appstack.ExportConfig underneath.
 func (h *HomeService) PickUninstallBackupPath() (string, error) {
 	return approvePath(h.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
 		Title:    "Salvar backup das configurações",
@@ -279,34 +263,27 @@ func (h *HomeService) PickUninstallBackupPath() (string, error) {
 	}).PromptForSingleSelection())
 }
 
-// RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall,
-// reached here through a single combined confirm (frontend modal +
-// checkboxes). Two steps run first, both optional:
+// RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
+// Two steps run first, both optional:
 //
 //   - backupPath != "": exports cfg.Docker to that path first (appstack.
-//     ExportConfig, the same function "Docker :: Gerenciar Containers ::
-//     Exportar configurações" already uses) — reimportable later via
-//     "Importar configurações". A failure here (e.g. nothing registered
-//     yet) is logged as a warning but doesn't abort the uninstall itself —
-//     the frontend already refuses to call this at all when the user
-//     picked "Fazer backup" and then cancelled the save dialog, so getting
-//     here with a non-empty path means they do want to proceed regardless.
+//     ExportConfig) — reimportable later via "Importar configurações". A
+//     failure here (e.g. nothing registered yet) is logged as a warning
+//     but doesn't abort the uninstall itself.
 //   - removeDocker: removes every registered container (apps, then
 //     MariaDB, then Nginx — apps first so nothing routes through infra
-//     that's about to disappear) via the same appstack.DeleteApp/
-//     DeleteMariaDB/DeleteNginx "Docker :: Gerenciar Containers ::
-//     Remover" already uses per-row — disk data (workspace/localhost/...)
-//     is left untouched, same as that single-container Remover today.
+//     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
+//     DeleteNginx — disk data (workspace/localhost/...) is left
+//     untouched.
 //
 // Doesn't go through runAction: a successful uninstall must also close the
 // GUI window, and runAction's generic "ok/error" event has no notion of
-// that, so the goroutine/event/quit sequence is inlined here instead — with
-// the same runMu serialization, panic recovery and emitDone.
+// that, so the goroutine/event/quit sequence is inlined here — with the
+// same runMu serialization, panic recovery and emitDone.
 // ErrUninstalled is success, not a failure, so it's translated to a nil
-// error (ok:true) before the "action-done" event is sent — the frontend has
-// no special case for this action, it just sees a normal successful run
-// before the window closes under it a short moment later (time enough to
-// read the success line in the terminal panel).
+// error (ok:true) before the "action-done" event is sent; the window
+// closes a short moment later (time enough to read the success line in
+// the terminal panel).
 func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPath string) error {
 	// A backup path not chosen in PickUninstallBackupPath refuses the whole
 	// uninstall — checked before anything destructive starts.
@@ -347,8 +324,7 @@ const uninstallQuitDelay = 1500 * time.Millisecond
 // selfUninstall is RunSelfUninstall's body: optional backup, optional
 // Docker cleanup, then selfupdate.Uninstall (whose ErrUninstalled means
 // success). The tray's autostart entry is removed only once the uninstall
-// itself succeeded — removing it first left a still-installed Perci with
-// the tray enabled in config but no autostart after a failed uninstall.
+// itself succeeded.
 func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool, backupPath string) error {
 	ctx := context.Background()
 
@@ -380,10 +356,10 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 
 	err := selfupdate.Uninstall(ctx, h.exe, w, removeConfig)
 	if errors.Is(err, selfupdate.ErrUninstalled) {
-		// Tray autostart (service_tray.go, ~/.config/autostart/perci.desktop)
-		// — removed regardless of TrayEnabled: with the binary gone, it
-		// would be a "ghost" autostart entry (same class of problem as the
-		// app-menu .desktop entry, handled inside selfupdate.Uninstall).
+		// Tray autostart (~/.config/autostart/perci.desktop) — removed regardless
+		// of TrayEnabled: with the binary gone, it would be a "ghost" autostart
+		// entry (same class of problem as the app-menu .desktop entry, handled
+		// inside selfupdate.Uninstall).
 		if rmErr := removeAutostartDesktopFile(); rmErr != nil {
 			ui.Warning(w, "Falha ao remover autostart da bandeja: "+rmErr.Error())
 		}

@@ -110,6 +110,7 @@ Veja [docs/pt-br/index.md](./index.md) para o site de documentação completo �
 ## Convenções de Código
 
 - **Idioma:** Todo o código, comentários e documentação em inglês; todas as strings visíveis ao usuário em português do Brasil.
+- **Comentários:** Explicam estritamente o que o código faz (comportamento, entradas, saídas, efeitos colaterais). Nunca referenciam material externo — documentação, code reviews, issues, conversas, registros de decisão ou outros arquivos — nem narram a história do código.
 - **Tratamento de erros:** Sempre encapsule com `fmt.Errorf("contexto: %w", err)`.
 - **Sem sudo direto:** Todos os comandos privilegiados passam pelo `executor.Executor` com `RequiresSudo: true` (um comando) ou `RunSudoSequence` (um lote que precisa autenticar só uma vez).
 - **Sem prompt interativo em pacote de domínio:** Funções de domínio (`internal/system/*`, `internal/dev/*`, `internal/manager/*`, `internal/appstack`) recebem parâmetros simples e nunca leem stdin nem mostram formulário — toda entrada/confirmação acontece na GUI (frontend Wails + os serviços bindados de `cmd/prci-gui`, um `application.Service` por domínio: `HomeService`/`LinuxService`/`DevSetupService`/`DockerService`/`DevToolsService`/`TrayService`). O clique num botão da GUI já é a confirmação; não existe prompt "tem certeza?" dentro do código de domínio.

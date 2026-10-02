@@ -15,14 +15,12 @@
 
 // Dev Tools :: IA: Contextos.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // ===========================================================================
-// "Dev Tools :: IA: Contextos" — backed by internal/manager/ai
-// (Go/MCP Server/Go MCP Server/PHP were removed from the catalog in
-// the same decision — covered by equivalent skills in "IA: SKILLs").
+// "Dev Tools :: IA: Contextos".
 // ===========================================================================
 
 let aicFolder = "";

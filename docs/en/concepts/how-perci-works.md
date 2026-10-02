@@ -59,7 +59,7 @@ The GUI groups every action into five sidebar categories:
   </tr>
 </table>
 
-![System tray menu — Contêineres, Repositórios and Atualizar Sistema open the compact window](../../img/screenshots/tray-window.png)
+![System tray menu — Abrir Aplicativo shows the main window; Contêineres, Repositórios and Atualizar Sistema open the compact window](../../img/screenshots/tray-window.png)
 
 ## Distro-Aware, Not Distro-Agnostic
 

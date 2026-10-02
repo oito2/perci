@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadScripts, scriptOrder } from "./harness.mjs";
 
-// Every script index.html loads runs its top-level code without throwing,
+// Every script the page loads runs its top-level code without throwing,
 // in order, in one shared scope — a missing global or a const declared
 // twice across files fails here.
 test("all classic scripts load together", () => {

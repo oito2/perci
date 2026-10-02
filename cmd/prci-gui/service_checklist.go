@@ -16,13 +16,9 @@
 package main
 
 // checklistCatalog/getChecklistInfo/runChecklist generalize the "checklist
-// simples" Get*Info/Run* pair shape shared by 7 GUI screens (fonts,
-// templates, Flatpak apps, prerequisites, SDKs, AI apps, terminals): list
-// a catalogue with its current installed state, then diff a frontend
-// selection against it and apply the install/remove batch. Domain-side
-// duplication of the install/remove loop itself is generalized separately
-// (internal/checklist) — this is the GUI-layer "shell" one level up,
-// gluing a bound method to whichever domain package backs it.
+// simples" Get*Info/Run* pair shared by the GUI checklist screens: list a
+// catalogue with its current installed state, then diff a frontend
+// selection against it and apply the install/remove batch.
 
 import (
 	"io"
@@ -33,8 +29,8 @@ import (
 // checklistCatalog declares everything a "checklist simples" screen needs:
 // its items, how to read an ID/label/(optional) description from one, its
 // current installed state (recalculated fresh on every call — never
-// trusting what the frontend cached, same principle every RunX already
-// followed), and how to apply an install/remove batch.
+// trusting what the frontend cached), and how to apply an install/remove
+// batch.
 type checklistCatalog[T any] struct {
 	items     []T
 	idOf      func(T) string
@@ -65,9 +61,8 @@ func getChecklistInfo[T any](c checklistCatalog[T]) []MultiSelectItemInfo {
 }
 
 // runChecklist diffs selectedIDs against c's current installed state
-// (internal/sets.Diff, same helper every RunX already used) and, when
-// there's anything to do, applies the batch via c.apply — inside b's
-// runAction, same as every RunX before this.
+// (internal/sets.Diff) and, when there's anything to do, applies the batch
+// via c.apply inside b's runAction.
 func runChecklist[T any](b *serviceBase, c checklistCatalog[T], selectedIDs []string) error {
 	return b.runAction(func(stdout io.Writer) error {
 		installed := c.installed()

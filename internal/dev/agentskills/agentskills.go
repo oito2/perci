@@ -14,16 +14,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Package agentskills installs, updates and removes third-party "agent
-// skills" (SKILL.md packages taught to a coding agent) via the `skills`
-// CLI (npx skills — https://www.skills.sh/, backed by
-// github.com/vercel-labs/skills) — backs the GUI's "Dev Tools :: IA:
-// SKILLs" screen.
-//
-// Deliberately a separate mechanism from internal/manager/skills (which
-// copies perci's own bundled SKILL.md templates, or runs a fixed installer
-// command, into .agents/skills/ — a different catalog with a different
-// install path entirely). This package shells out to a third-party npm
-// package instead.
+// skills" (SKILL.md packages taught to a coding agent) by running the
+// `skills` CLI through npx.
 package agentskills
 
 import (
@@ -41,15 +33,11 @@ import (
 type Skill struct {
 	Slug string // internal catalog id (config.AgentSkillInstall.Slug, DOM ids)
 	Name string // display name
-	Repo string // "owner/repo" shorthand or full git URL — both accepted identically by `skills add`
+	Repo string // "owner/repo" shorthand or full git URL
 	Arg  string // value passed to --skill; "*" installs every skill in Repo
 }
 
-// Catalogue lists every skill offered by "Dev Tools :: IA: SKILLs" — the
-// user's own curated picks from skills.sh, verified against
-// github.com/vercel-labs/skills's documented CLI behavior (2026-09-11) and
-// adjusted where that verification found a real gap (see targetAgents and
-// buildBaseArgs below for what changed and why).
+// Catalogue lists every skill offered.
 var Catalogue = []Skill{
 	{Slug: "godot-ui", Name: "Godot: UI", Repo: "https://github.com/gamedev-skills/awesome-gamedev-agent-skills", Arg: "godot-ui-control"},
 	{Slug: "godot-master", Name: "Godot: Master", Repo: "https://github.com/thedivergentai/gd-agentic-skills", Arg: "godot-master"},
@@ -63,9 +51,7 @@ var Catalogue = []Skill{
 	{Slug: "moodle-external-api", Name: "Moodle: External API", Repo: "https://github.com/sickn33/agentic-awesome-skills", Arg: "moodle-external-api-development"},
 	{Slug: "moodle-plugin", Name: "Moodle: Plugin Development", Repo: "https://github.com/af1ah/moodle-plugin-skills", Arg: "moodle-plugin"},
 	{Slug: "moodle-education-expert", Name: "Moodle: Education Expert", Repo: "https://github.com/personamanagmentlayer/pcl", Arg: "education-expert"},
-	// DaisyUI's own listing page didn't specify a --skill value — without
-	// one, `skills add` can be ambiguous (or prompt for a choice) when the
-	// repo has more than one skill. "*" installs all of them.
+	// Arg "*" installs every skill in the repo.
 	{Slug: "daisyui", Name: "DaisyUI", Repo: "saadeghi/daisyui", Arg: "*"},
 	{Slug: "shadcn-ui", Name: "ShaCN UI", Repo: "https://github.com/shadcn-ui/ui", Arg: "shadcn"},
 	{Slug: "frontend-design", Name: "Frontend Design", Repo: "https://github.com/anthropics/skills", Arg: "frontend-design"},
@@ -92,20 +78,13 @@ func BySlug(slug string) (Skill, bool) {
 	return Skill{}, false
 }
 
-// targetAgents lists the same 4 AI CLIs that "Desenvolvimento :: Aplicativos:
-// IA" already installs/manages (internal/dev/llm.Catalogue) — not
-// "universal", which vercel-labs/skills documents as its OWN separate path
-// (.agents/skills/ local, ~/.config/agents/skills/ global) that Claude Code
-// specifically does NOT look at (it only reads .claude/skills/). Applied
-// uniformly across the whole catalogue, including the two entries
-// (Dart/Flutter) whose listing pages advertised "--agent universal" —
-// overridden here for consistency with every other entry.
+// targetAgents lists the AI CLIs every skill is installed for (the same
+// four managed by the llm package), applied to the whole catalogue.
 var targetAgents = []string{"claude-code", "opencode", "antigravity", "codex"}
 
-// scopedOptions appends --global (or nothing — local is the tool's own
-// default) and returns the working directory to use — only relevant for
-// local scope, since the tool has no directory flag of its own and instead
-// relies on the process's cwd (hence the Dir field on executor.Options).
+// scopedOptions returns the executor options for the scope. Local scope
+// runs in folder, since the tool has no directory flag and uses the
+// process's working directory.
 func scopedOptions(stdout io.Writer, global bool, folder string) executor.Options {
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	if !global {
@@ -114,17 +93,13 @@ func scopedOptions(stdout io.Writer, global bool, folder string) executor.Option
 	return opts
 }
 
-// skillsCLI pins the skills.sh CLI (npm "skills", github.com/vercel-labs/
-// skills) instead of whatever npx resolves as latest. To upgrade, check the
-// new release and bump the version here (npm view skills version).
+// skillsCLI pins the npm "skills" CLI version instead of whatever npx
+// resolves as latest.
 const skillsCLI = "skills@1.7.0"
 
 // Install runs `npx skills add` for sk. `-y` right after `npx` skips npx's
-// own prompt asking whether it can install the `skills` package the first
-// time; `--yes` on `skills add` itself skips any confirmation or
-// agent-selection prompt — without `--agent`/`--yes`, the tool
-// auto-detects installed agents or, if it finds none, shows an interactive
-// prompt, which would hang the GUI (no real stdin to answer it with).
+// install prompt; `--agent` and `--yes` on `skills add` skip every
+// confirmation and agent-selection prompt, so it never waits for stdin.
 func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, sk Skill, global bool, folder string) error {
 	args := []string{"-y", skillsCLI, "add", sk.Repo, "--skill", sk.Arg}
 	for _, a := range targetAgents {
@@ -137,12 +112,12 @@ func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, sk S
 	return exe.Run(ctx, scopedOptions(stdout, global, folder), "npx", args...)
 }
 
-// Remove runs `npx skills remove` for sk — same target agents and scope as Install.
+// Remove runs `npx skills remove` for sk, with the same target agents and
+// scope as Install.
 //
-// An entry installed with Arg "*" is removed by the names of the skills
-// that came from its repository (installedFromRepo), never with
-// `--skill '*'`: for `skills remove`, '*' means every installed skill of
-// those agents in the scope — whatever repository it came from.
+// An entry with Arg "*" is removed by the names of the skills that came
+// from its repository (installedFromRepo), never with `--skill '*'`, which
+// would remove every installed skill in the scope.
 func Remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, sk Skill, global bool, folder string) error {
 	names := []string{sk.Arg}
 	if sk.Arg == "*" {
@@ -177,9 +152,9 @@ type installedSkill struct {
 }
 
 // installedFromRepo returns the names of the skills installed in the scope
-// (global, or the project at folder) whose recorded source is repo. The
-// `skills` CLI records a GitHub source as "owner/repo" even when it was
-// installed from the full URL, so both sides go through repoKey.
+// (global, or the project at folder) whose recorded source is repo. Both
+// sides are compared through repoKey, so "owner/repo" and the full URL
+// match.
 func installedFromRepo(ctx context.Context, exe *executor.Executor, repo string, global bool, folder string) ([]string, error) {
 	args := []string{"-y", skillsCLI, "list", "--json"}
 	if global {
@@ -219,18 +194,11 @@ func repoKey(repo string) string {
 	return strings.TrimSuffix(k, ".git")
 }
 
-// Update runs `npx skills update` for sk.
-//
-// `skills update` takes skill names as positional arguments (no --skill,
-// no --agent; only -g/--global or -p/--project) and matches them literally
-// (case-insensitive) against the installed skill names. Confirmed against
-// skills@1.7.0 (2026-10-01): the installed name is the value given to
-// --skill at install time — "SVG Logo Designer" included — so Skill.Arg
-// works for named entries.
+// Update runs `npx skills update` for sk, passing skill names as
+// positional arguments (Skill.Arg for named entries).
 //
 // An Arg "*" entry is updated by the names of the skills installed from
-// its repository (installedFromRepo), same as Remove: `update '*'` looked
-// for a skill literally named "*", found nothing and did nothing.
+// its repository (installedFromRepo), same as Remove.
 func Update(ctx context.Context, exe *executor.Executor, stdout io.Writer, sk Skill, global bool, folder string) error {
 	names := []string{sk.Arg}
 	if sk.Arg == "*" {

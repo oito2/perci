@@ -15,8 +15,8 @@
 
 // Sidebar accordion + collapsed rail flyout, and selectItem (which screen shows for each menu item).
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // --- accordion (expanded) + rail flyout (collapsed) ------------------------
@@ -27,6 +27,16 @@
 function catInitials(label) {
   return label.split(" ").map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase();
 }
+
+// Rail icon per category — a category missing
+// here falls back to its initials.
+const CATEGORY_ICONS = {
+  Home: "house",
+  Linux: "terminal",
+  Desenvolvimento: "code",
+  Docker: "container",
+  "Dev Tools": "wrench",
+};
 
 // Builds the <ul class="menu"> of one category's items — reused both by
 // the accordion and the rail dropdown, so the two views always stay in
@@ -85,7 +95,7 @@ App.GetCategories().then(function (cats) {
     accWrap.appendChild(accContent);
 
     // --- rail view: icon + flyout with the items (custom CSS, not
-    // daisyUI's `dropdown` component — see the note in <style>).
+    // daisyUI's `dropdown` component).
     const railWrap = document.createElement("div");
     railWrap.className = "rail-view justify-center p-2";
 
@@ -96,9 +106,11 @@ App.GetCategories().then(function (cats) {
 
     const railTrigger = document.createElement("div");
     railTrigger.title = cat.label;
-    railTrigger.className = "cat-badge bg-primary text-primary-content cursor-pointer";
+    railTrigger.className = "cat-badge cursor-pointer";
     railTrigger.setAttribute("aria-hidden", "true"); // railItem carries the label
-    railTrigger.textContent = catInitials(cat.label);
+    const icon = CATEGORY_ICONS[cat.label];
+    if (icon) railTrigger.innerHTML = LUCIDE.svg(icon, { size: 22 });
+    else railTrigger.textContent = catInitials(cat.label);
 
     const railMenu = buildItemsMenu(cat, catIdx, "rail-flyout menu menu-md bg-base-200 rounded-box w-56 p-2 shadow border border-base-300");
 
@@ -116,7 +128,7 @@ App.GetCategories().then(function (cats) {
 });
 
 // Screen registry: which container each menu item shows and how it renders
-// (the counterpart of ACTION_DONE_HANDLERS in core.js). Built on demand —
+// (the counterpart of ACTION_DONE_HANDLERS). Built on demand —
 // the containers and render functions are declared in scripts that load
 // after this one. Screens sharing one container (checklists, single apps,
 // IDEs, local-file apps) resolve by family; anything else is the "simple"

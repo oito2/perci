@@ -1,4 +1,4 @@
-# Keeps the SHA-pinned GitHub Actions (ci.yml, release.yml) and Go modules current.
+# Keeps the SHA-pinned GitHub Actions and Go modules current.
 version: 2
 updates:
   - package-ecosystem: github-actions

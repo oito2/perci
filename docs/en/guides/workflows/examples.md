@@ -42,7 +42,7 @@ Optionally: **Gerenciar Fontes**, **Gerenciar Templates de Arquivos**, **Aplicat
 
 1. **Nginx** — one-time, creates the reverse proxy, the shared network, and the `*.localhost` wildcard HTTPS cert.
 2. **MariaDB** — one-time, asks for a database user/password.
-3. **Moodle** — PHP version ≥ 8.2, URL (e.g. `mdle.localhost`), Acesso a banco = yes.
+3. **Moodle** — Versão do Moodle `5.1+`, PHP 8.3 or 8.4, URL (e.g. `mdle.localhost`), Acesso a banco = yes.
 
 The app container comes up automatically as part of creation — no separate "start" step. See the [Docker application stack guide](../environments/docker.md) for the full lifecycle.
 

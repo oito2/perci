@@ -230,12 +230,10 @@ func TestGenerateSharedFiles_WritesInstructionFiles(t *testing.T) {
 	}
 }
 
-// TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel exercises
-// the fix added 2026-09-11: RemoveInstruction existed since before this
-// feature but had no caller anywhere in the repo (confirmed via search) —
-// unchecking a previously-active model left its .instructions/*.md
-// orphaned. GenerateSharedFiles now diffs DetectActiveModels against the
-// newly selected list and removes what fell off.
+// TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel
+// checks that unchecking a previously-active model removes its
+// .instructions/*.md: GenerateSharedFiles diffs DetectActiveModels against
+// the newly selected list and removes what fell off.
 func TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -316,7 +314,7 @@ func TestGenerateSharedFiles_MoodleVarsMissing_NonInteractive(t *testing.T) {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
-	// The warning reaches the GUI's terminal (it used to go to a log the GUI never passed).
+	// The warning reaches the GUI's terminal.
 	if !strings.Contains(out.String(), "version.php não encontrado") {
 		t.Errorf("expected a warning when version.php is missing, got %q", out.String())
 	}

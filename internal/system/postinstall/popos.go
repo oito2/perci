@@ -16,17 +16,13 @@
 package postinstall
 
 // poposPackages holds the same general-purpose utilities as
-// ubuntuPackages/zorinPackages, MINUS the GNOME-specific entries
-// (gnome-tweaks, gnome-software-plugin-flatpak: COSMIC uses neither GNOME
-// Software nor GNOME Tweaks — it has its own COSMIC Settings) and MINUS
-// ubuntu-drivers-common (Pop!_OS manages drivers through its own
-// system76-driver instead — intentionally left out, not forgotten).
+// ubuntuPackages/zorinPackages, minus the GNOME-specific entries
+// (gnome-tweaks, gnome-software-plugin-flatpak) and minus
+// ubuntu-drivers-common (Pop!_OS manages drivers through system76-driver).
 //
-// Pop!_OS 24.04 is based on Ubuntu 24.04 (apt/deb), with its own
-// apt.pop-os.org repository already enabled by default — it doesn't need
-// the "enable universe/multiverse" step that Mint/Ubuntu/Zorin use, since
-// Pop!_OS already ships with main/restricted/universe/multiverse enabled
-// out of the box.
+// Pop!_OS 24.04 is based on Ubuntu 24.04 (apt/deb) and ships with
+// main/restricted/universe/multiverse already enabled, so it has no
+// "enable universe/multiverse" step.
 var poposPackages = []string{
 	"build-essential",
 	"gparted",
@@ -51,21 +47,15 @@ var poposPackages = []string{
 
 // poposProfile deliberately does NOT include:
 //   - "enable repositories": universe/multiverse are already enabled.
-//   - "configure swapfile": Pop!_OS already uses zram by default
-//     (pop-default-settings-zram) — adding a swapfile alongside it would
-//     be redundant.
-//   - "detect additional drivers" (ubuntu-drivers autoinstall): Pop!_OS
-//     already manages this via system76-driver/system76-driver-nvidia —
-//     running ubuntu-drivers autoinstall on top is discouraged by
-//     System76 itself (risk of conflicts).
+//   - "configure swapfile": Pop!_OS already uses zram by default.
+//   - "detect additional drivers" (ubuntu-drivers autoinstall): drivers are
+//     managed by system76-driver/system76-driver-nvidia.
 var poposProfile = Profile{
 	ID:    "popos-cosmic",
 	Label: "Pop!_OS 24.04 COSMIC",
 	Actions: []Action{
 		actAptUpgrade(""),
-		// System76's official recommendation for Pop!_OS
-		// (system76.com/support/articles/codecs) — the same
-		// ubuntu-restricted-extras Ubuntu/Zorin use, so the same EULA.
+		// Same ubuntu-restricted-extras as Ubuntu/Zorin, so the same EULA.
 		actAptInstall("install-codecs", "Instalar codecs multimídia",
 			"Instala ubuntu-restricted-extras e gstreamer1.0-plugins-bad (recomendação oficial da System76 para Pop!_OS).",
 			"", true, "ubuntu-restricted-extras", "gstreamer1.0-plugins-bad"),

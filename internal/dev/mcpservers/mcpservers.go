@@ -13,28 +13,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package mcpservers registers MCP servers with the 3 AI CLIs Perci
-// targets on this screen (Claude Code, Codex, Antigravity — backs the
-// GUI's "Dev Tools :: IA: MCPs" screen).
+// Package mcpservers registers MCP servers with three AI CLIs: Claude
+// Code, Codex and Antigravity.
 //
-// Each agent has its own mechanism, researched rather than assumed:
+// Each agent has its own mechanism:
 //   - Claude Code: `claude mcp add/remove` (generic servers) and
 //     `claude plugin install/uninstall/update` (Dart + Flutter, distributed
-//     as a marketplace plugin) — both with `--scope user|local` confirmed
-//     in the official docs.
-//   - Codex: `codex mcp add/remove` and `codex plugin add/remove` exist and
-//     are used, but **only at Global scope** — a per-project scope flag
-//     only showed up in a feature-request issue, not confirmed as shipped;
-//     decided not to risk it.
-//   - Antigravity: no confirmed CLI subcommand — the official docs describe
-//     directly editing `mcp_config.json` (Global:
-//     ~/.gemini/config/mcp_config.json; Local: .agents/mcp_config.json)
-//     plus an interactive `/mcp` overlay inside the app. Implemented here
-//     as read+merge+write of that JSON, preserving any other entries.
+//     as a marketplace plugin), both with `--scope user|local`.
+//   - Codex: `codex mcp add/remove` and `codex plugin add/remove`, only at
+//     Global scope; Local scope is skipped.
+//   - Antigravity: reads, merges and writes its `mcp_config.json` directly
+//     (Global: ~/.gemini/config/mcp_config.json; Local:
+//     .agents/mcp_config.json), preserving any other entries.
 //
-// Unlike internal/dev/agentskills (one uniform tool, `npx skills`, for
-// everything), each catalog server here has its own install logic — there
-// is no single generic function covering all 4 entries.
+// Each catalog server has its own install logic; there is no single
+// generic function covering every entry.
 package mcpservers
 
 import (
@@ -68,25 +61,19 @@ type Server struct {
 
 	// Param/ParamLabel: some servers need an extra value before Install
 	// can run (Filesystem: an allowed directory; SQLite: a .sqlite file
-	// path) — neither has one fixed value, so there's no static command
-	// to run without it.
+	// path).
 	Param      ParamKind
 	ParamLabel string
 
-	// Manual (Godot Studio): true means there's no command to automate at
-	// all — the real connection command is generated live inside a
-	// running Godot editor's own UI ("Configure" in the Godot AI dock),
-	// so Install/Remove/Update don't apply. ManualURL/ManualNote are shown
+	// Manual: true means there is no command to automate, so
+	// Install/Remove/Update don't apply. ManualURL/ManualNote are shown
 	// instead of the usual buttons.
 	Manual     bool
 	ManualURL  string
 	ManualNote string
 }
 
-// Catalogue lists every MCP server offered by "Dev Tools :: IA: MCPs" —
-// the user's own curated picks (2026-09-11), verified against each
-// server's/agent's own documentation (see package doc comment for what
-// changed from the literal commands given and why).
+// Catalogue lists every MCP server offered.
 var Catalogue = []Server{
 	{Slug: "dart-flutter", Name: "Dart + Flutter"},
 	{
@@ -108,10 +95,8 @@ var Catalogue = []Server{
 	},
 }
 
-// filesystemServerPkg/sqliteServerPkg pin the servers the agents are told
-// to launch (npm and PyPI), instead of whatever npx/uvx resolves as latest
-// on every start. To upgrade: npm view @modelcontextprotocol/server-filesystem
-// version / pypi.org/project/mcp-server-sqlite, then bump here.
+// filesystemServerPkg/sqliteServerPkg pin the exact package versions the
+// agents launch, instead of whatever npx/uvx resolves as latest.
 const (
 	filesystemServerPkg = "@modelcontextprotocol/server-filesystem@2026.8.31"
 	sqliteServerPkg     = "mcp-server-sqlite@2025.4.25"
@@ -129,11 +114,8 @@ func BySlug(slug string) (Server, bool) {
 
 // ── shared scope handling (Claude Code + cwd-based execution) ───────────
 
-// scopedOptions sets Dir when global is false — Claude Code's own "local"
-// scope (both for `mcp add` and `plugin install`) is tied to whichever
-// directory the command runs from, not an explicit path flag; same reason
-// internal/manager/repo/gitignore/ai gained a Dir field on
-// executor.Options.
+// scopedOptions sets Dir to folder when global is false, since Claude
+// Code's local scope is tied to the directory the command runs from.
 func scopedOptions(stdout io.Writer, global bool, folder string) executor.Options {
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	if !global {
@@ -180,11 +162,9 @@ func readJSONObject(path string) (map[string]any, error) {
 	return doc, nil
 }
 
-// writeJSONObject replaces path atomically (the file can hold other MCP
-// servers' tokens in their "env" — a crash mid-write must not leave it
-// empty or truncated), keeping its current permissions or 0600 for a new
-// file, and without escaping <, > and & the way json.Marshal does by default
-// (that would needlessly rewrite the user's own entries).
+// writeJSONObject replaces path atomically, keeping its current
+// permissions (0600 for a new file) and without escaping <, > and & the
+// way json.Marshal does by default.
 func writeJSONObject(path string, doc map[string]any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("criar %s: %w", filepath.Dir(path), err)
@@ -262,9 +242,8 @@ func antigravityRemoveServer(global bool, folder, name string) error {
 // ── per-agent results ─────────────────────────────────────────────────────
 
 // agentResults collects one install/update attempt's outcome per agent: a
-// partial success stays a warning (reported inline, as before), but when no
-// agent accepted it the whole action fails — otherwise the GUI recorded the
-// server as installed while nothing was registered anywhere.
+// partial success stays a warning reported inline, but when no agent
+// accepted it the whole action fails.
 type agentResults struct {
 	stdout io.Writer
 	ok     int
@@ -333,12 +312,10 @@ func removeGeneric(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	}
 }
 
-// ── Dart + Flutter (plugin via marketplace flutter/agent-plugins) ───────
+// ── Dart + Flutter (plugin via the flutter/agent-plugins marketplace) ──
 
 const (
-	// dartFlutterPluginRef is PLUGIN@MARKETPLACE for both CLIs — Codex
-	// refuses a bare "dart-flutter" on remove ("plugin requires
-	// --marketplace unless passed as <plugin>@<marketplace>").
+	// dartFlutterPluginRef is PLUGIN@MARKETPLACE for both CLIs.
 	dartFlutterPluginRef    = "dart-flutter@dart-flutter"
 	dartFlutterMarketplace  = "flutter/agent-plugins"
 	dartFlutterCodexMarket  = "flutter/agent-plugins"
@@ -346,7 +323,7 @@ const (
 )
 
 // installDartFlutter fails only when neither Claude Code nor Codex took
-// the plugin (Antigravity needs nothing — it's native).
+// the plugin (Antigravity needs nothing, it is native).
 func installDartFlutter(ctx context.Context, exe *executor.Executor, stdout io.Writer, global bool, folder string) error {
 	ui.Info(stdout, antigravityNativeNotice)
 	res := &agentResults{stdout: stdout}
@@ -390,9 +367,7 @@ func updateDartFlutter(ctx context.Context, exe *executor.Executor, stdout io.Wr
 	opts := scopedOptions(stdout, global, folder)
 	res.done("Claude Code", "plugin atualizado.", exe.Run(ctx, opts, "claude", "plugin", "update", dartFlutterPluginRef, "--scope", claudeScope(global)))
 	if global {
-		// No confirmed "codex plugin update" — falls back to
-		// remove+reinstall, same fallback used elsewhere for actions with
-		// no native update primitive (e.g. Docker/Repositórios "Editar").
+		// Codex has no plugin update, so this removes and reinstalls.
 		codexOpts := executor.Options{Stdout: stdout, Stderr: stdout}
 		_ = exe.Run(ctx, codexOpts, "codex", "plugin", "remove", dartFlutterPluginRef)
 		res.done("Codex", "plugin reinstalado (sem update nativo confirmado).", exe.Run(ctx, codexOpts, "codex", "plugin", "add", dartFlutterPluginRef))
@@ -461,9 +436,9 @@ func Remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug 
 }
 
 // Update refreshes slug's registration. Claude Code has a native "plugin
-// update" for dart-flutter; every other case (no native update primitive
-// confirmed) falls back to Remove+Install with the same param — validated
-// first, so a missing parameter can't remove the server and then fail.
+// update" for dart-flutter; every other case runs Remove+Install with the
+// same param, validated first so a missing parameter can't remove the
+// server and then fail.
 func Update(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug string, global bool, folder, param string) error {
 	switch slug {
 	case "dart-flutter":

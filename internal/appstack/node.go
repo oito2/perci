@@ -25,8 +25,7 @@ import (
 )
 
 // SupportedNodeVersions is the list AppTypeNode/AppTypePHPNode containers
-// can be created with: "22" (Maintenance LTS, EOL Apr/2027), "24" (Active
-// LTS, EOL Apr/2028), "26" (Current since May/2026, becomes LTS Oct/2026).
+// can be created with: "22", "24" and "26".
 var SupportedNodeVersions = []string{"22", "24", "26"}
 
 // ValidNodeVersion reports whether v is one of SupportedNodeVersions.
@@ -40,11 +39,8 @@ func ValidNodeVersion(v string) bool {
 }
 
 // ValidDevPort reports whether port is usable as a Node dev server's port
-// (proxy_pass'd by Nginx): unprivileged range, and distinct from the fixed
-// ports every other appstack container
-// already claims (9000 for php-fpm's fastcgi listener, 3306 for MariaDB),
-// so a careless choice can't collide with those inside the same
-// container/network.
+// (proxy_pass'd by Nginx): unprivileged range (1024-65535), and not 9000
+// (php-fpm's fastcgi listener) or 3306 (MariaDB).
 func ValidDevPort(port int) bool {
 	if port < 1024 || port > 65535 {
 		return false
@@ -56,24 +52,19 @@ func ValidDevPort(port int) bool {
 }
 
 // NodeImageName returns the perci-managed base image tag for a Node
-// version, e.g. "perci-node24" for "24" — built once per version and
-// reused by every AppTypeNode/AppTypePHPNode container on that version,
-// mirroring ImageName for PHP.
+// version, e.g. "perci-node24" for "24". The image is built once per
+// version and reused by every AppTypeNode/AppTypePHPNode container on that
+// version.
 func NodeImageName(version string) string { return "perci-node" + version }
 
 // nodeDockerfile builds a perci-node<version> image from the official Node
 // image, adding only what npm-installing native dependencies commonly
-// needs (git, a C/C++ toolchain, python3 for node-gyp) — nothing
-// framework-specific. Vue/React/Svelte/etc. are all just npm packages the
-// developer installs themselves inside the mounted project folder — perci
-// is framework-agnostic here, matching its general philosophy of only
-// preparing infrastructure, never opinionating on the app's own stack.
+// needs (git, a C/C++ toolchain, python3 for node-gyp). Nothing is
+// framework-specific.
 //
-// UID is baked in at build time the same way PHPDockerfile does for
-// www-data — official Node images already ship a "node" user (uid 1000),
-// usermod'd here to the invoking host user so files the dev server writes
-// into the bind-mounted project folder (npm's node_modules, build output,
-// ...) don't end up root-owned on the host.
+// The image's "node" user (uid 1000) is usermod'd at build time to the
+// invoking host user's UID, so files the dev server writes into the
+// bind-mounted project folder are not root-owned on the host.
 const nodeDockerfile = `ARG NODE_VERSION=24
 FROM node:${NODE_VERSION}-bookworm
 
@@ -91,8 +82,8 @@ RUN usermod -u ${UID} node
 WORKDIR /app
 `
 
-// EnsureNodeImage builds NodeImageName(version) when it's missing or out
-// of date — same rules as EnsureImage for PHP (see ensureImage).
+// EnsureNodeImage builds NodeImageName(version) when it is missing or out
+// of date, with the same rules as EnsureImage (see ensureImage).
 func EnsureNodeImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, version string) error {
 	if !ValidNodeVersion(version) {
 		return fmt.Errorf("versão Node não suportada: %s", version)

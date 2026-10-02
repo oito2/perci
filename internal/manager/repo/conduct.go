@@ -39,16 +39,15 @@ var (
 
 const contactPlaceholder = "{{CONTACT_EMAIL}}"
 
-// Generated file locations, relative to the project root — the English
-// canon at the root and its Portuguese mirror under docs/pt-br/, the same
-// layout the "Documentação de projeto" standard uses (only the root holds
-// canonical files; mirrors never live there).
+// Generated file locations, relative to the project root: the English
+// canon at the root and its Portuguese mirror under docs/pt-br/.
 var (
 	fileEN = "CODE_OF_CONDUCT.md"
 	filePT = filepath.Join("docs", "pt-br", "codigo-de-conduta.md")
 )
 
-// legacyFilePT is where older Perci versions wrote the Portuguese mirror.
+// legacyFilePT is a root-level Portuguese file that CreateConduct reports
+// but never deletes.
 const legacyFilePT = "CODIGO_DE_CONDUTA.md"
 
 // validContactEmail is a deliberately loose check (something@domain.tld,
@@ -59,8 +58,7 @@ var validContactEmail = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 // CreateConduct writes CODE_OF_CONDUCT.md and docs/pt-br/codigo-de-conduta.md
 // into dir, with contactEmail as the address for reporting violations. If
 // overwrite is false, existing files are skipped. A CODIGO_DE_CONDUTA.md
-// left at the root by an older Perci version is reported, never deleted —
-// it may have been edited.
+// found at the root is reported, never deleted.
 func CreateConduct(stdout io.Writer, dir, contactEmail string, overwrite bool) error {
 	contactEmail = strings.TrimSpace(contactEmail)
 	if !validContactEmail.MatchString(contactEmail) {

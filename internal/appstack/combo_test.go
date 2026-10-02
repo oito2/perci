@@ -27,11 +27,9 @@ func TestComboImageName(t *testing.T) {
 }
 
 func TestComboSupervisordConf(t *testing.T) {
-	// [supervisord] is mandatory — comboDockerfile's CMD passes this file
+	// [supervisord] is mandatory: comboDockerfile's CMD passes this file
 	// straight to supervisord's -c, so it must be a complete config, not
-	// just a program-definitions fragment. Regression test for a real
-	// "Error: .ini file does not include supervisord section" failure hit
-	// during testing (2026-08-24).
+	// just a program-definitions fragment.
 	if !strings.HasPrefix(comboSupervisordConf, "[supervisord]") {
 		t.Errorf("expected comboSupervisordConf to start with a [supervisord] section, got:\n%s", comboSupervisordConf)
 	}
@@ -47,9 +45,9 @@ func TestComboSupervisordConf(t *testing.T) {
 	if !strings.Contains(comboSupervisordConf, "user=www-data") {
 		t.Errorf("expected the dev-server program to drop to www-data (UID-matched to the host), got:\n%s", comboSupervisordConf)
 	}
-	// php-fpm's [program:] block must NOT set user= — its master process
-	// needs to start as root; it drops its own workers to www-data
-	// internally via its pool config, not via supervisord.
+	// php-fpm's [program:] block must NOT set user=: its master process
+	// needs to start as root and drops its own workers to www-data
+	// internally via its pool config.
 	phpFPMBlock := comboSupervisordConf[:strings.Index(comboSupervisordConf, "[program:dev-server]")]
 	if strings.Contains(phpFPMBlock, "user=") {
 		t.Errorf("php-fpm's program block must not set user= (its master process needs to start as root), got:\n%s", phpFPMBlock)
@@ -57,11 +55,8 @@ func TestComboSupervisordConf(t *testing.T) {
 
 	// [program:worker] must exist and read $WORKER_COMMAND from its own
 	// inherited environment at run time (a plain shell expansion, not
-	// supervisord's %(ENV_X)s config-parse-time substitution) — unlike
-	// dev-server, this program has to start cleanly even when the app sets
-	// no WorkerCommand at all, which %(ENV_WORKER_COMMAND)s alone would
-	// break (supervisord refuses to start a program whose %(ENV_X)s
-	// reference doesn't exist in the environment).
+	// supervisord's %(ENV_X)s config-parse-time substitution), so it starts
+	// cleanly even when the app sets no WorkerCommand at all.
 	if !strings.Contains(comboSupervisordConf, "[program:worker]") {
 		t.Errorf("missing [program:worker] section, got:\n%s", comboSupervisordConf)
 	}

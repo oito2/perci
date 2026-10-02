@@ -45,7 +45,7 @@ func fakeBin(t *testing.T, scripts map[string]string) {
 }
 
 // Every terminal installs and uninstalls with at most one password prompt
-// on both families (pkexec has no session cache).
+// on both families.
 func TestInstallUninstall_AtMostOnePrompt(t *testing.T) {
 	for _, family := range []string{distro.Debian, distro.Fedora} {
 		for _, term := range Catalogue {
@@ -71,8 +71,8 @@ func TestInstallUninstall_AtMostOnePrompt(t *testing.T) {
 	}
 }
 
-// Regression: Alacritty on Debian ran add-apt-repository (absent on
-// Debian itself), apt-get update and apt-get install as three prompts.
+// Alacritty on Debian installs through a single privileged apt-get
+// install.
 func TestInstallAlacritty_DebianOneBatch(t *testing.T) {
 	var buf bytes.Buffer
 	if err := InstallOne(context.Background(), dryRun(&buf), &buf, findTerminal(t, "Alacritty"), distro.Debian); err != nil {
@@ -87,8 +87,7 @@ func TestInstallAlacritty_DebianOneBatch(t *testing.T) {
 	}
 }
 
-// Regression: a failed download piped an empty script to sh, which exited
-// 0 — the install was reported as done.
+// A failed download fails the install instead of reporting it as done.
 func TestInstallKitty_DownloadFailureFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

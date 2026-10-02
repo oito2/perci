@@ -186,7 +186,7 @@ func TestDownloadScript_PinnedChecksum(t *testing.T) {
 }
 
 // With a checksums file, an archive missing from it is reported by name
-// (the old grep ended the script silently under pipefail).
+// (the script still reaches its "not found" message under pipefail).
 func TestDownloadScript_ChecksumsFile(t *testing.T) {
 	archive := zipWith(t, "Test-Regular.ttf", []byte("ttf"))
 	sum := sha256.Sum256(archive)

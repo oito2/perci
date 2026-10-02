@@ -30,10 +30,8 @@ import (
 )
 
 // unprivilegedAppJob is one user-scope Flatpak app install/uninstall queued
-// for parallel execution — system-scope apps stay out of this: they're
-// already batched into one sudo/pkexec authentication via RunSudoSequence
-// below, which runs as a single script and gains nothing from
-// parallelizing.
+// for parallel execution. System-scope apps are not queued here; they go
+// through a single RunSudoSequence call.
 type unprivilegedAppJob struct {
 	app    App
 	remove bool // false = install
@@ -41,12 +39,8 @@ type unprivilegedAppJob struct {
 }
 
 // Apply installs apps listed in toInstall and uninstalls those in
-// toUninstall — combined operation for the "checklist simples" GUI screen
-// (Linux :: Aplicativos - Flatpak), one ui.Step per app processed
-// (installed or uninstalled), same pattern as
-// fonts.Apply/templates.Apply. Driven by sets.Diff, so both toInstall
-// and toUninstall are Catalogue members — iterates Catalogue in declared
-// order, like fonts.Apply.
+// toUninstall, emitting one ui.Step per app processed. Both lists hold
+// Catalogue members; Catalogue is iterated in declared order.
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toUninstall []string) error {
 	total := len(toInstall) + len(toUninstall)
 	if total == 0 {
@@ -54,9 +48,10 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 	}
 
 	scope := config.FlatpakFlag()
-	// Setting flatpak up (install it, add Flathub) joins the install batch
-	// below for the system scope — one password prompt for the whole click.
-	// For the user scope it runs first: the user-scope installs need it.
+	// For the system scope, flatpak setup (install it, add Flathub) joins
+	// the install batch below, so the whole click asks for the password
+	// once. For the user scope it runs first, because the user-scope
+	// installs depend on it.
 	var setupSteps []executor.PrivilegedStep
 	if len(toInstall) > 0 {
 		privileged, userRemoteAdd, err := FlatpakSetupSteps(ctx, exe)
@@ -82,21 +77,15 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 	var failed []string
 	var failedMu sync.Mutex
 
-	// Every step that needs root — every install (always at the config's
-	// global scope) and any uninstall whose app happens to be installed at
-	// system scope — is collected here instead of run immediately, so they
-	// all go through ONE sudo/pkexec authentication via RunSudoSequence
-	// below instead of one prompt per app: pkexec (the GUI's escalation
-	// path) has no session cache the way sudo does, so this used to mean
-	// one graphical password dialog per app for a single "Aplicar" click
-	// (same reasoning as internal/system/update.Run, decided with the
-	// user on 2026-09-14). Their failures are warned inline (Soft steps,
-	// same messages as before) but can't be added to the `failed` list
-	// below — RunSudoSequence doesn't report which individual step failed,
-	// only the whole batch's exit status.
+	// Every step that needs root (every install, at the configured global
+	// scope, and any uninstall of an app installed at system scope) is
+	// collected here and run through ONE sudo/pkexec authentication via
+	// RunSudoSequence below. Failures of these steps are warned inline
+	// (Soft steps) but are not added to the failed list below, because
+	// RunSudoSequence reports only the whole batch's exit status.
 	privSteps := setupSteps
-	// User-scope installs/uninstalls need no root at all — queued into
-	// jobs and run concurrently below instead of one at a time.
+	// User-scope installs/uninstalls need no root; they are queued into
+	// jobs and run concurrently below.
 	var jobs []unprivilegedAppJob
 
 	for _, app := range Catalogue {
@@ -170,9 +159,9 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 }
 
 // installStep/overrideStep/uninstallStep build the RunSudoSequence steps for
-// Apply's batched (system-scope) path — same flatpak invocations installOne/
-// uninstallOne run individually for the unbatched (user-scope) path, just
-// not executed immediately.
+// Apply's batched (system-scope) path. They run the same flatpak
+// invocations as installOne/uninstallOne, without executing them
+// immediately.
 func installStep(id, scope string) executor.PrivilegedStep {
 	return executor.PrivilegedStep{
 		Announce: "Instalando: " + id,

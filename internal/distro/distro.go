@@ -32,9 +32,7 @@ const (
 
 // ErrUnsupportedFamily is returned (wrapped, via UnsupportedFamilyError)
 // when a distro-dispatching function's family switch falls through to its
-// default case — InstallPkgs (install.go) and InstallFromSignedRepo
-// (signedrepo.go) used to each format this same message by hand, with no
-// sentinel a caller could errors.Is against.
+// default case — InstallPkgs and InstallFromSignedRepo.
 var ErrUnsupportedFamily = errors.New("unsupported distro family")
 
 // UnsupportedFamilyError wraps ErrUnsupportedFamily with the offending
@@ -51,13 +49,11 @@ var (
 )
 
 // loadOSRelease reads and parses /etc/os-release exactly once per process
-// lifetime — Detect/RawID/VersionID used to each read (and, for
-// RawID+VersionID, parse) the file separately via their own sync.Once; now
-// there's a single read and a single pass over its lines computing
-// everything every caller needs.
+// lifetime, in a single pass over its lines computing everything every
+// caller needs.
 func loadOSRelease() {
 	osReleaseOnce.Do(func() {
-		data, _ := os.ReadFile("/etc/os-release") // err == read as empty content, same as before
+		data, _ := os.ReadFile("/etc/os-release") // err == read as empty content
 		detectedFamily, cachedID, cachedVer = parseOSRelease(string(data))
 	})
 }
@@ -180,9 +176,8 @@ func displayName(id string) string {
 
 // DetectDE returns the normalized desktop environment token
 // (cinnamon | gnome | xfce | cosmic | other). Reads XDG_CURRENT_DESKTOP
-// with DESKTOP_SESSION as fallback. "cosmic" added 2026-09-10 for Pop!_OS
-// 24.04 (internal/system/postinstall's Pop!_OS profile) — COSMIC session
-// sets XDG_CURRENT_DESKTOP=COSMIC.
+// with DESKTOP_SESSION as fallback. The COSMIC session sets
+// XDG_CURRENT_DESKTOP=COSMIC.
 func DetectDE() string {
 	desktop := strings.ToLower(os.Getenv("XDG_CURRENT_DESKTOP"))
 	if desktop == "" {

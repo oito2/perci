@@ -36,8 +36,7 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// Regression: the three exports went in as one multi-line entry that
-// shellrc.AppendIfMissing always rejected, so nothing was ever written.
+// Every Android export line is written, once each.
 func TestEnsureAndroidEnvInBashrc_WritesEveryLineOnce(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SHELL", "/bin/bash")

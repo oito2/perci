@@ -14,23 +14,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // The only ES module of the frontend: imports the generated Wails bindings
-// (frontend/dist/bindings/) and the runtime (/wails/runtime.js, a virtual
-// path served by the Wails process itself), and exposes them as globals
-// for the classic scripts under js/ that make up the rest of the app.
-//
-// Why classic scripts and not modules: the frontend used to be a single
-// inline <script type="module"> (~2600 lines, one closure). Split into
-// files that share one global scope, it keeps the exact same semantics —
-// every screen reads and updates the same shared state (running, caches,
-// DOM references) — without a bundler (a deliberate choice of the
-// project). Load order is the order of the <script> tags in index.html:
+// and the runtime (/wails/runtime.js, served by the Wails process itself)
+// and exposes them as globals for the classic scripts under js/ that make
+// up the rest of the app. Scripts run in the order of their <script> tags:
 // module and `defer` scripts all run after parsing, in document order,
 // this one first.
 //
-// App is a merge of the 6 domain services (cmd/prci-gui/service_*.go:
-// HomeService/LinuxService/DevSetupService/DockerService/DevToolsService/
-// TrayService) — Object.assign keeps every App.Method(...) call working
-// without naming each service.
+// App is a merge of the domain services — Object.assign keeps every
+// App.Method(...) call working without naming each service.
 import {
   HomeService, LinuxService, DevSetupService, DockerService, DevToolsService, TrayService,
 } from "../bindings/github.com/oito2/perci/cmd/prci-gui/index.js";

@@ -22,8 +22,7 @@ import (
 	"testing"
 )
 
-// A failing item doesn't stop the others, and Apply reports it (it used to
-// always return nil, so the GUI showed success).
+// A failing item doesn't stop the others, and Apply reports it.
 func TestApply_ReportsFailuresWithoutStopping(t *testing.T) {
 	var done []string
 	install := func(s string) error {

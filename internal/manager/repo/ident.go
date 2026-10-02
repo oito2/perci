@@ -24,9 +24,7 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// gitDirArgs prefixes args with "-C dir" when dir is non-empty — shared by
-// GetCurrentLocalIdentity/ApplyLocalIdentityAt below, which used to each
-// define their own identical closure for this.
+// gitDirArgs prefixes args with "-C dir" when dir is non-empty.
 func gitDirArgs(dir string, args ...string) []string {
 	if dir == "" {
 		return args

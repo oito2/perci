@@ -215,9 +215,8 @@ func TestSaveLoadNodeAppFields(t *testing.T) {
 }
 
 func TestDockerConfigOmittedWhenEmpty(t *testing.T) {
-	// A config saved before this field existed — or with no appstack usage
-	// yet — must round-trip without ever growing a `docker:` section on
-	// disk.
+	// A config saved with no appstack usage must round-trip without
+	// ever growing a `docker:` section on disk.
 	t.Setenv("HOME", t.TempDir())
 
 	if err := saveConfig(&config.Config{WorkspacePath: "/srv/workspace"}); err != nil {
@@ -344,9 +343,8 @@ func TestPruneMissingRepoFolders(t *testing.T) {
 }
 
 func TestGUIThemesContainsDecidedSet(t *testing.T) {
-	// The exact 8 themes decided with the user on 2026-09-10 — locking this
-	// down so an accidental edit to GUIThemes() doesn't silently drop or add
-	// a theme.
+	// The exact set of 8 themes; guards against an accidental edit to
+	// GUIThemes() dropping or adding a theme.
 	want := []string{"light", "dark", "cupcake", "synthwave", "retro", "valentine", "halloween", "garden"}
 	got := config.GUIThemes()
 	if len(got) != len(want) {

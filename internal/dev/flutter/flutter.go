@@ -42,14 +42,12 @@ const (
 
 // Variables only so tests can point them at a local server.
 var (
-	// androidCmdlineToolsURL is pinned to a specific build (cmdline-tools 13.0)
+	// androidCmdlineToolsURL is pinned to a specific cmdline-tools build.
 	androidCmdlineToolsURL = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 
-	// androidRepoManifestURL is Google's own package index — the same one
-	// `sdkmanager`/Android Studio consult — used only to fetch the SHA-1 this
-	// package independently pins androidCmdlineToolsURL's download against
-	// (see androidCmdlineToolsChecksum), so a compromised CDN/MITM serving a
-	// tampered zip under that exact URL is still caught before extraction.
+	// androidRepoManifestURL is Google's package index, used only to fetch
+	// the SHA-1 that the androidCmdlineToolsURL download is verified
+	// against (see androidCmdlineToolsChecksum).
 	androidRepoManifestURL = "https://dl.google.com/android/repository/repository2-3.xml"
 )
 
@@ -60,11 +58,8 @@ func IsInstalled(flutterBin string) bool {
 }
 
 // Uninstall removes the Flutter checkout and its PATH entry in ~/.bashrc.
-// Leaves the Android SDK and the Chrome wrapper in place — they're shared
-// toolchain pieces, not specific to this Flutter installation.
-//
-// The checkout is removed through exe (not os.RemoveAll), so DryRun
-// really leaves it in place.
+// Leaves the Android SDK and the Chrome wrapper in place. The checkout is
+// removed through exe, so DryRun leaves it untouched.
 func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, home, flutterDir string) error {
 	ui.Info(stdout, "Removendo Flutter...")
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "rm", "-rf", "--", flutterDir); err != nil {
@@ -76,8 +71,8 @@ func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, ho
 	return nil
 }
 
-// RemovePathFromBashrc undoes an ensurePathInBashrc-style append, removing
-// the comment and export lines previously added for entry. Checks both
+// RemovePathFromBashrc removes the comment and export lines added for
+// entry by an append to the shell rc file. Checks both
 // ~/.bashrc and the current shell's RC file.
 func RemovePathFromBashrc(stdout io.Writer, home, entry, comment string) {
 	candidates := shellrc.Dedup([]string{filepath.Join(home, ".bashrc"), shellrc.File(home)})
@@ -91,7 +86,7 @@ func RemovePathFromBashrc(stdout io.Writer, home, entry, comment string) {
 }
 
 // InstallPrereqs installs the native libraries Flutter needs to run on Linux
-// — one privileged batch (distro.InstallPkgs), so one password prompt.
+// in one privileged batch (distro.InstallPkgs), so the password is asked once.
 func InstallPrereqs(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return installPrereqsFor(ctx, exe, stdout, distro.Detect())
 }
@@ -105,9 +100,8 @@ func installPrereqsFor(ctx context.Context, exe *executor.Executor, stdout io.Wr
 			"clang", "cmake", "ninja-build", "pkg-config", "libgtk-3-dev")
 	case distro.Fedora:
 		return distro.InstallPkgs(ctx, exe, stdout, family,
-			// Fedora names (checked against Fedora 44): xz, not Debian's
-			// xz-utils — one unknown name fails the whole transaction — and
-			// mesa-libGLU, the counterpart of Debian's libglu1-mesa.
+			// Fedora package names: xz (Debian's xz-utils) and mesa-libGLU
+			// (Debian's libglu1-mesa).
 			"curl", "git", "unzip", "xz", "zip", "mesa-libGLU",
 			"clang", "cmake", "ninja-build", "pkgconf-pkg-config", "gtk3-devel")
 	default:
@@ -132,10 +126,8 @@ func EnsureAndroidCmdlineTools(ctx context.Context, exe *executor.Executor, stdo
 		return fmt.Errorf("instalar Java: %w", err)
 	}
 
-	// tmp is created inside cmdlineToolsDir (not the system temp dir) so it
-	// shares a filesystem with latestDir below — os.Rename between them
-	// would otherwise fail with EXDEV whenever /tmp is a separate mount
-	// (e.g. tmpfs), which is the common case.
+	// tmp is created inside cmdlineToolsDir so it shares a filesystem with
+	// latestDir, which keeps the os.Rename below valid.
 	if err := os.MkdirAll(cmdlineToolsDir, 0o755); err != nil {
 		return fmt.Errorf("criar diretório do Android SDK: %w", err)
 	}
@@ -195,11 +187,8 @@ func EnsureAndroidCmdlineTools(ctx context.Context, exe *executor.Executor, stdo
 }
 
 // androidCmdlineToolsChecksum fetches Google's package repository manifest
-// (the same one sdkmanager/Android Studio consult) and returns the SHA-1
-// Google publishes for the linux archive matching androidCmdlineToolsURL —
-// an independent source from the download itself, so a tampered zip served
-// under that URL by a compromised CDN/MITM doesn't also need to have
-// tampered this separate manifest to go undetected.
+// and returns the SHA-1 it lists for the linux archive matching
+// androidCmdlineToolsURL.
 func androidCmdlineToolsChecksum(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, androidRepoManifestURL, nil)
 	if err != nil {
@@ -250,8 +239,8 @@ func androidCmdlineToolsChecksum(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("checksum não encontrado no manifesto para %s", wantURL)
 }
 
-// temurinRepo is Adoptium's RPM repository, as documented by Adoptium
-// (adoptium.net/installation/linux), for the Eclipse Temurin 21 JDK.
+// temurinRepo is Adoptium's signed RPM repository for the Eclipse Temurin
+// 21 JDK.
 var temurinRepo = distro.SignedRepo{
 	KeyURL:      "https://packages.adoptium.net/artifactory/api/gpg/key/public",
 	DnfRepoPath: "/etc/yum.repos.d/adoptium.repo",
@@ -273,25 +262,18 @@ func ensureJavaInstall(ctx context.Context, exe *executor.Executor, stdout io.Wr
 	ui.Info(stdout, "Instalando Java 21 (necessário para o Android SDK)...")
 	switch family {
 	case distro.Debian:
-		// openjdk-21-jdk, not default-jdk: on Ubuntu 26.04 default-jdk is
-		// already JDK 25, which needs Gradle 9.1+ — current Flutter projects
-		// still build Android with Gradle 8.x (checked 2026-09-29).
+		// Installs JDK 21 explicitly rather than the distro default JDK.
 		return exe.Run(ctx, opts, "apt-get", "install", "-y", "--", "openjdk-21-jdk")
 	case distro.Fedora:
-		// Fedora 44 ships only JDK 25 (java-17/21-openjdk are gone), so JDK
-		// 21 comes from Adoptium's official signed repository (decided with
-		// the user on 2026-09-29; checked against Fedora 44).
+		// JDK 21 comes from Adoptium's signed repository.
 		return distro.InstallFromSignedRepo(ctx, exe, stdout, family, temurinRepo)
 	default:
 		return fmt.Errorf("distribuição não suportada para instalação automática do Java — instale um JDK manualmente")
 	}
 }
 
-// androidEnvLines are appended one by one: shellrc.AppendIfMissing only
-// takes single-line entries (a guard against injecting extra commands into
-// the rc file), and the three exports used to go in as one multi-line block
-// that it always rejected — so ANDROID_HOME/ANDROID_SDK_ROOT and the SDK's
-// PATH were never actually written.
+// androidEnvLines are appended one by one, because shellrc.AppendIfMissing
+// only accepts single-line entries.
 var androidEnvLines = []string{
 	`export ANDROID_HOME="$HOME/Android/Sdk"`,
 	`export ANDROID_SDK_ROOT="$HOME/Android/Sdk"`,
@@ -355,8 +337,8 @@ func EnsureChromeWrapper(ctx context.Context, exe *executor.Executor, stdout io.
 
 func ensureChromeEnvInBashrc(stdout io.Writer, home, wrapperPath string) {
 	rc := shellrc.File(home)
-	// ShellQuote, not %q: a Go-quoted string still expands $(...) and
-	// backticks once the shell reads the rc file.
+	// ShellQuote keeps $(...) and backticks in the path from expanding when
+	// the shell reads the rc file.
 	entry := "export CHROME_EXECUTABLE=" + executor.ShellQuote(wrapperPath)
 	appended, err := shellrc.AppendIfMissing(rc, "# Chrome (Flatpak)", entry)
 	if err != nil {

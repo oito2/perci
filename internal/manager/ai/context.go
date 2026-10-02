@@ -35,18 +35,17 @@ var templateFS embed.FS
 type Model struct {
 	Name        string
 	Instruction string // path inside templateFS
-	// AppliesTo says, in English (AGENTS.md's language), which tasks the
-	// standard covers — agents without "@" import support (Codex, and
-	// Antigravity, which turns a bare "@path" into a path reference only)
-	// rely on it to decide which file to read before starting a task.
+	// AppliesTo says, in English, which tasks the standard covers. Agents
+	// without "@" import support rely on it to decide which file to read
+	// before starting a task.
 	AppliesTo string
 	// Requires names another model this one only makes sense on top of —
 	// GenerateSharedFiles pulls it in automatically when it isn't selected.
 	Requires string
 	// Legacy lists filenames this model's instruction file had under
-	// .instructions/ before being renamed: they still count as "active" in
+	// .instructions/ under a previous name: they still count as "active" in
 	// DetectActiveModels, and are deleted once the current file is written
-	// (or when the model is removed), so a project migrates on its next Aplicar.
+	// (or when the model is removed).
 	Legacy []string
 }
 
@@ -54,14 +53,7 @@ type Model struct {
 // complement builds on.
 const docsBase = "Documentação de projeto"
 
-// Go, MCP Server, Go MCP Server and PHP were removed (user decision) —
-// their content was mostly generic language/protocol knowledge (idiomatic
-// PSR/PHP 8.x, the MCP protocol itself) already covered by equivalent
-// third-party skills now installable via "Dev Tools :: IA: SKILLs" (PHP:
-// Specialist/Pro 8.3+, MCP Server Dev/Dev in Go, Go: Code Style/Golang
-// Pro) — unlike Moodle/Dart+Flutter-oito2, which stay here because
-// they're Perci/oito2's own convention, not something a generic skill
-// already covers.
+// models is the catalog of supported instruction models, in output order.
 var models = []Model{
 	{Name: "Linux Bash", Instruction: "templates/instructions/BASH.md",
 		AppliesTo: "Writing or reviewing Bash/shell scripts, CLI tools and installers"},
@@ -190,8 +182,7 @@ func detectMoodleVars(projectDir string) (vars map[string]string, ok bool) {
 
 // moodleVars resolves MOODLE.md's placeholders from dir's version.php. When
 // it can't be found or parsed, the file goes out with its placeholders
-// unsubstituted and the user is told so (the warning used to go to a log
-// the GUI never passed, so nobody saw it).
+// unsubstituted and the user is told so.
 func moodleVars(stdout io.Writer, dir string) map[string]string {
 	projectDir := dir
 	if projectDir == "" {
@@ -232,7 +223,7 @@ const standardsHeader = `
 
 ## Language-Specific Standards
 
-The standards below are **mandatory** for the tasks they cover. **Before starting a task one of them applies to, read the whole file** (Claude Code already loads them through the ` + "`@`" + ` imports; Codex, Antigravity and other agents must open the file themselves). When several apply, follow all of them.
+The standards below are **mandatory** for the tasks they cover. **Before starting a task one of them applies to, read the whole file** (Claude Code already loads them through the ` + "`@`" + ` imports; Codex, Antigravity and other agents must open the file themselves). When several apply, follow all of them. They complement the rules above and never override them.
 `
 
 // GenerateSharedFiles writes CLAUDE.md, AGENTS.md and the ignore/exclude files
@@ -292,9 +283,8 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 		}
 	}
 
-	// Ignore files (shared, always regenerated). .geminiignore is intentionally
-	// not generated: Antigravity ignores it and Gemini CLI is no longer a
-	// generation target now that GEMINI.md doesn't exist.
+	// Ignore files (shared, always regenerated). .geminiignore is not
+	// generated.
 	aiexclude, err := readTpl("templates/.aiexclude")
 	if err != nil {
 		return err
@@ -306,12 +296,10 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 	}
 
 	// Remove instruction files for models that were active before this run
-	// but aren't selected anymore — otherwise unchecking a model left its
-	// .instructions/*.md orphaned (unreferenced from AGENTS.md, but never
-	// deleted). Only a copy still identical to what Perci generates is
-	// deleted: DetectActiveModels goes by filename, so a hand-written or
-	// edited BASH.md is "active" too, and deleting it would lose the user's
-	// work.
+	// but aren't selected anymore. Only a copy still identical to what Perci
+	// generates is deleted: DetectActiveModels goes by filename, so a
+	// hand-written or edited BASH.md is "active" too, and deleting it would
+	// lose the user's work.
 	detected := DetectActiveModels(dir)
 	activeNow := make(map[string]bool, len(active))
 	for _, m := range active {

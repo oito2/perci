@@ -143,12 +143,9 @@ func TestUpdateFlatpak_UpdatesThenRemovesUnused(t *testing.T) {
 }
 
 func TestRun_ReportsStepsForBothPhases(t *testing.T) {
-	// dryRunExecutor reports every command as installed (see its doc
-	// comment above) — so both phases (the privileged batch + flatpak) are
-	// counted here deterministically, regardless of what's actually
-	// installed on the machine running the test. Packages + snap + journal
-	// are one single phase now (they run as one RunSudoSequence batch —
-	// see Run's doc comment for why), so total is 2, not 4.
+	// dryRunExecutor reports every command as installed, so both phases
+	// (the privileged batch + flatpak) are counted deterministically.
+	// Packages + snap + journal are one single phase, so total is 2.
 
 	var buf bytes.Buffer
 	exe := dryRunExecutor(&buf)
@@ -184,13 +181,9 @@ func TestRun_ReportsStepsForBothPhases(t *testing.T) {
 }
 
 func TestRun_PrivilegedStepsRunAsOneSudoSequence(t *testing.T) {
-	// The whole point of RunSudoSequence (executor.go): one authentication
-	// for every privileged command in a single "Atualizar Sistema" run,
-	// instead of one prompt per command. Asserted here at the Run level
-	// (not just packageSteps, which never touches the executor) by
-	// counting how many times the
-	// escalation binary appears in the dry-run trace: it must be exactly
-	// once, even though apt-get(x4)+snap+journalctl are all privileged.
+	// One authentication for every privileged command in a single run:
+	// the escalation binary appears exactly once in the dry-run trace,
+	// even though apt-get(x4)+snap+journalctl are all privileged.
 
 	var buf bytes.Buffer
 	exe := dryRunExecutor(&buf)
@@ -203,9 +196,8 @@ func TestRun_PrivilegedStepsRunAsOneSudoSequence(t *testing.T) {
 	if got := strings.Count(out, "/usr/bin/sudo"); got != 1 {
 		t.Errorf("expected exactly 1 escalation (sudo) invocation for the whole run, got %d\noutput:\n%s", got, out)
 	}
-	// Args are individually shell-quoted (executor.shellQuoteArgs) inside
-	// the batch script, so each token — not the old space-joined
-	// "apt-get update" style substring — is what actually appears.
+	// Args are individually shell-quoted inside the batch script, so each
+	// token is what appears.
 	sequentialIndexes(t, out, []string{
 		"'update'",
 		"'full-upgrade'",

@@ -234,7 +234,7 @@ func TestFile(t *testing.T) {
 	}
 }
 
-// Regression: an empty comment used to match — and delete — every blank line.
+// An empty comment matches nothing, so no blank line is ever deleted.
 func TestRemoveEntry_EmptyCommentKeepsBlankLines(t *testing.T) {
 	rc := filepath.Join(t.TempDir(), ".bashrc")
 	content := "alias a=1\n\nalias b=2\n\neval \"$(starship init bash)\"\n"

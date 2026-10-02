@@ -26,16 +26,11 @@ import (
 )
 
 // Apply installs terminal emulators listed in toInstall and removes those in
-// toRemove — GUI-only screen ("Desenvolvimento :: Aplicativos - Terminais"),
-// same pattern as internal/system/fonts.Apply: one ui.Step per processed
-// terminal, with the total coming for free from the selection itself
-// (internal/checklist.Apply). Starship doesn't go through here — it's
-// applied via its own button ("Aplicar Starship" — InstallStarship), it's
-// not part of this checklist (see catalogue.go).
+// toRemove, one ui.Step per processed terminal (via checklist.Apply).
+// Starship is not handled here; see InstallStarship.
 //
 // Every run ends by syncing the file-manager context-menu entries with what
-// is actually installed (SyncContextMenuEntries) — even when an item failed,
-// and also covering terminals installed before this screen existed.
+// is actually installed (SyncContextMenuEntries), even when an item failed.
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
 	family := distro.Detect()
 	err := checklist.Apply(stdout, Catalogue, func(t Terminal) string { return t.Name }, toInstall, toRemove,

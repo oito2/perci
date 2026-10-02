@@ -61,8 +61,7 @@ func TestExportConfig_RoundTrip(t *testing.T) {
 		t.Fatalf("ExportConfig: %v", err)
 	}
 
-	// Sensitive content (MariaDB credentials) — same permission discipline
-	// as config.yaml itself.
+	// Sensitive content (MariaDB credentials): the file must be 0600.
 	info, err := os.Stat(exportPath)
 	if err != nil {
 		t.Fatalf("stat export: %v", err)

@@ -23,9 +23,7 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// uninstallOne uninstalls a single Flatpak app from the given scope — used
-// by Apply's (apply.go) unbatched (user-scope) uninstall path and by its
-// ui.Step loop.
+// uninstallOne uninstalls a single Flatpak app from the given scope.
 func uninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, scope string) error {
 	ui.Info(stdout, "Desinstalando: "+id)
 	return exe.Run(ctx,

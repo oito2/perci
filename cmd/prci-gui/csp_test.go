@@ -42,7 +42,7 @@ func readIndexHTML(t *testing.T) string {
 }
 
 // The CSP allows scripts only from the app's own origin — no inline code,
-// no 'unsafe-inline'. The app's JavaScript lives in frontend/dist/js/.
+// no 'unsafe-inline'.
 func TestCSP_NoInlineScripts(t *testing.T) {
 	html := readIndexHTML(t)
 	m := cspMeta.FindStringSubmatch(html)
@@ -74,7 +74,7 @@ func TestIndexHTML_ScriptsExist(t *testing.T) {
 	}
 }
 
-// Nothing is loaded from another origin (CDN) — vendored under ./vendor/.
+// Nothing is loaded from another origin (CDN).
 func TestIndexHTML_NoRemoteScriptsOrStyles(t *testing.T) {
 	if loc := remoteRef.FindStringIndex(readIndexHTML(t)); loc != nil {
 		t.Errorf("remote <script>/<link> reference found: %q", readIndexHTML(t)[loc[0]:loc[1]])

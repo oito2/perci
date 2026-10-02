@@ -56,11 +56,10 @@ func TestBuildNginxConf_NoApps(t *testing.T) {
 	got := BuildNginxConf(nil)
 
 	// Docker's embedded DNS (127.0.0.11), paired with every routing recipe's
-	// "set $backend ...;" — without it, Nginx resolves each app's container
+	// "set $backend ...;": without it, Nginx resolves each app's container
 	// name once at config-load/reload time instead of per-request, so one
 	// unrelated app merely being stopped fails `nginx -t` ("host not found in
-	// upstream") for the whole file. Regression test for a real failure hit
-	// during testing (2026-08-24).
+	// upstream") for the whole file.
 	if !strings.Contains(got, "resolver 127.0.0.11") {
 		t.Errorf("expected a resolver directive pointing at Docker's embedded DNS, got:\n%s", got)
 	}
@@ -92,10 +91,8 @@ func TestBuildAppServerBlock_PHP(t *testing.T) {
 		t.Errorf("expected root at the app's own folder (no /public for non-Moodle), got:\n%s", got)
 	}
 	// fastcgi_pass goes through a "set $backend ...;" variable, not a literal
-	// hostname — see nginxResolver's doc comment: it defers Nginx's DNS
-	// resolution of the app's container name to request time instead of
-	// config-load/reload time, so one unrelated app being stopped can't fail
-	// `nginx -t` for the whole file.
+	// hostname (see nginxResolver's doc comment), so one unrelated app being
+	// stopped can't fail `nginx -t` for the whole file.
 	if !strings.Contains(got, "set $backend meuapp:9000;") || !strings.Contains(got, "fastcgi_pass $backend;") {
 		t.Errorf("expected fastcgi_pass, via $backend, to the app's own container name, got:\n%s", got)
 	}
@@ -130,12 +127,10 @@ func TestBuildAppServerBlock_Moodle(t *testing.T) {
 	if !strings.Contains(got, "set $backend curso1:9000;") || !strings.Contains(got, "fastcgi_pass $backend;") {
 		t.Errorf("expected fastcgi_pass, via $backend, to the app's own container name, got:\n%s", got)
 	}
-	// SCRIPT_FILENAME/DOCUMENT_ROOT deliberately deviate from Moodle's own
-	// docs recipe ($realpath_root...) — Nginx and the app's php-fpm are
-	// separate containers with different mounts of the same tree; the app
-	// container always sees its project root at the fixed /var/www/html
-	// (see nginx.go's appMoodleRouting doc comment). Confirmed against a
-	// real 404 from php-fpm during testing (2026-08-24).
+	// SCRIPT_FILENAME/DOCUMENT_ROOT are hardcoded to /var/www/html instead of
+	// using $realpath_root: Nginx and the app's php-fpm are separate
+	// containers with different mounts of the same tree, and the app
+	// container always sees its project root at /var/www/html.
 	if !strings.Contains(got, "fastcgi_param SCRIPT_FILENAME /var/www/html/public$fastcgi_script_name;") {
 		t.Errorf("expected SCRIPT_FILENAME hardcoded to the app container's own /var/www/html/public, got:\n%s", got)
 	}
@@ -155,6 +150,9 @@ func TestBuildAppServerBlock_MoodleVersionRanges(t *testing.T) {
 		{"empty falls back to 5.1+ (pre-MoodleVersion-field entries)", "", true, true, false},
 		{MoodleVersion51Plus, MoodleVersion51Plus, true, true, false},
 		{MoodleVersion50, MoodleVersion50, false, true, false},
+		{MoodleVersion41, MoodleVersion41, false, false, true},
+		{MoodleVersion42to43, MoodleVersion42to43, false, false, true},
+		{MoodleVersion44to45, MoodleVersion44to45, false, false, true},
 		{MoodleVersion4x, MoodleVersion4x, false, false, true},
 		{MoodleVersion3x, MoodleVersion3x, false, false, true},
 	}
@@ -263,11 +261,9 @@ func TestBuildAppServerBlock_PHPNodeCombo(t *testing.T) {
 }
 
 func TestBuildAppServerBlock_PHPNodeCombo_UploadsAlias(t *testing.T) {
-	// Regression test for a real 404 on the learnerflow app (2026-08-28):
-	// files under api/uploads/ (branding/partner logos) referenced by the
-	// frontend as /uploads/... fell through to the catch-all `location /`
-	// (proxied to the Node dev server) and 404'd, since no location matched
-	// that prefix before this fix.
+	// Files under api/uploads/ referenced by the frontend as /uploads/...
+	// must be served by a dedicated location, not fall through to the
+	// catch-all `location /` (proxied to the Node dev server).
 	app := config.AppContainer{Folder: "projeto", Type: config.AppTypePHPNode, URL: "projeto.localhost", DevPort: 5173}
 	got := buildAppServerBlock(app)
 
@@ -280,13 +276,11 @@ func TestBuildAppServerBlock_PHPNodeCombo_UploadsAlias(t *testing.T) {
 }
 
 func TestBuildAppServerBlock_Node_NoDenyBlock(t *testing.T) {
-	// Regression test for a real failure hit during testing (2026-08-24,
-	// learnerflow/Vite): Vite's dev server legitimately serves
-	// its own module cache at paths like /node_modules/.vite/deps/vue.js.
-	// AppTypeNode is pure proxy_pass — nothing is served from Nginx's own
-	// filesystem — so it must carry no deny block for the dev server's own
-	// paths to reach it at all (nginx dispatches regex locations, deny
-	// blocks included, ahead of the `location /` proxy prefix).
+	// Vite's dev server serves its own module cache at paths like
+	// /node_modules/.vite/deps/vue.js. AppTypeNode is pure proxy_pass, so it
+	// must carry no deny block for the dev server's own paths to reach it
+	// (nginx dispatches regex locations, deny blocks included, ahead of the
+	// `location /` proxy prefix).
 	app := config.AppContainer{Folder: "frontend", Type: config.AppTypeNode, URL: "frontend.localhost", DevPort: 5173}
 	got := buildAppServerBlock(app)
 
@@ -296,14 +290,12 @@ func TestBuildAppServerBlock_Node_NoDenyBlock(t *testing.T) {
 }
 
 func TestBuildAppServerBlock_PHPNodeCombo_DenyBlockScopedToAPI(t *testing.T) {
-	// Same regression as TestBuildAppServerBlock_Node_NoDenyBlock, but for
-	// the combo type: the /api/ (PHP) half must stay protected, while the
-	// catch-all / (proxied to the Node dev server) must not be intercepted
-	// by a deny block matching before nginx ever reaches the proxy_pass
-	// location — confirmed that "/node_modules/.vite/deps/vue.js" matches
-	// BOTH the dotfile-hiding regex (via "/.vite") and the vendor/
-	// node_modules regex before this fix, so anchoring is required on both,
-	// not just trimming the node_modules alternative off one of them.
+	// Same as TestBuildAppServerBlock_Node_NoDenyBlock, but for the combo
+	// type: the /api/ (PHP) half must stay protected, while the catch-all /
+	// (proxied to the Node dev server) must not be intercepted by a deny
+	// block. "/node_modules/.vite/deps/vue.js" matches both the
+	// dotfile-hiding regex (via "/.vite") and the vendor/node_modules regex,
+	// so anchoring is required on both.
 	app := config.AppContainer{Folder: "projeto", Type: config.AppTypePHPNode, URL: "projeto.localhost", DevPort: 5173}
 	got := buildAppServerBlock(app)
 

@@ -47,8 +47,8 @@ var ValidDBIdentifier = regexp.MustCompile(`^[A-Za-z0-9_]{1,32}$`)
 // GenPassword generates a random 16-character alphanumeric password.
 func GenPassword() string {
 	// Removing '='/'+'/'/'/'-'/'_' from the base64 encoding can occasionally
-	// leave fewer than 16 usable characters — re-sample instead of silently
-	// returning a shorter (weaker) password in that rare case.
+	// leave fewer than 16 usable characters, so it re-samples instead of
+	// returning a shorter password.
 	for {
 		b := make([]byte, 16)
 		_, _ = rand.Read(b)
@@ -71,23 +71,20 @@ func MariaDBExists(ctx context.Context, exe *executor.Executor) bool {
 }
 
 // RemoveMariaDB force-removes the mariadb container, running or stopped.
-// Never call this without the user's confirmation first — the GUI owns
-// that prompt, same as RemoveNginx.
+// The caller is responsible for confirming with the user first.
 func RemoveMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return removeContainer(ctx, exe, stdout, MariaDBContainerName, "contêiner mariadb")
 }
 
 // MariaDBDataDir returns the MariaDB data directory:
-// {workspace}/localhost/databases/mariadb. There is no automatic migration
-// of databases created under any other path into this one.
+// {workspace}/localhost/databases/mariadb.
 func MariaDBDataDir(workspace string) string {
 	return filepath.Join(workspace, "localhost", "databases", "mariadb")
 }
 
 // MariaDBInitDir returns ~/.perci/appstack/mariadb/init, where the
 // GRANT-privileges init script is generated and bind-mounted into
-// /docker-entrypoint-initdb.d. Kept under ~/.perci — like CertsDir and
-// NginxConfDir — because it's generated perci state, not project content.
+// /docker-entrypoint-initdb.d.
 func MariaDBInitDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -99,7 +96,7 @@ func MariaDBInitDir() (string, error) {
 // writeGrantSQL (re)writes the 01-permissions.sql init script for dbUser
 // and returns the directory it was written into (docker-entrypoint-initdb.d
 // scripts must be mounted as a directory, not a single file). dbUser must
-// already be validated against ValidDBIdentifier — the identifier is
+// already be validated against ValidDBIdentifier, since the identifier is
 // interpolated unescaped into the backtick-quoted GRANT statement.
 func writeGrantSQL(dbUser string) (string, error) {
 	dir, err := MariaDBInitDir()
@@ -118,8 +115,7 @@ func writeGrantSQL(dbUser string) (string, error) {
 }
 
 // mariadbRunArgs builds the "docker run" argument list for the MariaDB
-// container. Split out from CreateMariaDB, same reasoning as
-// nginxRunArgs: the argument list is unit-testable without a real Docker
+// container, so the argument list is unit-testable without a Docker
 // daemon.
 func mariadbRunArgs(dataDir, initDir string, env []string) []string {
 	args := []string{
@@ -148,11 +144,11 @@ func mariadbEnv(dbUser, dbPass, dbRootPass string) []string {
 // CreateMariaDB creates the appstack's MariaDB container: ensures
 // NetworkName, (re)writes the GRANT-privileges init script for dbUser, and
 // starts the container. Assumes no container named MariaDBContainerName
-// exists yet — the GUI is responsible for checking MariaDBExists and
-// calling RemoveMariaDB (with user confirmation) first when recreating.
+// exists yet; the caller checks MariaDBExists and calls RemoveMariaDB
+// first when recreating.
 //
 // dbUser must already be validated against ValidDBIdentifier by the
-// caller, in its own form, before this is reached.
+// caller.
 func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer, dbUser, dbPass string) error {
 	if !isDockerInstalled(ctx, exe) {
 		return fmt.Errorf("docker não instalado")
@@ -179,10 +175,9 @@ func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	}
 
 	// MariaDB only applies MYSQL_ROOT_PASSWORD when its data volume is
-	// first initialized. Re-running this on an already-provisioned data
-	// directory must reuse the persisted root password instead of
-	// generating a new one, or cfg.Docker.MariaDB.DBRootPass would silently
-	// diverge from the password actually set on the running database.
+	// first initialized, so re-running this on an already-provisioned data
+	// directory reuses the persisted root password instead of generating a
+	// new one.
 	dbRootPass := cfg.Docker.MariaDB.DBRootPass
 	if dbRootPass == "" {
 		dbRootPass = GenPassword()
@@ -219,12 +214,10 @@ func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	return nil
 }
 
-// RecreateMariaDB is CreateMariaDB's "Recriar" flavor for the GUI's
-// "Docker :: Gerenciar Containers" screen: reuses the dbUser/dbPass already
-// persisted in cfg.Docker.MariaDB, with no form and no confirmation of its
-// own — the caller already confirmed with the user. Errors if no MariaDB
-// has ever been configured (nothing to reuse); use CreateMariaDB via the
-// "Criar Container" screen's form for that instead.
+// RecreateMariaDB is CreateMariaDB's "Recriar" flavor: reuses the
+// dbUser/dbPass already persisted in cfg.Docker.MariaDB, with no form and
+// no confirmation of its own. Errors if no MariaDB has ever been
+// configured (nothing to reuse).
 func RecreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -242,11 +235,9 @@ func RecreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writ
 }
 
 // DeleteMariaDB removes the mariadb container (if any) and clears
-// cfg.Docker.MariaDB, keeping config.yaml's container list in sync with
-// reality. Never call this without the user's confirmation first. Any
-// Container Aplicativo created with DBAccess=true keeps pointing at these
-// now-gone credentials until it's edited or recreated — deleting MariaDB
-// doesn't cascade into repairing those apps.
+// cfg.Docker.MariaDB. The caller is responsible for confirming with the
+// user first. Any Container Aplicativo created with DBAccess=true keeps
+// its now-stale credentials until it is edited or recreated.
 func DeleteMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	if MariaDBExists(ctx, exe) {
 		if err := RemoveMariaDB(ctx, exe, stdout); err != nil {
@@ -254,10 +245,10 @@ func DeleteMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 		}
 	}
 	if err := config.Update(func(cfg *config.Config) error {
-		// The stack no longer lists MariaDB (DBUser/DBPass cleared), but the
-		// data directory stays on disk with the credentials it was created
-		// with — kept so a later CreateMariaDB over it can be checked
-		// (checkMariaDBCredentials) and reuses the same root password.
+		// DBUser/DBPass are cleared, but the data directory stays on disk with
+		// the credentials it was created with, so a later CreateMariaDB over it
+		// can be checked (checkMariaDBCredentials) and reuses the same root
+		// password.
 		m := cfg.Docker.MariaDB
 		cfg.Docker.MariaDB = config.MariaDBConfig{
 			DBRootPass: m.DBRootPass,
@@ -272,8 +263,8 @@ func DeleteMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 }
 
 // CheckMariaDBCredentials is checkMariaDBCredentials for callers about to
-// remove the running container first (the GUI's Editar) — checked before
-// anything is removed, so a refusal leaves the database running.
+// remove the running container first: it checks before anything is
+// removed, so a refusal leaves the database running.
 func CheckMariaDBCredentials(stdout io.Writer, dbUser, dbPass string) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -288,11 +279,9 @@ func CheckMariaDBCredentials(stdout io.Writer, dbUser, dbPass string) error {
 
 // checkMariaDBCredentials refuses dbUser/dbPass when MariaDB's data
 // directory was already initialized with different credentials: the image
-// ignores MYSQL_USER/MYSQL_PASSWORD on existing data, so config.yaml would
-// end up holding credentials the database doesn't know (apps, Backup and
-// Restore failing to authenticate). An initialized directory with no
-// recorded credentials (configs from before they were recorded) can't be
-// checked — a warning, not a refusal.
+// ignores MYSQL_USER/MYSQL_PASSWORD on existing data. An initialized
+// directory with no recorded credentials can't be checked, so it yields a
+// warning, not a refusal.
 func checkMariaDBCredentials(stdout io.Writer, cfg *config.Config, workspace, dbUser, dbPass string) error {
 	if !mariadbDataInitialized(MariaDBDataDir(workspace)) {
 		return nil
@@ -314,15 +303,14 @@ func checkMariaDBCredentials(stdout io.Writer, cfg *config.Config, workspace, db
 
 // mariadbDataInitialized reports whether dataDir already holds a MariaDB
 // system database. A permission error counts as initialized (the image
-// chowns the directory to its own user): unknown is treated as "don't
-// assume it's empty".
+// chowns the directory to its own user): unknown is treated as not
+// empty.
 func mariadbDataInitialized(dataDir string) bool {
 	_, err := os.Stat(filepath.Join(dataDir, "mysql"))
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
-// resolveWorkspace is cfg's workspace folder, ~/workspace when unset —
-// the one place the stack decides where projects and data live.
+// resolveWorkspace is cfg's workspace folder, ~/workspace when unset.
 func resolveWorkspace(cfg *config.Config) (string, error) {
 	return cfg.Workspace()
 }

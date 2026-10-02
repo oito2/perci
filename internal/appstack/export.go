@@ -36,31 +36,17 @@ import (
 // flag, MariaDB credentials, every Container Aplicativo) plus the
 // WorkspacePath it was created against.
 //
-// WorkspacePath travels alongside cfg.Docker specifically so ImportConfig
-// can refuse to import onto a machine whose own WorkspacePath doesn't
-// match (see ErrWorkspaceMismatch) — every AppContainer's Folder is only
-// meaningful relative to a workspace, and importing onto the wrong one
-// would create containers bind-mounting paths that don't hold whatever
-// html/data the user actually expects there. This whole feature exists for
-// a workflow (confirmed with the user, 2026-08-21) where the workspace
-// itself is already kept in sync across machines by an external tool
-// (e.g. MegaSync) at the same absolute path everywhere — this file rides
-// along the same idea, but travels separately, since its own location
-// isn't fixed inside the workspace (the user chooses it each time, same as
-// the existing MariaDB backup/restore path field).
+// WorkspacePath travels alongside cfg.Docker so ImportConfig can refuse to
+// import onto a machine whose own WorkspacePath doesn't match (see
+// ErrWorkspaceMismatch): every AppContainer's Folder is only meaningful
+// relative to a workspace.
 type ExportedConfig struct {
 	WorkspacePath string              `yaml:"workspace_path"`
 	Docker        config.DockerConfig `yaml:"docker"`
 }
 
 // ExportConfig writes the current cfg.Docker plus cfg.WorkspacePath to
-// path, as YAML.
-//
-// MariaDB credentials are included in plaintext — by explicit user
-// decision (2026-08-21): the exported file is expected to travel over a
-// channel the user already controls (their own sync tool), and without the
-// credentials each machine would end up with different ones, defeating the
-// point of a fast replica.
+// path, as YAML. MariaDB credentials are included in plaintext.
 func ExportConfig(path string) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -78,18 +64,16 @@ func ExportConfig(path string) error {
 	if err != nil {
 		return fmt.Errorf("gerar yaml: %w", err)
 	}
-	// Contains MariaDB credentials — same permission discipline as
-	// config.yaml itself: 0600 even when overwriting an existing file (a
-	// plain os.WriteFile would keep a previous 0644), written atomically.
+	// The file contains MariaDB credentials, so it is written atomically with
+	// 0600 permissions, even when overwriting an existing file.
 	if err := fsutil.WriteFileAtomic(path, data, 0o600); err != nil {
 		return fmt.Errorf("escrever %s: %w", path, err)
 	}
 	return nil
 }
 
-// LoadExportedConfig reads and parses path — split out from ImportConfig so
-// the GUI can show the caller a summary (or a clear "file not found"/parse
-// error) before asking for confirmation, ahead of anything destructive.
+// LoadExportedConfig reads and parses path, so a caller can show a summary
+// (or a clear "file not found"/parse error) before anything destructive.
 func LoadExportedConfig(path string) (ExportedConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -104,20 +88,14 @@ func LoadExportedConfig(path string) (ExportedConfig, error) {
 
 // ErrWorkspaceMismatch is returned (wrapped) by ImportConfig/
 // resolveImportWorkspace when the importing machine already has a
-// WorkspacePath configured and it disagrees with exported.WorkspacePath —
-// see the ExportedConfig doc comment for why that's refused rather than
-// silently overridden.
+// WorkspacePath configured and it disagrees with exported.WorkspacePath;
+// the mismatch is refused rather than silently overridden.
 var ErrWorkspaceMismatch = errors.New("workspace path não corresponde ao da exportação")
 
-// resolveImportWorkspace decides what cfg.WorkspacePath should become after
-// importing: adopting exportedWorkspacePath when the local config has none
-// yet (first import on a freshly set up machine), or refusing with
-// ErrWorkspaceMismatch when the two disagree. Split out from ImportConfig
-// so this decision is unit-testable without a real Docker daemon.
 // validateExported checks everything an import would apply: every app
 // (ValidateApp, plus unique folders and URLs), the MariaDB user, and an
-// absolute workspace path — the file comes from outside (a synced folder),
-// so nothing in it is trusted to be well-formed.
+// absolute workspace path. Nothing in the file is trusted to be
+// well-formed.
 func validateExported(e ExportedConfig) error {
 	if e.WorkspacePath != "" && !filepath.IsAbs(e.WorkspacePath) {
 		return fmt.Errorf("workspace_path deve ser um caminho absoluto: %q", e.WorkspacePath)
@@ -141,6 +119,9 @@ func validateExported(e ExportedConfig) error {
 	return nil
 }
 
+// resolveImportWorkspace decides what cfg.WorkspacePath should become after
+// importing: adopting exportedWorkspacePath when the local config has none
+// yet, or refusing with ErrWorkspaceMismatch when the two disagree.
 func resolveImportWorkspace(localWorkspacePath, exportedWorkspacePath string) (string, error) {
 	if localWorkspacePath == "" {
 		return exportedWorkspacePath, nil
@@ -153,21 +134,19 @@ func resolveImportWorkspace(localWorkspacePath, exportedWorkspacePath string) (s
 
 // ImportConfig applies exported onto the local config.yaml (locking
 // cfg.WorkspacePath via resolveImportWorkspace) and then recreates every
-// container it describes — Nginx, then MariaDB, then every Container
-// Aplicativo, in that dependency order — by reusing each type's own
-// Recreate* function (RecreateNginx/RecreateMariaDB/RecreateApp), which
-// already remove-then-create against whatever's now in cfg.Docker. Every
+// container it describes (Nginx, then MariaDB, then every Container
+// Aplicativo, in that dependency order) by reusing each type's own
+// Recreate* function (RecreateNginx/RecreateMariaDB/RecreateApp). Every
 // PHP base image a Container Aplicativo needs is built on demand inside
-// CreateApp, same as a normal creation — nothing pre-builds them here.
+// CreateApp.
 //
 // Everything in exported is validated before anything is saved or touched
 // (validateExported). After that it stops at the first error, leaving
-// cfg.Docker already fully saved (so a second Import attempt — or a manual
-// recreate — can pick up where it left off) but only the containers
-// recreated so far actually running; this does not attempt to roll back a
-// partially applied import. Apps registered locally but absent from the
-// file leave the stack; their containers are listed as a warning, never
-// removed.
+// cfg.Docker fully saved (so a second import or a manual recreate can pick
+// up where it left off) but only the containers recreated so far running;
+// a partially applied import is not rolled back. Apps registered locally
+// but absent from the file leave the stack; their containers are listed as
+// a warning, never removed.
 func ImportConfig(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer, exported ExportedConfig) error {
 	if err := validateExported(exported); err != nil {
 		return fmt.Errorf("arquivo de configurações inválido: %w", err)
@@ -215,11 +194,9 @@ func ImportConfig(ctx context.Context, exe *executor.Executor, stdin io.Reader, 
 		}
 	}
 
-	// recreateAppContainer (not RecreateApp) so N apps trigger only ONE
-	// nginx reload below, using the final apps list, instead of one reload
-	// per app — each app is already fully reflected in config.yaml at this
-	// point (config.Update above), so an intermediate reload after every
-	// single app would just rewrite the same eventual default.conf N times.
+	// recreateAppContainer (not RecreateApp) so N apps trigger only one nginx
+	// reload below, using the final apps list; each app is already reflected
+	// in config.yaml at this point.
 	var lastApps []config.AppContainer
 	for _, app := range exported.Docker.Apps {
 		ui.Info(stdout, "Recriando Contêiner Aplicativo "+app.Folder+"...")

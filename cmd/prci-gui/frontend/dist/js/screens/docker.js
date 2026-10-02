@@ -15,14 +15,12 @@
 
 // Docker :: Criar Container and Docker :: Gerenciar Containers.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // ===========================================================================
-// "Docker :: Criar Container" / "Docker :: Gerenciar Containers" —
-// backed by internal/appstack, no new domain function needed
-// (per-type Create/Recreate/Delete already covered everything).
+// "Docker :: Criar Container" / "Docker :: Gerenciar Containers".
 // ===========================================================================
 
 // --- "Docker :: Criar Container" ------------------------------------------

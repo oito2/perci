@@ -58,10 +58,9 @@ func TestStep_NoHookRegisteredIsSafe(t *testing.T) {
 	Step(&buf, 1, 1, "Passo único") // must not panic with a nil hook
 }
 
-// None of the message functions draw a border box since the TUI was
-// removed (2026-09-14, see the palette comment in ui.go) — always colored
+// None of the message functions draw a border box — always colored
 // text (truecolor ANSI escape) with no box-drawing character at all.
-// Corners (╭╮╰╯) are the unambiguous marker of the old border; "│" is
+// Corners (╭╮╰╯) are the unambiguous marker of a border; "│" is
 // deliberately excluded from that set because PrintHeader uses it on
 // purpose as the "  │  " separator between the two sides of the header.
 

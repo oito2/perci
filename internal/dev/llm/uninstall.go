@@ -48,8 +48,7 @@ func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 		}
 		return removeOpenCodeLeftovers(ctx, exe, stdout)
 	case "agy":
-		// Installed by their own curl scripts (install.go), which ship no
-		// uninstaller: the binary found on PATH is removed.
+		// Removes the binary found on PATH.
 		return removeBinary(ctx, exe, stdout, l.Cmd)
 	case "codex":
 		return localbin.RunNPMGlobal(ctx, exe, stdout, "uninstall", "@openai/codex")
@@ -58,10 +57,10 @@ func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 }
 
 // claudeDataDir returns ~/.local/share/claude when the claude found on PATH
-// is the native installer's symlink into it — every downloaded version
-// lives there (hundreds of MB), and removing only the link left all of it
-// behind. "" otherwise (e.g. installed through npm): only the binary goes.
-// User settings (~/.claude, ~/.claude.json) are never touched.
+// is the native installer's symlink into it, since every downloaded version
+// lives there. Returns "" otherwise (e.g. installed through npm), in which
+// case only the binary is removed. User settings (~/.claude,
+// ~/.claude.json) are never touched.
 func claudeDataDir(exe *executor.Executor) string {
 	p, ok := exe.Which("claude")
 	if !ok {
@@ -82,11 +81,11 @@ func claudeDataDir(exe *executor.Executor) string {
 	return dataDir
 }
 
-// removeOpenCodeLeftovers undoes what OpenCode's official installer adds
-// besides the binary: its ~/.opencode/bin directory (~/.opencode itself only
+// removeOpenCodeLeftovers removes what OpenCode's installer adds besides
+// the binary: its ~/.opencode/bin directory (~/.opencode itself only
 // when left empty) and the two lines it appends to the shell's rc file —
 // "# opencode" plus a PATH line for that directory. Only those exact lines
-// are removed, from every rc file the installer may have picked. Settings
+// are removed, from every rc file the installer may have used. Settings
 // in ~/.config/opencode are kept.
 func removeOpenCodeLeftovers(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	home, err := os.UserHomeDir()
@@ -99,7 +98,7 @@ func removeOpenCodeLeftovers(ctx context.Context, exe *executor.Executor, stdout
 	if err := exe.Run(ctx, opts, "rm", "-rf", "--", binDir); err != nil {
 		return err
 	}
-	// Absent when OpenCode came from elsewhere (e.g. npm): nothing to report.
+	// Absent when OpenCode was installed another way: nothing to report.
 	if _, statErr := os.Stat(base); statErr == nil {
 		if err := exe.Run(ctx, opts, "rmdir", "--ignore-fail-on-non-empty", "--", base); err != nil {
 			ui.Warning(stdout, "Não foi possível remover "+base+": "+err.Error())

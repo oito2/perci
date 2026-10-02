@@ -34,8 +34,7 @@ import (
 type Font struct {
 	Name string
 	// Check is a font family name, matched exactly against the families
-	// fc-list reports — a substring match made "Noto Sans" also match
-	// "Noto Sans CJK JP".
+	// fc-list reports (so "Noto Sans" does not match "Noto Sans CJK JP").
 	Check string
 	// AptPkg/DnfPkg are the distribution packages (Debian family / Fedora)
 	// that provide the font; both empty when it's installed via download.
@@ -46,11 +45,8 @@ type Font struct {
 	// (sha256sum format) used to verify the file downloaded from URL before
 	// it's extracted.
 	ChecksumsURL string
-	// ChecksumSHA256 is an alternative to ChecksumsURL for a release that
-	// never published a separate checksums file to fetch (ex. JetBrains
-	// Mono's own GitHub release, below) — computed once against the real
-	// download and pinned here instead. Only consulted when ChecksumsURL is
-	// empty.
+	// ChecksumSHA256 is an alternative to ChecksumsURL: a pinned SHA-256
+	// of the download. Only consulted when ChecksumsURL is empty.
 	ChecksumSHA256 string
 	RemoveGlob     string // glob pattern for .ttf files to delete from ~/.local/share/fonts/
 }
@@ -71,8 +67,7 @@ var Catalogue = []Font{
 		ChecksumsURL: "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/SHA-256.txt",
 		RemoveGlob:   "JetBrainsMonoNerd*.ttf",
 	},
-	// Fedora package names and the families they install checked in a
-	// fedora:44 container on 2026-09-29.
+	// Fonts installed from distribution packages.
 	{Name: "Carlito", Check: "Carlito", AptPkg: "fonts-crosextra-carlito", DnfPkg: "google-carlito-fonts"},
 	{Name: "Caladea", Check: "Caladea", AptPkg: "fonts-crosextra-caladea", DnfPkg: "google-crosextra-caladea-fonts"},
 	{Name: "Noto", Check: "Noto Sans", AptPkg: "fonts-noto", DnfPkg: "google-noto-sans-fonts"},
@@ -124,21 +119,16 @@ func installedFrom(fcFamilies string) map[string]bool {
 	return result
 }
 
-// urlFontJob is one URL-downloaded font queued for parallel install/remove
-// — packaged fonts stay out of this: they're already batched into one
-// sudo/pkexec authentication via RunSudoSequence below, which runs as a
-// single script and gains nothing from parallelizing.
+// urlFontJob is one URL-downloaded font queued for parallel install/remove.
+// Packaged fonts are not queued here; they go through a single
+// RunSudoSequence call.
 type urlFontJob struct {
 	font   Font
 	remove bool // false = install
 }
 
-// Apply installs fonts listed in toInstall and removes those in toRemove.
-//
-// Progress reporting: one ui.Step per font processed (installed or
-// removed) — the total comes for free from the selection itself
-// (len(toInstall)+len(toRemove)), same pattern as every other GUI
-// multi-select screen, with no separate step count to declare.
+// Apply installs fonts listed in toInstall and removes those in toRemove,
+// emitting one ui.Step per font processed.
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
 	installSet := sets.Of(toInstall)
 	removeSet := sets.Of(toRemove)
@@ -148,14 +138,10 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 	step := 0
 
 	// Every packaged font (install or remove) is batched into ONE sudo/
-	// pkexec authentication via RunSudoSequence below instead of one
-	// prompt per font — pkexec has no session cache the way sudo does,
-	// same reasoning as internal/system/update.Run (decided with the
-	// user on 2026-09-14). URL-downloaded fonts (installFromURL) never
-	// need root (they land in ~/.local/share/fonts) — queued into
-	// urlJobs and run concurrently below instead, since today's catalogue
-	// never has more than 2 of them but each is an independent network
-	// download.
+	// pkexec authentication via RunSudoSequence below. URL-downloaded
+	// fonts (installFromURL) need no root (they land in
+	// ~/.local/share/fonts); they are queued into urlJobs and run
+	// concurrently below.
 	var privSteps []executor.PrivilegedStep
 	var urlJobs []urlFontJob
 
@@ -263,9 +249,9 @@ func pkgFontStep(stdout io.Writer, f Font, family string, remove bool) (executor
 	return s, true
 }
 
-// install downloads f — packaged fonts never get here, Apply batches them.
-// Its own "starting" announcement is Apply's ui.Step call for this font —
-// no separate ui.Info here, to not print the same name twice.
+// install downloads f. Packaged fonts are handled by Apply's batch, not
+// here. The step announcement is Apply's ui.Step call, so nothing is
+// printed here.
 func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Font) error {
 	if f.URL == "" {
 		return fmt.Errorf("fonte %q: URL de download não configurada", f.Name)
@@ -273,8 +259,8 @@ func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Fo
 	return installFromURL(ctx, exe, stdout, f)
 }
 
-// remove deletes a downloaded font's files; same reasoning as install
-// above re: packaged fonts and the "starting" announcement.
+// remove deletes a downloaded font's files. Packaged fonts are handled by
+// Apply's batch, and the step announcement is Apply's ui.Step call.
 func remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Font) error {
 	// Pass the glob via env variable so that shell metacharacters in future
 	// catalogue entries cannot break or inject into the find command.
@@ -290,8 +276,7 @@ func remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Fon
 }
 
 // archiveKind decides the download's archive filename and its extraction
-// command based on url's extension — split out from installFromURL so this
-// pure decision is testable without a subprocess/download.
+// command based on url's extension.
 func archiveKind(url string) (archiveName, extractCmd string) {
 	if strings.HasSuffix(url, ".tar.xz") {
 		return filepath.Base(strings.TrimSuffix(url, ".tar.xz")) + ".tar.xz", requireTool("xz") + `tar -xJf "$TMP/$PERCI_ARCHIVE" -C "$TMP"`
@@ -308,17 +293,9 @@ func requireTool(tool string) string {
 
 // installFromURL downloads and installs a font from a .zip or .tar.xz URL,
 // verifying it against f.ChecksumsURL (or f.ChecksumSHA256, when the release
-// has no separate checksums file) first when one is set. f.URL/
-// f.ChecksumsURL/archiveName only ever come from Catalogue (a fixed list
-// of GitHub Releases URLs in this same file, never user input), so this
-// was never actually exploitable — but interpolating them into the script
-// via fmt.Sprintf's %q was still the wrong pattern: %q produces a Go
-// string literal, not a shell-safe one — $(...)/
-// backticks inside a %q-quoted value would still expand as shell command
-// substitution once bash parses the double-quoted result. Passed via Env
-// instead (same pattern removeFont below already uses for PERCI_GLOB) —
-// bash never re-parses an environment variable's expansion, so this is
-// safe regardless of what ends up in it.
+// has no separate checksums file) first when one is set. The URL and
+// archive name reach the script through Env, never interpolated into the
+// script text, so their content is never parsed by bash.
 func installFromURL(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Font) error {
 	script, env := downloadScript(f)
 	return exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout, Env: env}, "bash", "-c", script)
@@ -340,8 +317,7 @@ func downloadScript(f Font) (script string, env []string) {
 	switch {
 	case f.ChecksumsURL != "":
 		// awk, not grep: an exact filename match that exits 0 when nothing
-		// matches, so the "not found" message below is reached — a
-		// non-matching grep ended the script under pipefail before it.
+		// matches, so the "not found" message below is reached.
 		checksumCmd = `
 EXPECTED_SUM=$(curl -fsSL --connect-timeout 10 --max-time 600 "$PERCI_CHECKSUMS_URL" | awk -v f="$PERCI_ARCHIVE" '$2 == f { print $1 }')
 if [ -z "$EXPECTED_SUM" ]; then
@@ -355,8 +331,8 @@ if [ "$EXPECTED_SUM" != "$ACTUAL_SUM" ]; then
 fi
 `
 	case f.ChecksumSHA256 != "":
-		// No separate checksums file to fetch for this release — verify
-		// against the SHA-256 already pinned in Catalogue instead.
+		// No checksums file to fetch: verify against the SHA-256 pinned
+		// in Font.ChecksumSHA256.
 		checksumCmd = `
 ACTUAL_SUM=$(sha256sum "$TMP/$PERCI_ARCHIVE" | cut -d ' ' -f1)
 if [ "$PERCI_EXPECTED_SHA256" != "$ACTUAL_SUM" ]; then

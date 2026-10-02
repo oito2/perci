@@ -15,8 +15,8 @@
 
 // Linux :: Pós-instalação and Linux :: Atualizar Sistema.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // --- "Linux :: Pós-instalação" — checklist with dependencies between

@@ -37,17 +37,15 @@ import (
 
 const (
 	goInstallDir = "/usr/local/go"
-	// pathEntry is quoted so it also works in fish's config.fish: there an
-	// unquoted $PATH:... expands once per PATH element and fish's export
-	// keeps only the last one — PATH ended up as just /bin plus Go's bin.
+	// pathEntry is quoted so it also works in fish's config.fish.
 	pathEntry = `export PATH="$PATH:/usr/local/go/bin"`
-	// legacyPathEntry is the unquoted line older versions wrote — still
-	// recognized, so install replaces it and uninstall removes it.
+	// legacyPathEntry is the unquoted variant of pathEntry; install
+	// replaces it and uninstall removes it.
 	legacyPathEntry = "export PATH=$PATH:/usr/local/go/bin"
 )
 
-// Variables, not constants, so tests can point them at an httptest server
-// (goVersionAPI/downloadBase) or a fake toolchain (goBinary).
+// Variables so they can be pointed at a test server (goVersionAPI,
+// downloadBase) or a fake toolchain (goBinary).
 var (
 	goVersionAPI = "https://go.dev/dl/?mode=json"
 	downloadBase = "https://dl.google.com/go"
@@ -85,8 +83,7 @@ func InstalledVersion(ctx context.Context, exe *executor.Executor) (bool, string
 }
 
 // fetchReleases queries goVersionAPI and returns the decoded release list.
-// LatestRelease and fetchTarballChecksum both build on this so the
-// request/decode logic (endpoint, size cap) lives in exactly one place.
+// LatestRelease and fetchTarballChecksum both build on it.
 func fetchReleases(ctx context.Context) ([]goRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, goVersionAPI, nil)
 	if err != nil {
@@ -124,8 +121,7 @@ func tarballChecksum(releases []goRelease, version, goos, arch string) (string, 
 
 // LatestRelease fetches the latest stable Go release from go.dev and
 // returns its version together with the SHA-256 checksum of the tarball for
-// the current platform. Passing checksumSHA256 straight into Install lets
-// the common "install the latest version" path skip a second, identical
+// the current platform. Passing checksumSHA256 into Install avoids a second
 // request to goVersionAPI.
 func LatestRelease(ctx context.Context) (version, checksumSHA256 string, err error) {
 	releases, err := fetchReleases(ctx)
@@ -199,9 +195,8 @@ func download(ctx context.Context, exe *executor.Executor, stdout io.Writer, dir
 }
 
 // installTarball replaces goInstallDir with the contents of the verified
-// tarball at dest — the whole privileged part as ONE batch, so a single
-// sudo/pkexec authentication (pkexec has no session cache: one call per
-// step used to mean up to seven password prompts). See installScript.
+// tarball at dest, running the whole privileged part as one batch so the
+// password is asked once. See installScript.
 func installTarball(ctx context.Context, exe *executor.Executor, stdout io.Writer, dest, checksumSHA256 string) error {
 	return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{{
 		Announce: "Extraindo e instalando em " + goInstallDir + "...",
@@ -233,11 +228,8 @@ mv -- "$staging" "$1" || { if [ -e "$old" ]; then mv -- "$old" "$1"; fi; rm -rf 
 rm -rf -- "$old"`
 
 // fetchTarballChecksum queries the same go.dev/dl API LatestRelease uses and
-// returns the sha256 for the archive matching version/goos/arch. Only called
-// by Install when the caller didn't already have the checksum on hand — a
-// compromised CDN or MITM'd download otherwise gets extracted straight into
-// /usr/local/go, so this must run before the tarball is ever touched with
-// sudo.
+// returns the sha256 for the archive matching version/goos/arch. Install
+// calls it when the caller did not provide the checksum.
 func fetchTarballChecksum(ctx context.Context, version, goos, arch string) (string, error) {
 	releases, err := fetchReleases(ctx)
 	if err != nil {
@@ -290,7 +282,7 @@ func EnsurePathInBashrc(stdout io.Writer) {
 	}
 
 	rc := shellrc.File(home)
-	// The unquoted line of older versions breaks PATH under fish: replaced.
+	// Replaces the legacy unquoted line, which breaks PATH under fish.
 	if hasLine(rc, legacyPathEntry) {
 		shellrc.RemoveEntry([]string{rc}, "# Go", legacyPathEntry)
 	}

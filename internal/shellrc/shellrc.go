@@ -54,9 +54,7 @@ func File(home string) string {
 }
 
 // Dedup returns a NEW slice with ss's duplicates removed, preserving order;
-// ss itself is left untouched. (An earlier version reused ss's backing
-// array via ss[:0], which is fine for every current caller — none keep the
-// original slice afterward — but is a trap for a future one that does.)
+// ss itself is left untouched.
 func Dedup(ss []string) []string {
 	seen := make(map[string]bool, len(ss))
 	out := make([]string, 0, len(ss))
@@ -147,8 +145,7 @@ type RemoveResult struct {
 
 // RemoveEntry strips the comment and entry lines (when present, matched as
 // whole lines) from each rc file in candidates, rewriting atomically. An
-// empty comment matches nothing — it used to match, and delete, every blank
-// line of the file. Files that don't exist, or don't contain entry/comment,
+// empty comment matches nothing. Files that don't exist, or don't contain entry/comment,
 // are skipped and omitted from the returned results — only files actually
 // touched (successfully or not) are reported, so callers can loop over the
 // result to log outcomes however fits their UI. Read, filter and rewrite

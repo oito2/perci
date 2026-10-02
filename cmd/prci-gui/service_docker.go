@@ -15,10 +15,8 @@
 
 package main
 
-// Bound methods for the "Docker" category (catalog.go) — "Criar
-// Container" and "Gerenciar Containers", a thin layer over
-// internal/appstack (its per-type Create/Recreate/Delete already covered
-// everything these screens need, no new functions required) and
+// Bound methods for the "Docker" category — "Criar Container" and
+// "Gerenciar Containers", a thin layer over internal/appstack and
 // internal/manager/db (MariaDB Backup/Restore).
 
 import (
@@ -54,7 +52,7 @@ type DockerCreateCatalog struct {
 	NginxExists    bool     `json:"nginxExists"`
 	MariaDBExists  bool     `json:"mariadbExists"`
 	MariaDBReady   bool     `json:"mariadbReady"` // controls the "Habilitar acesso ao banco" checkbox
-	MkcertReady    bool     `json:"mkcertReady"`  // false = creating the Nginx container now will call "mkcert -install" for the first time (see the frontend's warning)
+	MkcertReady    bool     `json:"mkcertReady"`  // false = creating the Nginx container now will call "mkcert -install" for the first time
 	PHPVersions    []string `json:"phpVersions"`
 	NodeVersions   []string `json:"nodeVersions"`
 	MoodleVersions []string `json:"moodleVersions"`
@@ -195,9 +193,7 @@ type ContainerRow struct {
 // GetContainerRows lists every container registered in config.yaml (the
 // source of truth — never derived from `docker ps`), enriched with its
 // live status via appstack.ContainerStatuses — one batched call for every
-// container at once (rather than a `docker inspect`/subprocess per
-// container in a loop, which used to mean clicking "Reiniciar" on a single
-// row reprocessed the status of every registered container, one by one).
+// container at once, not a `docker inspect` subprocess per container.
 func (s *DockerService) GetContainerRows() []ContainerRow {
 	cfg, err := config.Load()
 	if err != nil {
@@ -236,7 +232,7 @@ func (s *DockerService) GetContainerRows() []ContainerRow {
 
 // GetContainerForEdit returns the current field values for the "Editar"
 // modal, pre-filling it. kind must be "mariadb" or "app" (Nginx has no
-// Editar — see catalog.go).
+// Editar).
 func (s *DockerService) GetContainerForEdit(kind, folder string) (ContainerFormRequest, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -262,11 +258,10 @@ func (s *DockerService) GetContainerForEdit(kind, folder string) (ContainerFormR
 	return ContainerFormRequest{}, fmt.Errorf("tipo sem edição: %s", kind)
 }
 
-// UpdateDockerContainer applies an edit — same "remove and recreate with
-// the new parameters" approach used everywhere else a container's own
-// image/version needs to change (there's no dedicated "edit" domain
-// function). Treated as a long-running operation (it may rebuild the base
-// image) — same handling as Recriar, shows the Execução tab.
+// UpdateDockerContainer applies an edit by removing and recreating the
+// container with the new parameters. Treated as a long-running operation
+// (it may rebuild the base image) — same handling as Recriar, shows the
+// Execução tab.
 func (s *DockerService) UpdateDockerContainer(req ContainerFormRequest) error {
 	return s.runAction(func(stdout io.Writer) error {
 		ctx := context.Background()

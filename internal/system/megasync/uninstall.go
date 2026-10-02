@@ -25,31 +25,24 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// pkgName is the package name Install registers MegaSync under with the
-// native package manager (installFromAPT/installFromDNF above both install
-// literally "megasync").
+// pkgName is the package name megasync is installed under with the native
+// package manager.
 const pkgName = "megasync"
 
 // rpmKeyRemoveScript deletes the key installFromDNF imported with `rpm
-// --import` (it stayed trusted after uninstalling), found by its name
-// rather than a fingerprint MEGA may rotate. rpm 6 (Fedora 44) lists and
-// deletes keys with rpmkeys; nothing found is not an error.
+// --import`, found by its name rather than a fingerprint. It lists and
+// deletes keys with rpmkeys; finding none is not an error.
 const rpmKeyRemoveScript = `rpmkeys --list | awk '/MegaLimited/ {print $1}' | while read -r fp; do rpmkeys --delete "$fp"; done`
 
-// Uninstall removes MegaSync via the distro's native package manager —
-// Install (install.go) installs it that way (MEGA's official APT/DNF
-// repository), so removal goes the same route, same convention as
-// internal/system/linuxtoys.Uninstall / internal/dev/ide's aptDnfRemove —
-// and then MEGA's repository and key, in the same privileged batch (one
-// password prompt). Leaving them behind kept the repository active with
-// no package installed.
+// Uninstall removes MegaSync via the distro's native package manager, then
+// MEGA's repository and key, all in the same privileged batch (one password
+// prompt).
 func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return uninstall(ctx, exe, stdout, distro.Detect())
 }
 
-// uninstall takes family as a parameter (rather than calling distro.Detect()
-// itself) so it's testable independent of the machine running the tests —
-// same convention as internal/system/linuxtoys/internal/system/update.
+// uninstall takes family as a parameter rather than calling
+// distro.Detect() itself.
 func uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
 	var steps []executor.PrivilegedStep
 	switch family {

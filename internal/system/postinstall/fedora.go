@@ -24,10 +24,10 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// fedoraPackages is Fedora's own repositories only (checked against
-// Fedora 44 on 2026-09-29): p7zip/p7zip-plugins were replaced by 7zip, and
-// unrar lives in RPM Fusion nonfree — its own action (fedoraInstallUnrar),
-// since dnf refuses a whole transaction when one package is missing.
+// fedoraPackages is Fedora's own repositories only: 7zip replaces
+// p7zip/p7zip-plugins, and unrar (RPM Fusion nonfree) is its own action
+// (fedoraInstallUnrar), since dnf refuses a whole transaction when one
+// package is missing.
 var fedoraPackages = []string{
 	"git",
 	"curl",
@@ -46,8 +46,7 @@ var fedoraPackages = []string{
 }
 
 // --- Granular actions for the GUI's "Linux :: Pós-instalação" screen ------
-// Same non-interactive style as mint.go, sharing the same helpers and the
-// same fedoraPackages list.
+// They share the same helpers and the same fedoraPackages list.
 
 func fedoraUpgradeSystem(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return step(ctx, exe, stdout, "Atualizando sistema base...", "dnf", "upgrade", "--refresh", "-y")
@@ -57,9 +56,8 @@ func fedoraEnableRPMFusion(ctx context.Context, exe *executor.Executor, stdout i
 	return enableRPMFusion(ctx, exe, stdout)
 }
 
-// fedoraInstallCodecs follows RPM Fusion's own codec guide: swap Fedora's
-// patent-free ffmpeg-free for the full ffmpeg, then the multimedia group —
-// one privileged batch.
+// fedoraInstallCodecs swaps Fedora's patent-free ffmpeg-free for the full
+// ffmpeg, then installs the multimedia group — one privileged batch.
 func fedoraInstallCodecs(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{
 		{Announce: "Trocando ffmpeg-free pelo ffmpeg completo (RPM Fusion)...", Name: "dnf", Args: []string{"swap", "-y", "ffmpeg-free", "ffmpeg", "--allowerasing"}},
@@ -92,25 +90,21 @@ func fedoraEnableTRIM(ctx context.Context, exe *executor.Executor, stdout io.Wri
 }
 
 // fedoraVAAPIIntel installs intel-media-driver (RPM Fusion nonfree, every
-// codec) — libva-intel-driver, used before, is the legacy driver for
-// pre-Broadwell GPUs only.
+// codec).
 func fedoraVAAPIIntel(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Instalando drivers VA-API para Intel...")
 	return dnfInstall(ctx, exe, stdout, "intel-media-driver")
 }
 
 // fedoraVAAPIAMD installs mesa-va-drivers-freeworld (RPM Fusion free, with
-// H.264/HEVC). On Fedora 44 the plain VA drivers live inside
-// mesa-dri-drivers and "mesa-va-drivers" no longer exists as a package.
+// H.264/HEVC).
 func fedoraVAAPIAMD(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Instalando drivers VA-API para AMD...")
 	return dnfInstall(ctx, exe, stdout, "mesa-va-drivers-freeworld")
 }
 
-// fedoraCleanup runs both dnf commands as ONE sudo/pkexec authentication
-// instead of two separate prompts (pkexec has no session cache the way
-// sudo does — same reasoning as internal/system/update.Run). autoremove
-// staying Soft means its failure is warned but never aborts the batch.
+// fedoraCleanup runs both dnf commands as ONE sudo/pkexec authentication.
+// autoremove is Soft, so its failure is warned but never aborts the batch.
 func fedoraCleanup(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{
 		{Announce: "Removendo pacotes órfãos...", Soft: true, WarnMessage: "Falha ao remover pacotes órfãos.", Name: "dnf", Args: []string{"autoremove", "-y"}},

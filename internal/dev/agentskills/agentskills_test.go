@@ -127,8 +127,8 @@ func TestRemove_NamedSkill(t *testing.T) {
 	}
 }
 
-// Regression: an Arg "*" entry ran `skills remove --skill '*'`, which
-// removes every skill of those agents in the scope — not just the repo's.
+// An Arg "*" entry removes only the skills installed from its repo, never
+// `skills remove --skill '*'`.
 func TestRemove_WildcardEntryRemovesOnlyItsRepo(t *testing.T) {
 	list := `[
   {"name": "daisyui", "source": "saadeghi/daisyui"},
@@ -230,8 +230,7 @@ func TestRepoKey(t *testing.T) {
 	}
 }
 
-// Regression: `skills update '*'` matched a skill literally named "*" and
-// updated nothing; wildcard entries now pass the installed names.
+// Wildcard entries update by the installed skill names, not by "*".
 func TestUpdate_WildcardEntryUpdatesItsRepoSkills(t *testing.T) {
 	list := `[{"name": "dart-a", "source": "dart-lang/skills"}, {"name": "dart-b", "source": "dart-lang/skills"}, {"name": "x", "source": "o/r"}]`
 	logPath := fakeNPX(t, list, 0)

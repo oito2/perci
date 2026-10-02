@@ -45,10 +45,8 @@ const shellPrelude = `export NVM_DIR="$HOME/.nvm"; ` +
 var inheritedPath = os.Getenv("PATH")
 
 // RefreshPath replaces this process's PATH with the one shellPrelude
-// builds. The GUI never rereads ~/.bashrc, so without this a tool
-// installed into ~/.local/bin or through nvm stays "not installed" — and
-// every exe.Run of it fails — until Perci is restarted. Run at startup and
-// after every action; a failure keeps the current PATH.
+// builds, so tools installed into ~/.local/bin or through nvm are found
+// without restarting. On failure the current PATH is kept.
 func RefreshPath(ctx context.Context, exe *executor.Executor) {
 	if exe.DryRun {
 		return
@@ -62,8 +60,7 @@ func RefreshPath(ctx context.Context, exe *executor.Executor) {
 
 // EnsureInPath adds $HOME/.local/bin to the user's shell rc file
 // (shellrc.File: ~/.bashrc, ~/.zshrc or fish's config.fish) when it is not
-// already present in PATH. Several tools (Claude Code, Kitty, Antigravity CLI) install
-// their binaries there and require the directory to be on PATH to be found.
+// already present in the PATH Perci was started with.
 func EnsureInPath(stdout io.Writer) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -88,11 +85,8 @@ func EnsureInPath(stdout io.Writer) {
 }
 
 // Which reports whether cmd is resolvable with shellPrelude's PATH.
-// A plain `which` only sees the PATH captured when Perci started, so it
-// misses binaries that nvm-based npm installs place under
-// ~/.nvm/versions/node/<version>/bin/ during the same session.
-// Checked in-process first (RefreshPath already put both on the GUI's
-// PATH); the shell is only spawned for a command not found that way.
+// It checks in-process first and only spawns a shell, which also finds
+// binaries under ~/.nvm/versions/node/<version>/bin/, when that fails.
 func Which(ctx context.Context, exe *executor.Executor, cmd string) bool {
 	if exe.CommandAvailable(ctx, cmd) {
 		return true
@@ -103,8 +97,7 @@ func Which(ctx context.Context, exe *executor.Executor, cmd string) bool {
 }
 
 // RunNPMGlobal runs `npm <action> -g <pkg>`, sourcing nvm when available.
-// action must be "install" or "uninstall". Never requires sudo since nvm
-// installs are user-local.
+// action must be "install" or "uninstall". Never requires sudo.
 func RunNPMGlobal(ctx context.Context, exe *executor.Executor, stdout io.Writer, action, pkg string) error {
 	script := `
 set -e

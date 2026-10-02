@@ -15,19 +15,14 @@
 
 package main
 
-// Bound methods for "Dev Tools :: IA: Contextos" (catalog.go) — a thin
-// layer over internal/manager/ai, whose functions take a `dir` parameter
-// (same pattern applied to internal/manager/repo and
-// internal/manager/gitignore): "" preserves the CLI's old behavior (the
-// shell's current folder), the GUI passes the folder the user picked.
+// Bound methods for "Dev Tools :: IA: Contextos" — a thin layer over
+// internal/manager/ai, whose functions take a `dir` parameter: "" means
+// the shell's current folder, the GUI passes the folder the user picked.
 //
-// Deliberately bypasses RunOptions/ModelsBySlugs/RunContext — those exist
-// for the CLI's `--models=slug,slug` flow (short names like
-// "bash"/"moodle"), while the GUI already works with a Model's full
-// display name (e.g. "Linux Bash") straight from the checked checkbox;
-// converting one into the other just to convert it back added nothing.
-// GenerateSharedFiles/DetectActiveModels (the actual engine) are reused
-// with no behavior change.
+// Bypasses RunOptions/ModelsBySlugs/RunContext (the CLI's
+// `--models=slug,slug` flow): the GUI works with a Model's full display
+// name (e.g. "Linux Bash") straight from the checked checkbox.
+// GenerateSharedFiles/DetectActiveModels do the actual work.
 
 import (
 	"io"
@@ -36,15 +31,14 @@ import (
 )
 
 // PickAIContextFolder opens the native folder picker for the working
-// folder this screen operates on — same pattern as Repositórios/IA: SKILLs.
+// folder this screen operates on.
 func (t *DevToolsService) PickAIContextFolder() (string, error) {
 	return t.pickFolder("Selecionar pasta de trabalho")
 }
 
 // GetAIContextItems lists every catalog Model with whether its instruction
-// file is already present under folder/.instructions/ — reuses
-// MultiSelectItemInfo (service_linux.go), the same {id,label,installed}
-// shape every "checklist simples" screen already uses.
+// file is already present under folder/.instructions/, as the
+// MultiSelectItemInfo {id,label,installed} shape.
 func (t *DevToolsService) GetAIContextItems(folder string) []MultiSelectItemInfo {
 	detected := managerai.DetectActiveModels(folder)
 	all := managerai.Models()

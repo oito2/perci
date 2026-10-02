@@ -15,13 +15,12 @@
 
 // Dev Tools :: IA: SKILLs.
 //
-// Classic script (not a module): every file under js/ shares one global
-// scope, loaded in order by index.html — see js/bootstrap.js.
+// Classic script (not a module): shares one global scope with the other
+// scripts under js/.
 "use strict";
 
 // ===========================================================================
-// "Dev Tools :: IA: SKILLs" — backed by internal/dev/agentskills
-// (npx skills).
+// "Dev Tools :: IA: SKILLs" (npx skills).
 // ===========================================================================
 
 asSkillsShLink.addEventListener("click", function (ev) {

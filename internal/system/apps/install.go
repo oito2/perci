@@ -37,10 +37,7 @@ func installedByScope(ctx context.Context, exe *executor.Executor, scope string)
 }
 
 // parseFlatpakIDs parses `flatpak list --columns=application`'s output (one
-// app ID per line) into a set — split out from installedByScope so this
-// parsing logic is testable without a real flatpak/subprocess call, same
-// convention as megasync.resolveRepo/update.packageSteps in sibling
-// packages.
+// app ID per line) into a set.
 func parseFlatpakIDs(out string) map[string]bool {
 	result := make(map[string]bool)
 	for _, line := range strings.Split(out, "\n") {
@@ -146,8 +143,7 @@ func runFlatpakSetup(ctx context.Context, exe *executor.Executor, stdout io.Writ
 }
 
 // installOne installs a single Flatpak app and applies its FlatpakOverride
-// (if any) — used by Apply's (apply.go) unbatched (user-scope) install path
-// and by its ui.Step loop.
+// (if any).
 func installOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, appByID map[string]App, scope, id string) error {
 	ui.Info(stdout, "Instalando: "+id)
 	if err := exe.Run(ctx,

@@ -110,7 +110,7 @@ func TestDryRunPolicyKitPropagatesEnv(t *testing.T) {
 }
 
 func TestUsePolicyKitDefaultsFalse(t *testing.T) {
-	// TUI/CLI (cmd/prci) must keep today's sudo behavior unless they
+	// TUI/CLI processes must keep the sudo behavior unless they
 	// explicitly opt in — UsePolicyKit is additive, not a global switch.
 	var buf bytes.Buffer
 	exe := executor.New(&buf, &buf)
@@ -183,11 +183,8 @@ func TestContextCancellation(t *testing.T) {
 	}
 }
 
-// RunSudoSequence (decided with the user on 2026-09-14): one authentication
-// for a whole batch of privileged commands instead of one prompt per
-// command — see internal/system/update.Run, its first real caller, for
-// the motivating case (up to 7 pkexec prompts for one "Atualizar Sistema"
-// click before this existed).
+// RunSudoSequence: one authentication for a whole batch of privileged
+// commands instead of one prompt per command.
 
 func TestRunSudoSequence_DryRunEscalatesOnce(t *testing.T) {
 	var buf bytes.Buffer
@@ -301,11 +298,8 @@ func TestRunSudoSequence_QuotesSingleQuotesInArgs(t *testing.T) {
 	}
 }
 
-// TestShellQuote moved here from internal/manager/db — ShellQuote is the
-// security-sensitive primitive behind every raw shell string this project
-// builds (RunSudoSequence above, internal/manager/db, internal/system/
-// fonts); it belongs with its one canonical implementation, not duplicated
-// per package.
+// TestShellQuote covers ShellQuote, the security-sensitive primitive
+// behind every raw shell string built by RunSudoSequence and its callers.
 func TestShellQuote(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -318,11 +312,9 @@ func TestShellQuote(t *testing.T) {
 		{"single quote", "it's", "'it'\\''s'"},
 		{"multiple quotes", "can't stop, won't stop", "'can'\\''t stop, won'\\''t stop'"},
 		{"only single quote", "'", "''\\'''"},
-		// ShellQuote is the project's single most security-sensitive
-		// primitive (its own doc comment says as much) — these cover every
-		// other shell metacharacter besides a bare single quote, since
-		// wrapping in single quotes must neutralize all of them, not just
-		// quotes.
+		// ShellQuote is security-sensitive: these cover every other shell
+		// metacharacter besides a bare single quote, since wrapping in single
+		// quotes must neutralize all of them.
 		{"command substitution dollar-paren", "$(rm -rf /)", "'$(rm -rf /)'"},
 		{"backtick command substitution", "`whoami`", "'`whoami`'"},
 		{"semicolon command separator", "a; rm -rf /", "'a; rm -rf /'"},

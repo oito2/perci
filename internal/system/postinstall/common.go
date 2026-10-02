@@ -35,7 +35,7 @@ func step(ctx context.Context, exe *executor.Executor, stdout io.Writer, msg, na
 }
 
 // aptInstall installs one or more apt packages with sudo, non-interactively
-// (aptBaseOpts, debian.go).
+// (aptBaseOpts).
 func aptInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, pkgs ...string) error {
 	args := append(append(append([]string{}, aptBaseOpts...), "install", "-y", "--"), pkgs...)
 	return exe.Run(ctx, executor.Options{
@@ -53,16 +53,14 @@ func dnfInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, p
 }
 
 // ensureFlatpakReady installs flatpak if needed and ensures the Flathub
-// remote — apps.EnsureFlatpak, shared with Linux :: Apps so both paths
-// behave the same (this used to be a second, diverging copy).
+// remote, via apps.EnsureFlatpak.
 func ensureFlatpakReady(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	return apps.EnsureFlatpak(ctx, exe, stdout)
 }
 
 // flatpakSetupAndInstall makes sure flatpak and Flathub are there and
-// installs appIDs — for the system scope as ONE privileged batch (one
-// password prompt instead of one for the setup and another for the
-// install).
+// installs appIDs. For the system scope the setup and the install run as
+// ONE privileged batch (a single password prompt).
 func flatpakSetupAndInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, appIDs ...string) error {
 	if config.FlatpakFlag() != "--system" {
 		if err := ensureFlatpakReady(ctx, exe, stdout); err != nil {
@@ -84,8 +82,7 @@ func flatpakSetupAndInstall(ctx context.Context, exe *executor.Executor, stdout 
 }
 
 // flatpakInstall installs Flatpak apps from Flathub using the configured
-// scope — privileged for --system, the same as Linux :: Apps does (it used
-// to run unprivileged and depend on flatpak's own polkit prompt).
+// scope, privileged for --system.
 func flatpakInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, appIDs ...string) error {
 	scope := config.FlatpakFlag()
 	args := append([]string{"install", "--noninteractive", scope, "-y", "flathub"}, appIDs...)
@@ -98,13 +95,10 @@ const (
 )
 
 // configureSysctl sets swappiness, inotify and applies sysctl — both
-// commands run as ONE sudo/pkexec authentication (rather than two separate
-// RequiresSudo calls, i.e. two password prompts for a single action;
-// pkexec has no session cache the way sudo does — same reasoning as
-// internal/system/update.Run).
+// commands run as ONE sudo/pkexec authentication.
 //
-// The file used to be 99-lumina.conf (the project's old name): it's
-// removed when present, so the two never both apply.
+// A 99-lumina.conf file is removed when present, so it never applies
+// alongside the perci one.
 func configureSysctl(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Aplicando configurações de kernel (sysctl)...")
 	conf := "vm.swappiness=10\nfs.inotify.max_user_watches=524288\n"
@@ -118,14 +112,9 @@ sysctl -p %s
 }
 
 // acceptEulaAndAptInstall pre-accepts the ttf-mscorefonts-installer EULA and
-// installs pkgs (every caller needs both together: pkgs is either that
-// package itself or a distro metapackage that pulls it in) as ONE sudo/
-// pkexec authentication instead of two separate prompts (pkexec has no
-// session cache the way sudo does — same reasoning as internal/system/
-// update.Run). debconf-set-selections
-// reads its selection from stdin/a file, never as a literal argument —
-// PrivilegedStep has no Stdin, so the value is piped to it from inside a
-// "bash -c" step instead.
+// installs pkgs as ONE sudo/pkexec authentication. The EULA selection is
+// piped to debconf-set-selections from inside a "bash -c" step, because
+// PrivilegedStep has no Stdin.
 func acceptEulaAndAptInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, pkgs ...string) error {
 	const eulaSelection = "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true"
 	pipeEula := "printf '%s\\n' " + executor.ShellQuote(eulaSelection) + " | debconf-set-selections"
@@ -171,12 +160,10 @@ func stripNewline(s string) string {
 }
 
 // setupSwapfile creates a 4 GB swapfile at /swapfile and persists it in
-// /etc/fstab — unless the system already has any active swap (Ubuntu's
-// installer creates /swap.img; a second 4 GB swap on top was never the
-// intent). On btrfs the file is made with `btrfs filesystem mkswapfile`
-// (a fallocate'd file on a copy-on-write filesystem can't be swapped on),
-// and a swapon failure removes the file, so a later run isn't fooled into
-// "already exists". Non-fatal: shows warnings on failure.
+// /etc/fstab, unless the system already has any active swap. On btrfs the
+// file is made with `btrfs filesystem mkswapfile`, and a swapon failure
+// removes the file, so a later run is not fooled into "already exists".
+// Non-fatal: shows warnings on failure.
 func setupSwapfile(ctx context.Context, exe *executor.Executor, stdout io.Writer) {
 	ui.Info(stdout, "Configurando swapfile...")
 

@@ -26,20 +26,19 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// appTools is the single source of truth for tools wrapped per Container
-// Aplicativo. Used by AppTypeMoodle/AppTypePHP/AppTypeGeneric, whose
-// project root is mounted at /var/www/html.
+// appTools is the list of tools wrapped per Container Aplicativo, used by
+// AppTypeMoodle/AppTypePHP/AppTypeGeneric, whose project root is mounted at
+// /var/www/html.
 var appTools = []string{"php", "phpcs", "phpcbf", "phpunit", "composer"}
 
 // nodeAppTools is appTools' equivalent for AppTypeNode, whose project root
-// is mounted at /app instead — just npm, the only package manager Node
-// Container Aplicativos support.
+// is mounted at /app: just npm.
 var nodeAppTools = []string{"npm"}
 
-// wrapperUser is who the PHP-family and PHP+Node wrappers run as: those
-// containers run as root (php-fpm's master, supervisord), so a plain
-// docker exec left vendor/ and node_modules/ root-owned on the host.
-// www-data's UID matches the host user (phpDockerfile's usermod).
+// wrapperUser is who the PHP-family and PHP+Node wrappers run as. Those
+// containers run as root, so the wrappers exec as www-data, whose UID
+// matches the host user, keeping vendor/ and node_modules/ owned by the
+// host user.
 const wrapperUser = "www-data"
 
 // writeAppWrappers creates ~/.local/bin/{php,composer,phpcs,phpcbf,
@@ -52,16 +51,15 @@ func writeAppWrappers(folder, htmlDir string, stdout io.Writer) {
 
 // writeNodeAppWrappers is writeAppWrappers' equivalent for AppTypeNode:
 // ~/.local/bin/npm-<folder>, project root at /app. user is "" for a
-// Node-only container, which already runs as the UID-matched "node" user
-// (nodeAppRunArgs), and wrapperUser for a PHP+Node one.
+// Node-only container, which already runs as the UID-matched "node" user,
+// and wrapperUser for a PHP+Node one.
 func writeNodeAppWrappers(folder, appDir, user string, stdout io.Writer) {
 	writeWrappers(folder, nodeAppTools, appDir, "/app", user, stdout)
 }
 
 // removeAppWrappers deletes every wrapper writeAppWrappers/
-// writeNodeAppWrappers may have created for folder — called when the app
-// is deleted, so no <tool>-<folder> is left pointing at a missing
-// container.
+// writeNodeAppWrappers may have created for folder, so no <tool>-<folder>
+// is left pointing at a missing container.
 func removeAppWrappers(folder string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -73,8 +71,7 @@ func removeAppWrappers(folder string) {
 }
 
 // writeWrappers creates ~/.local/bin/<tool>-<folder> for every tool in
-// tools, one wrapper set per Container Aplicativo, each pointing at that
-// app's own container — always folder-suffixed, one container per project.
+// tools, each pointing at that app's own container.
 func writeWrappers(folder string, tools []string, hostDir, containerDir, user string, stdout io.Writer) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -91,7 +88,7 @@ func writeWrappers(folder string, tools []string, hostDir, containerDir, user st
 	for _, tool := range tools {
 		name := tool + "-" + folder
 		path := filepath.Join(localBin, name)
-		// Removed first so a symlink at path is replaced, not followed.
+		// Each wrapper is removed first so a symlink at path is replaced, not followed.
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			ui.Warning(stdout, "Falha ao substituir wrapper "+name+": "+err.Error())
 			continue
@@ -109,11 +106,10 @@ func appWrapperSingleQuote(s string) string {
 }
 
 // buildAppWrapperScript rewrites any argument under the host project path
-// to its containerDir equivalent, then execs into the container —
-// interactive when attached to a real terminal, non-interactive (docker
-// exec -i) otherwise (e.g. piped output, CI). A non-empty user runs the
-// tool as that user, with HOME=/tmp: www-data's home (/var/www) isn't
-// writable, and npm fails without a writable cache directory.
+// to its containerDir equivalent, then execs into the container,
+// interactive when attached to a real terminal and non-interactive (docker
+// exec -i) otherwise. A non-empty user runs the tool as that user, with
+// HOME=/tmp so tools such as npm have a writable cache directory.
 func buildAppWrapperScript(container, tool, hostDir, containerDir, user string) string {
 	execAs := "()"
 	if user != "" {

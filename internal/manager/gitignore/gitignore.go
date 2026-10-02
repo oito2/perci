@@ -57,8 +57,8 @@ var (
 )
 
 // stacks is the project-type dictionary, in output order. Detection only
-// looks at the project root (decided with the user on 2026-09-29): nested
-// projects would need patterns relative to their own folder.
+// looks at the project root: nested projects would need patterns
+// relative to their own folder.
 var stacks = []stack{
 	{"Go", hasFile("go.mod"),
 		section{"Go", []string{"*.exe", "*.test", "*.out", "dist/", "vendor/"}}},
@@ -86,8 +86,7 @@ var stacks = []stack{
 		}}},
 	{"Ruby", hasFile("Gemfile"),
 		section{"Ruby", []string{".bundle/", "vendor/bundle/", "*.gem", ".env", ".env.*", "!.env.example"}}},
-	// Cargo.lock stays versioned: Cargo's own guidance is to commit it for
-	// every package, libraries included.
+	// Cargo.lock stays versioned for every package, libraries included.
 	{"Rust", hasFile("Cargo.toml"),
 		section{"Rust", []string{"target/"}}},
 	{"Java", hasFile("pom.xml", "build.gradle", "build.gradle.kts"),

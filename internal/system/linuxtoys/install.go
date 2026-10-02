@@ -32,28 +32,18 @@ func Installed(ctx context.Context, exe *executor.Executor) bool {
 }
 
 // Install runs the official linux.toys installer script as root (one
-// pkexec prompt, decided with the user on 2026-09-29): the script escalates
-// with its own `sudo apt/dnf/rpm-ostree ...`, and inside the GUI there's no
-// terminal for sudo to ask the password on — without cached credentials it
-// just failed. As root those inner sudo calls need no password.
+// pkexec prompt): the script escalates with its own `sudo apt/dnf/
+// rpm-ostree ...`, and as root those inner sudo calls need no password.
 //
-// The script reaches root on stdin (`bash -s`), never as a file path: the
-// download sits in a user-writable temp file, which any process of the same
-// user could swap while the password dialog is open. A non-tty stdin also
-// makes the script take its own non-interactive branch (`if [ -t 0 ]; then
-// read -r _answer < /dev/tty; else yes | installer; fi`, confirmed in
-// psygreg/linuxtoys install.sh) instead of waiting on /dev/tty. Re-running
-// the same script is also how Linux Toys updates an existing installation.
+// The script reaches root on stdin (`bash -s`), never as a file path,
+// because the download sits in a user-writable temp file that any process
+// of the same user could swap while the password dialog is open. A non-tty
+// stdin also makes the script take its non-interactive branch. Re-running
+// the same script updates an existing installation.
 //
-// SECURITY-EXCEPTION(checksum): unlike every other download in this project
-// (internal/dev/golang, internal/system/fonts, internal/dev/prereqs'
-// appimagetool), this one is deliberately NOT verified against a pinned
-// checksum — install.sh's entire purpose is to always fetch whatever .deb/
-// .rpm is current for the user's distro (psygreg/linuxtoys upstream);
-// pinning a hash here would either go stale immediately or defeat the
-// script's own "always latest" design. Accepted risk: downloaded over HTTPS
-// from the project's own domain, same trust boundary as any other "curl |
-// bash"-style installer the user could run manually.
+// The download is NOT verified against a pinned checksum: the script
+// always fetches whatever package is current for the distro. It is
+// downloaded over HTTPS from the project's own domain.
 func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Baixando instalador do Linux Toys...")
 	tmpFile, err := os.CreateTemp("", "linuxtoys-install-*.sh")

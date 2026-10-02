@@ -1,16 +1,16 @@
 version: "2"
 
-# .instructions/GOLANG.md's minimum linter set (errcheck, govet, staticcheck,
-# unused) is already golangci-lint v2's default "standard" group, so no
-# explicit `enable:` list is needed here — this file only tunes errcheck.
+# Only errcheck is tuned here; the default "standard" linter group
+# (errcheck, govet, staticcheck, unused) is used as is, with no explicit
+# `enable:` list.
 linters:
   settings:
     errcheck:
       # fmt.Fprint/Fprintf/Fprintln failures against a terminal writer are
-      # not actionable in this CLI tool (there's nothing sensible to do
-      # about a failed print), so they're excluded here to keep errcheck
-      # focused on cleanup/Close calls, where a swallowed error is a real
-      # — if usually low-severity — resource leak worth catching.
+      # not actionable (there's nothing sensible to do about a failed
+      # print), so they're excluded to keep errcheck focused on
+      # cleanup/Close calls, where a swallowed error is a real resource
+      # leak.
       exclude-functions:
         - fmt.Fprint
         - fmt.Fprintf

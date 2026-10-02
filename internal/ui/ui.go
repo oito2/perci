@@ -25,9 +25,9 @@ import (
 
 // ── palette ──────────────────────────────────────────────────────────────────
 //
-// A single fixed palette (decided with the user on 2026-09-14) for the
-// messages domain functions write to the GUI's terminal panel — the GUI's
-// own theme (GUITheme, daisyUI) is unrelated to it.
+// A single fixed palette for the messages domain functions write to the
+// GUI's terminal panel — the GUI's own theme (GUITheme, daisyUI) is
+// unrelated to it.
 const (
 	colorPrimary = "153;102;255" // #9966FF — dividers, titles, steps
 	colorSuccess = "0;255;136"   // #00FF88
@@ -85,9 +85,8 @@ func Success(w io.Writer, text string) {
 // ── Step ─────────────────────────────────────────────────────────────────────
 
 // stepHook, when set, is notified on every Step call in addition to the
-// line Step always writes to w. cmd/prci-gui registers one at startup that
-// forwards to a Wails "step" event — internal/ui deliberately
-// has no Wails dependency itself; see cmd/prci-gui/main.go.
+// line Step always writes to w. A GUI layer can register one to forward
+// steps as events; internal/ui itself has no Wails dependency.
 var (
 	stepHookMu sync.Mutex
 	stepHook   func(index, total int, label string)

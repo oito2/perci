@@ -47,14 +47,9 @@ func (s *SyncWriter) Write(p []byte) (int, error) {
 
 // RunConcurrent calls fn once per item in items, with at most limit calls
 // running at the same time, and blocks until every started call has
-// returned. Exists for the narrow cases where a batch of independent,
-// I/O-bound per-item operations (ex. downloading a font from its own URL,
-// installing a Flatpak app at user scope) isn't already forced sequential
-// by RunSudoSequence's single-script batching — most privileged batches
-// already run as one script and gain nothing from this. Any io.Writer fn
-// writes to must be safe for concurrent use (see SyncWriter); any
-// slice/map fn appends to or mutates must be protected by the caller
-// (ex. a sync.Mutex around the append).
+// returned. Any io.Writer fn writes to must be safe for concurrent use
+// (see SyncWriter); any slice/map fn appends to or mutates must be
+// protected by the caller (e.g. a sync.Mutex around the append).
 //
 // Once ctx is done no further item is started, and ctx.Err() is part of
 // the returned error; a panic in fn is recovered and returned as an error

@@ -33,7 +33,6 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 > Feel free to use and adapt it however you like — just know it solves pretty specific problems of mine, it's not meant to be a generic setup tool.
 
 ![Perci — Home → Visão Geral](docs/img/screenshots/main-window.png)
-<!-- TODO: recapture after the first release (the update check shows a 404 until a release exists) -->
 
 A desktop GUI (Go + [Wails](https://wails.io)), five sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
 

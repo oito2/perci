@@ -76,13 +76,8 @@ var Catalogue = []Prereq{
 }
 
 // InstalledMap returns which prerequisites are currently installed.
-// It checks every Catalogue entry in parallel instead of one after
-// another: several isInstalled branches spawn a subprocess
-// (pkg-config/dpkg/rpm/go env/...), and running them sequentially would
-// add up to ~20 subprocesses, one after the other, every time the
-// "Desenvolvimento :: Pré-requisitos" screen loads. The list is small and
-// fixed (it doesn't scale with user input), so one goroutine per item,
-// with no concurrency limit, is enough.
+// It checks every Catalogue entry in parallel, one goroutine per item,
+// since several checks spawn a subprocess.
 func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 	result := make(map[string]bool, len(Catalogue))
 	var mu sync.Mutex
@@ -302,10 +297,8 @@ func libfuse2Pkg(family string) string {
 }
 
 // mkcertPkgs returns mkcert plus the NSS tools package it needs to install
-// its local CA into Firefox's trust store (mkcert falls back to silently
-// skipping Firefox support without it) — package name differs per distro
-// family, confirmed against packages.debian.org / packages.ubuntu.com
-// ("libnss3-tools") and Fedora's package repos ("nss-tools").
+// its local CA into Firefox's trust store; the package name depends on the
+// distro family.
 func mkcertPkgs(family string) []string {
 	if family == distro.Fedora {
 		return []string{"mkcert", "nss-tools"}
@@ -316,9 +309,7 @@ func mkcertPkgs(family string) []string {
 func dockerPkgs(family string) []string {
 	switch family {
 	case distro.Fedora:
-		// Fedora's own packaging (checked against Fedora 44): there's no
-		// "docker"/"docker-buildx-plugin" package — those names are Docker
-		// Inc.'s own repository's.
+		// Fedora's own packages, not Docker Inc.'s repository names.
 		return []string{"moby-engine", "docker-compose", "docker-buildx"}
 	default:
 		return []string{"docker.io", "docker-compose-v2", "docker-buildx"}
@@ -339,9 +330,7 @@ apt-get update -q
 apt-get install -y -- gh`
 		return exe.Run(ctx, opts, "bash", "-c", script)
 	case distro.Fedora:
-		// gh is in Fedora's own repositories (checked against Fedora 44) —
-		// no extra repo needed, and the old `dnf config-manager --add-repo`
-		// syntax doesn't exist in dnf5 (Fedora 41+).
+		// gh is in Fedora's own repositories, so no extra repo is added.
 		return exe.Run(ctx, opts, "dnf", "install", "-y", "--", "gh")
 	default:
 		return fmt.Errorf("unsupported distro family for GitHub CLI: %s", family)
@@ -367,9 +356,8 @@ apt-get update -q`
 // ── Docker ────────────────────────────────────────────────────────────────────
 
 // installDocker installs the engine, enables the service and adds the user
-// to the docker group as ONE privileged batch — one password prompt, not
-// one per command (pkexec has no session cache). The group membership is
-// checked beforehand, unprivileged.
+// to the docker group as one privileged batch, so the password is asked
+// once. The group membership is checked beforehand, unprivileged.
 func installDocker(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
 	ui.Info(stdout, "Instalando Docker via gerenciador de pacotes...")
 	var steps []executor.PrivilegedStep
@@ -432,9 +420,8 @@ func installNode(ctx context.Context, exe *executor.Executor, stdout io.Writer) 
 	_, statErr := os.Stat(filepath.Join(home, ".nvm", "nvm.sh"))
 	freshNVM := statErr != nil
 
-	// -u (nounset) is deliberately not set here: nvm.sh itself references
-	// variables that may be unset, and sourcing it under `set -u` is a
-	// well-known way to break nvm's own install/use logic.
+	// -u (nounset) is not set, because nvm.sh references variables that
+	// may be unset.
 	script := `set -Eeo pipefail
 export NVM_DIR="$HOME/.nvm"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
@@ -474,18 +461,13 @@ func uninstallNode(stdout io.Writer) error {
 
 const appImageToolDest = "/usr/local/bin/appimagetool"
 
-// appImageToolVersion is a real, versioned release tag from
-// github.com/AppImage/appimagetool — the actively maintained tool (not the
-// old github.com/AppImage/AppImageKit repo this used to point at, whose
-// "continuous" release stopped receiving new builds in 2023 and is now
-// marked "obsolete" upstream). A versioned tag also lets the download be
-// checked against the release's own published checksum (see
-// appImageToolChecksum) — "continuous" is re-tagged onto new commits over
-// time, so there would be no stable checksum to pin it against.
+// appImageToolVersion is the appimagetool release tag that is downloaded
+// and checked against the release's published checksum (see
+// appImageToolChecksum).
 const appImageToolVersion = "1.9.1"
 
-// githubAPIBase/githubDownloadBase are GitHub's API and download roots —
-// variables so tests point them at a local server.
+// githubAPIBase/githubDownloadBase are GitHub's API and download roots,
+// variables so tests can point them at a local server.
 var (
 	githubAPIBase      = "https://api.github.com"
 	githubDownloadBase = "https://github.com"
@@ -498,11 +480,8 @@ func appImageToolArch() string {
 	return "x86_64"
 }
 
-// appImageToolChecksum fetches the GitHub release's own asset digest for
-// assetName — GitHub's API has published a SHA-256 "digest" per release
-// asset directly since 2024, so no separate checksums file is needed. This
-// queries the API (an independent source from the asset download itself),
-// same reasoning as internal/dev/golang's fetchTarballChecksum.
+// appImageToolChecksum fetches the SHA-256 digest that the GitHub API
+// lists for the release asset assetName, independently of the download.
 func appImageToolChecksum(ctx context.Context, assetName string) (string, error) {
 	apiURL := githubAPIBase + "/repos/AppImage/appimagetool/releases/tags/" + appImageToolVersion
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
@@ -546,9 +525,7 @@ func appImageToolChecksum(ctx context.Context, assetName string) (string, error)
 // and verifies its checksum before anything runs elevated. The final step
 // is executor.PrivilegedInstall: root copies the file into a root-owned
 // staged copy, re-verifies the checksum on it and renames it into
-// /usr/local/bin as root:root 0755 — a plain `mv` would keep the user as
-// owner (and mode 0600) and trust a file the user can still rewrite while
-// the password dialog is open.
+// /usr/local/bin as root:root 0755.
 func installAppImageTool(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts executor.Options) error {
 	assetName := "appimagetool-" + appImageToolArch() + ".AppImage"
 	toolURL := githubDownloadBase + "/AppImage/appimagetool/releases/download/" + appImageToolVersion + "/" + assetName
@@ -585,17 +562,11 @@ func installAppImageTool(ctx context.Context, exe *executor.Executor, stdout io.
 
 // ── Wails3 CLI ────────────────────────────────────────────────────────────────
 
-// wails3Version is pinned to match the version this repo's own go.mod
-// requires (github.com/wailsapp/wails/v3) — same version cited in
-// cmd/prci-gui/README.md/CONTRIBUTING.md's "go install" instructions.
-// Update together if the project's own pinned Wails version changes.
+// wails3Version is the Wails CLI version installed by `go install`.
 const wails3Version = "v3.0.0-beta.22"
 
-// goBinDir resolves where `go install` puts binaries — $GOBIN if set,
-// otherwise $GOPATH/bin (matching `go help install`'s own resolution
-// order) — needed because a freshly-installed Go tool isn't necessarily on
-// PATH yet, the same reason installNode above sources nvm.sh before
-// checking for node/npm instead of trusting a plain `which`.
+// goBinDir resolves where `go install` puts binaries: $GOBIN if set,
+// otherwise $GOPATH/bin. Returns "" when neither can be determined.
 func goBinDir(ctx context.Context, exe *executor.Executor) string {
 	if out, err := exe.Output(ctx, executor.Options{}, "go", "env", "GOBIN"); err == nil {
 		if dir := strings.TrimSpace(out); dir != "" {
@@ -610,10 +581,8 @@ func goBinDir(ctx context.Context, exe *executor.Executor) string {
 	return ""
 }
 
-// installWails3 requires Go to already be installed ("Desenvolvimento ::
-// Linguagens e SDKs") — no sudo involved, `go install` writes under the
-// user's own GOPATH/GOBIN, same reasoning as installNode not using
-// RequiresSudo.
+// installWails3 requires Go to already be installed. It needs no sudo,
+// since `go install` writes under the user's own GOPATH/GOBIN.
 func installWails3(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	if !exe.CommandAvailable(ctx, "go") {
 		return fmt.Errorf("go não encontrado — instale primeiro em Desenvolvimento :: Linguagens e SDKs")

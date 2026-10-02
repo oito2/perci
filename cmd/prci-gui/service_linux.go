@@ -30,19 +30,17 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
-// LinuxService binds the "Linux" category (catalog.go): Atualizar Sistema,
+// LinuxService binds the "Linux" category: Atualizar Sistema,
 // Pós-instalação, Fontes, Templates, Flatpak Apps, Linux Toys, MegaSync.
 type LinuxService struct {
 	serviceBase
 }
 
-// RunSystemUpdate runs "Linux :: Atualizar Sistema" — the same function
-// (internal/system/update.Run) domain callers everywhere use, no
-// duplicated logic. Uses context.Background() instead of a request-scoped
-// ctx for the run itself (only the eventWriter carries the wailsApp
-// reference) — deliberate: a package update shouldn't be aborted midway
-// just because the window closed, that could corrupt dpkg's state.
-// cleanJournal/autoremove are the screen's optional cleanups
+// RunSystemUpdate runs "Linux :: Atualizar Sistema" through
+// internal/system/update.Run. Uses context.Background() instead of a
+// request-scoped ctx for the run itself: a package update isn't aborted
+// midway just because the window closed, which could corrupt dpkg's
+// state. cleanJournal/autoremove are the screen's optional cleanups
 // (update.Options), both unchecked by default.
 func (l *LinuxService) RunSystemUpdate(cleanJournal, autoremove bool) error {
 	return l.runAction(func(stdout io.Writer) error {
@@ -88,12 +86,10 @@ func (l *LinuxService) GetPostinstallProfile() PostinstallProfileInfo {
 
 // RunPostinstall runs the selected actionIDs from the detected Profile, in
 // the Profile's own declared order (always dependency-safe — see
-// Action.DependsOn's doc comment in internal/system/postinstall), one
-// ui.Step per selected action — the step count comes for free from the
-// selection itself, no separate declaration needed. Same
-// context.Background()-for-execution reasoning as RunSystemUpdate: a
-// partly-run post-install (apt mid package-manager-state) shouldn't be
-// aborted just because the window closed.
+// Action.DependsOn in internal/system/postinstall), one ui.Step per
+// selected action. Like RunSystemUpdate it executes with
+// context.Background(): a partly-run post-install shouldn't be aborted
+// just because the window closed.
 func (l *LinuxService) RunPostinstall(actionIDs []string) error {
 	return l.runAction(func(stdout io.Writer) error {
 		profile := postinstall.DetectProfile()
@@ -132,7 +128,7 @@ type MultiSelectItemInfo struct {
 	Description string `json:"description,omitempty"`
 	Installed   bool   `json:"installed"`
 	// RemoveWarning is confirmed in the GUI before an installed item is
-	// unchecked and applied (js/screens/checklists.js).
+	// unchecked and applied.
 	RemoveWarning string `json:"removeWarning,omitempty"`
 }
 
@@ -162,16 +158,14 @@ func (l *LinuxService) GetFontsInfo() []MultiSelectItemInfo {
 // RunFonts installs newly checked fonts and removes newly unchecked ones —
 // same diff (internal/sets.Diff) every checklist screen uses. Recalculates
 // the installed state on the spot rather than trusting what the frontend
-// cached — same reasoning as DetectProfile in RunPostinstall.
+// cached.
 func (l *LinuxService) RunFonts(selectedNames []string) error {
 	return runChecklist(&l.serviceBase, l.fontsChecklist(), selectedNames)
 }
 
 // templatesChecklist builds templates.Catalogue's checklistCatalog, once
-// templates.Dir() resolves — the one pair of the 7 whose install-state/
-// apply need an extra dir resolved first, so this returns an error instead
-// of the catalog when that fails (GetTemplatesInfo/RunTemplates below
-// preserve their existing error behavior around it).
+// templates.Dir() resolves — it returns an error instead of the catalog
+// when that fails.
 func (l *LinuxService) templatesChecklist() (checklistCatalog[templates.Template], error) {
 	dir, err := templates.Dir()
 	if err != nil {

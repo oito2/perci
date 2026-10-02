@@ -13,13 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package sdks provides the GUI-only "checklist simples" wrapper
-// ("Desenvolvimento :: Linguagens e SDKs" screen) around internal/dev/golang
-// and internal/dev/flutter — a diff-driven install/remove of exactly the
-// same two SDKs, without an extra "already installed, want to update?"
-// confirmation step: same pattern as internal/system/fonts.Apply, clicking
-// "Executar" is itself the confirmation (an item that's checked and already
-// installed is a no-op, same as every multi-select screen in the GUI).
+// Package sdks provides a selection-driven install/remove wrapper around
+// the golang and flutter packages for exactly those two SDKs, with no
+// extra update confirmation step. A checked item that is already installed
+// is a no-op.
 package sdks
 
 import (
@@ -72,10 +69,8 @@ func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 	return result
 }
 
-// Apply installs SDKs listed in toInstall and removes those in toRemove —
-// same pattern as internal/system/fonts.Apply: one ui.Step per processed
-// SDK, with the total coming for free from the selection itself
-// (internal/checklist.Apply).
+// Apply installs SDKs listed in toInstall and removes those in toRemove,
+// one ui.Step per processed SDK (via checklist.Apply).
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
 	home, flutterDir, flutterBin, err := paths()
 	if err != nil {
@@ -92,8 +87,7 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, home, flutterDir, flutterBin string) error {
 	switch id {
 	case "go":
-		// No offline fallback: installing needs go.dev reachable anyway,
-		// for the download and its checksum.
+		// Needs go.dev reachable for the download and its checksum.
 		latest, checksum, err := golang.LatestRelease(ctx)
 		if err != nil {
 			return fmt.Errorf("obter a versão mais recente do Go: %w", err)
@@ -101,7 +95,7 @@ func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, 
 		if err := golang.Install(ctx, exe, stdout, latest, checksum); err != nil {
 			return err
 		}
-		// Uninstall removes this same line (golang.Uninstall).
+		// Puts Go's bin directory on PATH in the shell rc file.
 		golang.EnsurePathInBashrc(stdout)
 		return nil
 	case "flutter":

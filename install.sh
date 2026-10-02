@@ -55,7 +55,7 @@ as_root() {
 }
 
 # Only amd64 is published — the Perci GUI (Wails) uses cgo (GTK4/WebKitGTK
-# 6.0), which the release pipeline doesn't cross-compile for arm64 yet.
+# 6.0), which isn't cross-compiled for arm64.
 release_arch() {
     local arch
     arch=$(uname -m)
@@ -175,15 +175,11 @@ main() {
     fi
     info "Linked alias 'perci' to $dest."
 
-    # Application menu entry — decided 2026-09-15: distribution stays a raw
-    # binary + this script (no .deb/.rpm/AppImage), plus this menu entry so
-    # Perci is reachable outside the terminal and the tray (a DIFFERENT
-    # entry from the hidden autostart .desktop the tray creates in
-    # ~/.config/autostart/). It comes from the release's own
-    # perci-menu.tar.gz, listed in checksums.txt like the binary (decided
-    # 2026-09-29) — always the blue icon set; "Home :: Configurações ::
-    # Ícone do Aplicativo" reinstalls the chosen color afterwards. A failure
-    # here doesn't abort: the binary already works at this point.
+    # Application menu entry (a different entry from the hidden autostart
+    # .desktop the tray creates). It comes from the release's own
+    # perci-menu.tar.gz, listed in checksums.txt like the binary — always the
+    # blue icon set. A failure here doesn't abort: the binary already works
+    # at this point.
     info "Adding application menu entry..."
     menu_url=$(asset_url "$release" "$MENU_ASSET")
     menu_sum=$(checksum_for "$checksums" "$MENU_ASSET")

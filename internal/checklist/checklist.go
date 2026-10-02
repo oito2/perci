@@ -13,11 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package checklist holds the shared "checklist simples" loop shape used
-// by every GUI screen that installs/removes a batch of catalog items and
-// reports one ui.Step per item — internal/dev/{prereqs,llm,terminal},
-// internal/dev/sdks and internal/system/fonts/templates/apps all used to
-// duplicate this same loop.
+// Package checklist holds the shared checklist loop used by GUI screens
+// that install/remove a batch of catalog items and report one ui.Step per
+// item.
 package checklist
 
 import (
@@ -32,7 +30,7 @@ import (
 // Apply drives the install/remove pass over catalogue: every item named in
 // toInstall gets install(item) called (removed items get remove(item)),
 // with one ui.Step per item processed — total comes from the selection
-// itself, same convention every caller already followed. A failure is
+// itself. A failure is
 // warned inline and does not stop the rest of the batch; Apply then returns
 // every failure joined, so the caller (and the GUI) don't report success.
 func Apply[T any](

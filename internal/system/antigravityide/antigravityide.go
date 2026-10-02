@@ -13,22 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package antigravityide manages the Google Antigravity IDE — a GUI
-// screen ("Desenvolvimento :: IDE: Antigravity IDE") using the "single app
-// install/update/uninstall" pattern with a local file picker: the user
-// downloads the .tar.gz manually from
-// https://antigravity.google/download#antigravity-ide and points Perci at
-// it.
-//
-// This is a Go port, step by step, of the logic already validated and
-// working in the standalone antigravity-manager.sh reference script
-// (repository root, used outside of Perci too) — not embedded and shelled
-// out to directly, because several of its steps call `sudo` internally per
-// command, which doesn't fit the GUI's model of escalating one whole
-// exe.Run at a time via pkexec. Only the commands that actually need root
-// run with RequiresSudo; the rest run as the current user, same convention
-// as the rest of internal/system and internal/dev (e.g.
-// internal/dev/golang.Install, internal/system/fonts.installFromURL).
+// Package antigravityide manages the Google Antigravity IDE. Install and
+// Update take a local .tar.gz path chosen by the user. Only the commands
+// that need root run with RequiresSudo; the rest run as the current user.
 package antigravityide
 
 import (
@@ -54,15 +41,13 @@ const (
 	iconExtractedRel = "icon.png"
 )
 
-// excludedSuffixes mirrors antigravity-manager.sh's extract_tarball
-// candidate filter (! -iname '*.so' ! -iname '*.json' ...).
+// excludedSuffixes lists the extensions findBinary ignores when looking for
+// the app binary.
 var excludedSuffixes = []string{".so", ".json", ".png", ".pak", ".dll", ".dat", ".bin", ".desktop"}
 
-// validBinName restricts findBinary's candidates to plain filenames — a
-// tarball entry's name can otherwise contain arbitrary bytes including
-// newlines, which would end up unescaped inside the .desktop file
-// writeDesktopEntry generates (Exec=<path> %U), letting a crafted tarball
-// inject extra Desktop Entry directives.
+// validBinName restricts findBinary's candidates to plain filenames, so a
+// tarball entry name containing newlines or other bytes can never end up
+// inside the .desktop file writeDesktopEntry generates (Exec=<path> %U).
 var validBinName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 func desktopFile(home string) string {
@@ -73,24 +58,21 @@ func iconFile(home string) string {
 	return filepath.Join(home, ".local", "share", "icons", "hicolor", "512x512", "apps", "antigravity.png")
 }
 
-// Installed reports whether Antigravity IDE is currently installed. Checked
-// via a plain os.Stat, same reasoning as internal/system/androidstudio.
-// Installed's doc comment: a read-only local filesystem check, with no
-// subprocess/DryRun concern to route through the Executor for.
+// Installed reports whether Antigravity IDE is currently installed, using a
+// plain os.Stat on the install directory.
 func Installed() bool {
 	info, err := os.Stat(installDir)
 	return err == nil && info.IsDir()
 }
 
-// Install performs a first install — fails if installDir already exists
-// (mirrors antigravity-manager.sh's "install" mode; use Update to replace an
-// existing installation).
+// Install performs a first install; it fails if installDir already exists
+// (use Update to replace an existing installation).
 func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, tarballPath string) error {
 	return doInstallOrUpdate(ctx, exe, stdout, tarballPath, false)
 }
 
 // Update replaces an existing installation with the contents of a new
-// tarball (mirrors antigravity-manager.sh's "update" mode).
+// tarball.
 func Update(ctx context.Context, exe *executor.Executor, stdout io.Writer, tarballPath string) error {
 	return doInstallOrUpdate(ctx, exe, stdout, tarballPath, true)
 }
@@ -213,17 +195,16 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// findBinary mirrors antigravity-manager.sh's extract_tarball: finds files
-// whose name starts with "antigravity" (case-insensitive) up to 3 levels
-// under workdir, excluding known non-binary extensions. When more than one
-// candidate matches, prefers the shallowest one that has a "chrome-sandbox"
-// sibling (the real Electron app root), falling back to the first candidate
-// found.
+// findBinary finds files whose name starts with "antigravity"
+// (case-insensitive) up to 3 levels under workdir, excluding known
+// non-binary extensions. When more than one candidate matches, prefers the
+// shallowest one that has a "chrome-sandbox" sibling (the real Electron app
+// root), falling back to the first candidate found.
 func findBinary(workdir string) (dir, name string, err error) {
 	var candidates []string
 	walkErr := filepath.WalkDir(workdir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // best-effort, matching the shell script's tolerance for unreadable entries
+			return nil // best-effort: unreadable entries are skipped
 		}
 		rel, relErr := filepath.Rel(workdir, path)
 		if relErr != nil {
@@ -282,10 +263,10 @@ func findBinary(workdir string) (dir, name string, err error) {
 	return filepath.Dir(best), filepath.Base(best), nil
 }
 
-// verifySandboxPerms mirrors antigravity-manager.sh's fix_sandbox check:
-// chrome-sandbox must end up with the setuid bit (4755, applied by the
-// RunSudoSequence batch in doInstallOrUpdate) or Electron's sandboxed
-// renderer process refuses to start. Read-only, no privilege needed.
+// verifySandboxPerms checks that chrome-sandbox has the setuid bit (4755,
+// applied by the RunSudoSequence batch in doInstallOrUpdate), without which
+// Electron's sandboxed renderer process refuses to start. Read-only, no
+// privilege needed.
 func verifySandboxPerms(ctx context.Context, exe *executor.Executor, sandbox string) error {
 	perms, err := exe.Output(ctx, executor.Options{}, "stat", "-c", "%a", sandbox)
 	if err != nil {
@@ -297,13 +278,9 @@ func verifySandboxPerms(ctx context.Context, exe *executor.Executor, sandbox str
 	return nil
 }
 
-// extractIcon mirrors antigravity-manager.sh's extract_icon: the app's icon
-// lives inside its Electron app.asar, extracted via `npx @electron/asar`,
-// pinned to 3.4.1 (the old unscoped "asar" package is deprecated upstream,
-// and an unpinned npx would download and run whatever version is newest on
-// every install; 3.x still supports any Node >= 10, 4.x needs >= 22.12). Best-effort
-// — npx unavailable (no Node.js/nvm) is a warning, not a failure, same as
-// the shell script.
+// extractIcon extracts the app's icon from its Electron app.asar via `npx
+// @electron/asar`, pinned to 3.4.1 so the version never floats. Best-effort:
+// npx unavailable (no Node.js/nvm) is a warning, not a failure.
 func extractIcon(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts executor.Options, workdir string) (string, error) {
 	dest := filepath.Join(workdir, iconExtractedRel)
 	script := `
@@ -342,7 +319,7 @@ func installIcon(stdout io.Writer, home, extractedIconPath string) {
 	ui.Info(stdout, "Ícone instalado em "+dest)
 }
 
-// writeDesktopEntry mirrors antigravity-manager.sh's write_desktop_entry.
+// writeDesktopEntry writes the application menu entry for binName.
 func writeDesktopEntry(home, binName string) error {
 	content := fmt.Sprintf(`[Desktop Entry]
 Name=Antigravity
@@ -364,10 +341,9 @@ MimeType=x-scheme-handler/antigravity;
 	return os.WriteFile(path, []byte(content), 0o755)
 }
 
-// refreshDesktopDB mirrors antigravity-manager.sh's refresh_desktop_db —
-// entirely best-effort, same as the shell script (a missing
-// update-desktop-database/gtk-update-icon-cache/desktop-file-validate isn't
-// fatal, just means the menu takes a bit longer to pick up the new entry).
+// refreshDesktopDB refreshes the desktop and icon caches. Entirely
+// best-effort: a missing update-desktop-database/gtk-update-icon-cache/
+// desktop-file-validate is not fatal.
 func refreshDesktopDB(ctx context.Context, exe *executor.Executor, stdout io.Writer, home string) {
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	_ = exe.Run(ctx, opts, "update-desktop-database", filepath.Join(home, ".local", "share", "applications"))
@@ -378,11 +354,8 @@ func refreshDesktopDB(ctx context.Context, exe *executor.Executor, stdout io.Wri
 }
 
 // Uninstall removes the installation, the desktop entry and the icon.
-// User/cache config (~/.config/Antigravity, ~/.cache/Antigravity,
-// ~/.config/antigravity-updater — antigravity-manager.sh's "--purge") is
-// deliberately left in place, same call made for Android Studio's optional
-// cleanup steps — not part of the default flow, no purge control exposed on
-// this screen.
+// User config and cache (~/.config/Antigravity, ~/.cache/Antigravity,
+// ~/.config/antigravity-updater) are left in place.
 func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	sudo := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
 
