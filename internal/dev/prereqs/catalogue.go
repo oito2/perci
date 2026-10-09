@@ -62,6 +62,7 @@ var Catalogue = []Prereq{
 	{Name: "WebKitGTK 6.0 Dev Headers", ID: "webkitgtk6dev", Description: "Arquivos de cabeçalho e desenvolvimento do WebKitGTK 6.0 — necessário, junto com o GTK4, para compilar a própria GUI do Perci (Wails v3)"},
 	{Name: "Wails3 CLI", ID: "wails3", Description: "CLI do Wails v3, instalado via 'go install' — só é necessário para quem for contribuir com a GUI do Perci e precisar regenerar os bindings do frontend (make generate-bindings)"},
 	{Name: "Libsecret Tools", ID: "libsecret", Description: "Utilitário para acesso a chaves do sistema via Secret Service API"},
+	{Name: "Librsvg Tools", ID: "librsvg", Description: "Utilitário rsvg-convert para converter imagens SVG em PNG/PDF (usado, por exemplo, na geração de ícones)"},
 	{Name: "GNOME Keyring", ID: "gnome-keyring", Description: "Serviço daemon para armazenamento seguro de senhas e chaves"},
 	{Name: "GitHub CLI (gh)", ID: "gh", Description: "Interface de linha de comando oficial para o GitHub"},
 	{Name: "Docker Engine", ID: "docker", Description: "Motor de contêineres Docker e utilitário Docker Compose"},
@@ -134,6 +135,8 @@ func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
 		return err == nil
 	case "libsecret":
 		return which("secret-tool")
+	case "librsvg":
+		return which("rsvg-convert")
 	case "gnome-keyring":
 		return which("gnome-keyring")
 	case "gh":
@@ -199,11 +202,13 @@ func installFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p
 	case "wails3":
 		return installWails3(ctx, exe, stdout)
 	case "libsecret":
-		pkgs := []string{"libsecret-1-0", "libsecret-tools"}
+		pkgs := []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
 		if family == distro.Fedora {
 			pkgs = []string{"libsecret", "libsecret-devel"}
 		}
 		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
+	case "librsvg":
+		return distro.InstallPkgs(ctx, exe, stdout, family, librsvgPkg(family))
 	case "libfuse2":
 		return distro.InstallPkgs(ctx, exe, stdout, family, libfuse2Pkg(family))
 	case "gh":
@@ -254,11 +259,13 @@ func uninstallFor(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 	case "wails3":
 		return uninstallWails3(ctx, exe)
 	case "libsecret":
-		pkgs := []string{"libsecret-1-0", "libsecret-tools"}
+		pkgs := []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
 		if family == distro.Fedora {
 			pkgs = []string{"libsecret", "libsecret-devel"}
 		}
 		return removePkgs(ctx, exe, opts, family, pkgs...)
+	case "librsvg":
+		return removePkgs(ctx, exe, opts, family, librsvgPkg(family))
 	case "libfuse2":
 		return removePkgs(ctx, exe, opts, family, libfuse2Pkg(family))
 	case "gh":
@@ -287,6 +294,13 @@ func removePkgs(ctx context.Context, exe *executor.Executor, opts executor.Optio
 	default:
 		return fmt.Errorf("unsupported distro family: %s", family)
 	}
+}
+
+func librsvgPkg(family string) string {
+	if family == distro.Fedora {
+		return "librsvg2-tools"
+	}
+	return "librsvg2-bin"
 }
 
 func libfuse2Pkg(family string) string {

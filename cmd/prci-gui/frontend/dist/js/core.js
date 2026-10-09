@@ -310,6 +310,18 @@ const editModal = document.getElementById("edit-modal");
 const editModalTitle = document.getElementById("edit-modal-title");
 const editFields = document.getElementById("edit-fields");
 const btnEditSave = document.getElementById("btn-edit-save");
+const moodlepluginsContainer = document.getElementById("moodleplugins-container");
+const mpDevPath = document.getElementById("mp-dev-path");
+const btnMpPickDev = document.getElementById("btn-mp-pick-dev");
+const mpApp = document.getElementById("mp-app");
+const mpType = document.getElementById("mp-type");
+const mpName = document.getElementById("mp-name");
+const mpLocked = document.getElementById("mp-locked");
+const mpStatus = document.getElementById("mp-status");
+const mpStatusText = document.getElementById("mp-status-text");
+const btnMpCreate = document.getElementById("btn-mp-create");
+const mpRows = document.getElementById("mp-rows");
+const mpEmpty = document.getElementById("mp-empty");
 const reposContainer = document.getElementById("repos-container");
 const reposIdentityCheckboxWrap = document.getElementById("repos-identity-checkbox-wrap");
 const reposIdentityChange = document.getElementById("repos-identity-change");
@@ -451,6 +463,8 @@ const ACTION_DONE_HANDLERS = {
   // Recriar/Editar/Backup/Restore/Importar — re-fetches the whole table
   // (status + whatever Import may have created/changed).
   "docker-manage": function () { renderDockerListScreen(); },
+  // Criar/Reiniciar/Remover — re-fetches the table and re-checks the form.
+  moodleplugins: function () { loadMpRows(); checkMpForm(); },
   // Identidade Global/Clonar/Iniciar/Identidade Local/Arquivos — re-fetches
   // the global identity and the working folder's state.
   repos: function () {

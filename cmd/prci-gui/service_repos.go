@@ -35,9 +35,9 @@ import (
 	managerrepo "github.com/oito2/perci/internal/manager/repo"
 )
 
-// DevToolsService binds the "Dev Tools" category: Repositórios, IA:
-// Contextos, IA: SKILLs, IA: MCPs — one struct, with one group of
-// methods per sub-screen.
+// DevToolsService binds the "Dev Tools" category: Plugins Moodle,
+// Repositórios, IA: Contextos, IA: SKILLs, IA: MCPs — one struct, with one
+// group of methods per sub-screen.
 type DevToolsService struct {
 	serviceBase
 }

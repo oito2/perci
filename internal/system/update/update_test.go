@@ -117,24 +117,46 @@ func TestPackageSteps_UnknownFamilyErrors(t *testing.T) {
 	}
 }
 
-func TestUpdateFlatpak_UpdatesThenRemovesUnused(t *testing.T) {
+func TestSystemFlatpakSteps(t *testing.T) {
+	steps := systemFlatpakSteps(true)
+	if len(steps) != 2 {
+		t.Fatalf("got %d steps, want 2", len(steps))
+	}
+	want := []string{
+		"flatpak update --system --noninteractive -y",
+		"flatpak uninstall --system --unused --noninteractive -y",
+	}
+	for i, s := range steps {
+		if got := s.Name + " " + strings.Join(s.Args, " "); got != want[i] {
+			t.Errorf("step[%d] = %q, want %q", i, got, want[i])
+		}
+		if !s.Soft {
+			t.Errorf("step[%d] must be Soft: a Flatpak failure must not abort the system update", i)
+		}
+	}
+
+	if steps := systemFlatpakSteps(false); len(steps) != 1 {
+		t.Errorf("without autoremove: got %d steps, want only the update", len(steps))
+	}
+}
+
+func TestUpdateUserFlatpak_UpdatesThenRemovesUnused(t *testing.T) {
 	var buf bytes.Buffer
 	exe := dryRunExecutor(&buf)
 
-	if err := updateFlatpak(context.Background(), exe, &buf, true); err != nil {
-		t.Fatalf("updateFlatpak: %v", err)
+	if err := updateUserFlatpak(context.Background(), exe, &buf, true); err != nil {
+		t.Fatalf("updateUserFlatpak: %v", err)
 	}
 	sequentialIndexes(t, buf.String(), []string{
-		"flatpak [update",
-		"flatpak [uninstall",
+		"flatpak [update --user",
+		"flatpak [uninstall --user --unused",
 	})
-	// No scope flag on the update: both installations are updated.
-	if line := strings.SplitN(buf.String()[strings.Index(buf.String(), "flatpak [update"):], "\n", 2)[0]; strings.Contains(line, "--system") || strings.Contains(line, "--user") {
-		t.Errorf("flatpak update must cover both scopes: %s", line)
+	if strings.Contains(buf.String(), "sudo") || strings.Contains(buf.String(), "--system") {
+		t.Errorf("the user installation is updated without escalation:\n%s", buf.String())
 	}
 
 	buf.Reset()
-	if err := updateFlatpak(context.Background(), exe, &buf, false); err != nil {
+	if err := updateUserFlatpak(context.Background(), exe, &buf, false); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "uninstall") {
@@ -168,7 +190,7 @@ func TestRun_ReportsStepsForBothPhases(t *testing.T) {
 
 	want := []string{
 		"Atualizando pacotes do sistema...",
-		"Atualizando Flatpaks...",
+		"Atualizando Flatpaks do usuário...",
 	}
 	if len(labels) != len(want) {
 		t.Fatalf("got %d Step calls %v, want %d %v", len(labels), labels, len(want), want)
@@ -183,7 +205,8 @@ func TestRun_ReportsStepsForBothPhases(t *testing.T) {
 func TestRun_PrivilegedStepsRunAsOneSudoSequence(t *testing.T) {
 	// One authentication for every privileged command in a single run:
 	// the escalation binary appears exactly once in the dry-run trace,
-	// even though apt-get(x4)+snap+journalctl are all privileged.
+	// even though apt-get(x4)+snap+system flatpak+journalctl are all
+	// privileged.
 
 	var buf bytes.Buffer
 	exe := dryRunExecutor(&buf)
@@ -204,8 +227,12 @@ func TestRun_PrivilegedStepsRunAsOneSudoSequence(t *testing.T) {
 		"'autoremove'",
 		"'autoclean'",
 		"'snap'", "'refresh'",
+		"'flatpak'", "'update'", "'--system'",
+		"'flatpak'", "'uninstall'", "'--system'", "'--unused'",
 		"'journalctl'", "'--vacuum-time=7d'",
 	})
+	// The user installation runs after the batch, unprivileged.
+	sequentialIndexes(t, out, []string{"/usr/bin/sudo", "flatpak [update --user"})
 }
 
 // Without the options, nothing is vacuumed or removed.

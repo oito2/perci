@@ -41,6 +41,9 @@ Check that "Criar Container Nginx" ran first (it's the reverse proxy every app r
 **Creating the Nginx container for the first time hangs or fails silently**
 On first creation, `mkcert -install` may escalate to root on its own (mkcert's own binary, not Perci's privilege mechanism) to register the local CA — something the GUI can't answer, since it has no interactive terminal to type a password into (the "Docker → Criar Container" screen already warns about this when it detects it's the first time). If it happens: open a terminal outside Perci and run `mkcert -install` manually once — after that the certificate already exists and "Criar Container Nginx" never needs to call that part of mkcert again.
 
+**A mounted Moodle plugin stays "Reinício pendente" or the plugin's pages fail**
+A running container only sees a new mount after it restarts — use the row's restart action in **Dev Tools → Plugins Moodle** (it also restarts Nginx). "Montagem inativa" means the host mount is gone (unit removed or failed: `systemctl status <unit>`); remove the row and create it again. Don't use a symbolic link for a plugin instead: inside the container the link points outside the mounted code, and PHP's `__DIR__` resolves it, so `config.php` isn't found.
+
 **Editing a container caused a brief outage of just that app**
 Expected — "Editar" is remove-and-recreate with the new parameters (the only real way to change a running container's image/PHP/Node version). Volumes (`html`/`data`) are preserved; other containers are untouched.
 

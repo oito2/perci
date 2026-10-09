@@ -38,6 +38,13 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 
 	type method func(b *serviceBase, path string) error
 	folderMethods := map[string]method{
+		"InspectMoodlePlugin": func(b *serviceBase, f string) error {
+			_, err := (&DevToolsService{*b}).InspectMoodlePlugin(f, "mdle", "local", "x")
+			return err
+		},
+		"AddMoodlePlugin": func(b *serviceBase, f string) error {
+			return (&DevToolsService{*b}).AddMoodlePlugin(f, "mdle", "local", "x")
+		},
 		"ApplyAIContext": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).ApplyAIContext(f, []string{"x"})
 		},

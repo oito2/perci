@@ -301,7 +301,7 @@ export class DockerCreateCatalog {
         }
         if (!("mkcertReady" in $$source)) {
             /**
-             * false = creating the Nginx container now will call "mkcert -install" for the first time (see the frontend's warning)
+             * false = creating the Nginx container now will call "mkcert -install" for the first time
              * @member
              * @type {boolean}
              */
@@ -606,10 +606,9 @@ export class MenuItem {
         }
         if (/** @type {any} */(false)) {
             /**
-             * ActionID identifies which bound method (frontend/dist/bindings/,
-             * generated from the domain service that owns this screen) the
-             * "Executar" button calls for this item — empty means "no real screen
-             * yet": the button stays disabled.
+             * ActionID identifies which bound method the "Executar" button calls for
+             * this item — empty means "no real screen yet": the button stays
+             * disabled.
              * @member
              * @type {string | undefined}
              */
@@ -627,10 +626,8 @@ export class MenuItem {
         }
         if (/** @type {any} */(false)) {
             /**
-             * Notes are warnings shown below the screen's buttons (introduced for
-             * "Desenvolvimento :: IDE: Android Studio" — the manual "Create Desktop
-             * Entry" step in its graphical installer). Empty renders no notes
-             * section.
+             * Notes are warnings shown below the screen's buttons. Empty renders no
+             * notes section.
              * @member
              * @type {string[] | undefined}
              */
@@ -638,13 +635,9 @@ export class MenuItem {
         }
         if (/** @type {any} */(false)) {
             /**
-             * Tab is the "📝 <Tab>" tab's text (frontend/dist/index.html,
-             * #tab-desc-label) when this item is selected — empty uses the generic
-             * "Perci" label (the app's own name, used by Home's 3 items).
-             * Introduced to distinguish screens: "Definições" for "Linux" screens
-             * with a simple form/checklist, and a specific name for a screen that
-             * gained its own status bar (see its Desc) instead of staying a plain
-             * generic form.
+             * Tab is the "📝 <Tab>" tab's text (#tab-desc-label) when this item is
+             * selected — empty uses the generic "Perci" label (the app's own name,
+             * used by Home :: Visão Geral).
              * @member
              * @type {string | undefined}
              */
@@ -666,6 +659,248 @@ export class MenuItem {
             $$parsedSource["notes"] = $$createField4_0($$parsedSource["notes"]);
         }
         return new MenuItem(/** @type {Partial<MenuItem>} */($$parsedSource));
+    }
+}
+
+/**
+ * MoodleAppOption is one Moodle container offered by the screen.
+ */
+export class MoodleAppOption {
+    /**
+     * Creates a new MoodleAppOption instance.
+     * @param {Partial<MoodleAppOption>} [$$source = {}] - The source object to create the MoodleAppOption.
+     */
+    constructor($$source = {}) {
+        if (!("folder" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["folder"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoodleAppOption instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MoodleAppOption}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MoodleAppOption(/** @type {Partial<MoodleAppOption>} */($$parsedSource));
+    }
+}
+
+/**
+ * MoodlePluginCheck is the result of checking the form: Locked means the
+ * type and name came from the development folder's version.php; OK means
+ * Criar can run and the plugin will appear at DestLabel; otherwise Message
+ * says why not.
+ */
+export class MoodlePluginCheck {
+    /**
+     * Creates a new MoodlePluginCheck instance.
+     * @param {Partial<MoodlePluginCheck>} [$$source = {}] - The source object to create the MoodlePluginCheck.
+     */
+    constructor($$source = {}) {
+        if (!("locked" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["locked"] = false;
+        }
+        if (!("type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("ok" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["ok"] = false;
+        }
+        if (!("destLabel" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["destLabel"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoodlePluginCheck instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MoodlePluginCheck}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MoodlePluginCheck(/** @type {Partial<MoodlePluginCheck>} */($$parsedSource));
+    }
+}
+
+/**
+ * MoodlePluginRow is one mounted plugin. Status is one of the
+ * appstack.Plugin* values; DeclaredAs is set when the development folder's
+ * version.php declares another component.
+ */
+export class MoodlePluginRow {
+    /**
+     * Creates a new MoodlePluginRow instance.
+     * @param {Partial<MoodlePluginRow>} [$$source = {}] - The source object to create the MoodlePluginRow.
+     */
+    constructor($$source = {}) {
+        if (!("app" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["app"] = "";
+        }
+        if (!("appLabel" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["appLabel"] = "";
+        }
+        if (!("component" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["component"] = "";
+        }
+        if (!("devPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["devPath"] = "";
+        }
+        if (!("devLabel" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["devLabel"] = "";
+        }
+        if (!("relPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["relPath"] = "";
+        }
+        if (!("destLabel" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["destLabel"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("declaredAs" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["declaredAs"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoodlePluginRow instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MoodlePluginRow}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MoodlePluginRow(/** @type {Partial<MoodlePluginRow>} */($$parsedSource));
+    }
+}
+
+/**
+ * MoodlePluginsScreen is everything the screen lists.
+ */
+export class MoodlePluginsScreen {
+    /**
+     * Creates a new MoodlePluginsScreen instance.
+     * @param {Partial<MoodlePluginsScreen>} [$$source = {}] - The source object to create the MoodlePluginsScreen.
+     */
+    constructor($$source = {}) {
+        if (!("apps" in $$source)) {
+            /**
+             * @member
+             * @type {MoodleAppOption[]}
+             */
+            this["apps"] = [];
+        }
+        if (!("rows" in $$source)) {
+            /**
+             * @member
+             * @type {MoodlePluginRow[]}
+             */
+            this["rows"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoodlePluginsScreen instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MoodlePluginsScreen}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType4;
+        const $$createField1_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("apps" in $$parsedSource) {
+            $$parsedSource["apps"] = $$createField0_0($$parsedSource["apps"]);
+        }
+        if ("rows" in $$parsedSource) {
+            $$parsedSource["rows"] = $$createField1_0($$parsedSource["rows"]);
+        }
+        return new MoodlePluginsScreen(/** @type {Partial<MoodlePluginsScreen>} */($$parsedSource));
     }
 }
 
@@ -713,7 +948,7 @@ export class MultiSelectItemInfo {
         if (/** @type {any} */(false)) {
             /**
              * RemoveWarning is confirmed in the GUI before an installed item is
-             * unchecked and applied (js/screens/checklists.js).
+             * unchecked and applied.
              * @member
              * @type {string | undefined}
              */
@@ -830,7 +1065,7 @@ export class PostinstallProfileInfo {
      * @returns {PostinstallProfileInfo}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType4;
+        const $$createField2_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("actions" in $$parsedSource) {
             $$parsedSource["actions"] = $$createField2_0($$parsedSource["actions"]);
@@ -953,8 +1188,7 @@ export class RepoFolderState {
  * SelfConfigInfo is what "Home :: Configurar" needs to render its form —
  * the two fields internal/selfupdate.Configure lets the user edit.
  * Distro/DE and Theme are deliberately left out: Distro/DE are
- * auto-detected elsewhere and not user-facing settings here, and GUITheme
- * already has its own screen (the sidebar's "Configurações" modal).
+ * auto-detected, and the theme has its own setter.
  */
 export class SelfConfigInfo {
     /**
@@ -1083,5 +1317,9 @@ export class SingleAppInfo {
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = MenuItem.createFrom;
 const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = PostinstallActionInfo.createFrom;
+const $$createType3 = MoodleAppOption.createFrom;
 const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = MoodlePluginRow.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = PostinstallActionInfo.createFrom;
+const $$createType8 = $Create.Array($$createType7);

@@ -140,6 +140,7 @@ function screenTable() {
     postinstall: { el: postinstallContainer, render: renderPostinstallScreen },
     "docker-create": { el: dockercreateContainer, render: renderDockerCreateScreen },
     "docker-manage": { el: dockerlistContainer, render: renderDockerListScreen },
+    moodleplugins: { el: moodlepluginsContainer, render: renderMoodlePluginsScreen },
     repos: { el: reposContainer, alsoShow: [tabLabelReposList], render: renderReposScreen },
     agentskills: { el: agentskillsContainer, render: renderAgentSkillsScreen },
     aicontext: { el: aicontextContainer, render: renderAIContextScreen },

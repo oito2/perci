@@ -61,8 +61,8 @@ export function GetAntigravityIDEInfo() {
 /**
  * GetIDEInfo reports whether the IDE identified by cmd ("zed"/"code"/
  * "codium" — internal/dev/ide.Catalogue) is currently installed. cmd is
- * derived from catalog.go's actionId ("ide-zed" → "zed", etc.) by the
- * frontend.
+ * derived by the frontend from the item's actionId ("ide-zed" → "zed",
+ * etc.).
  * @param {string} cmd
  * @returns {$CancellablePromise<$models.SingleAppInfo>}
  */
@@ -74,8 +74,7 @@ export function GetIDEInfo(cmd) {
 
 /**
  * GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs)
- * with its current installed state — same pattern as GetFontsInfo
- * (service_linux.go).
+ * with its current installed state.
  * @returns {$CancellablePromise<$models.MultiSelectItemInfo[]>}
  */
 export function GetPrereqsInfo() {
@@ -97,7 +96,7 @@ export function GetSDKsInfo() {
 
 /**
  * GetTerminalsInfo lists the terminal catalogue (internal/dev/terminal,
- * excluding Starship — see catalogue.go) with its current installed state.
+ * excluding Starship) with its current installed state.
  * @returns {$CancellablePromise<$models.MultiSelectItemInfo[]>}
  */
 export function GetTerminalsInfo() {
@@ -109,8 +108,7 @@ export function GetTerminalsInfo() {
 /**
  * InstallAndroidStudio extracts tarballPath (chosen via
  * PickAndroidStudioTarball) into /opt/android-studio and launches the setup
- * wizard. Also used to "update" by re-running with a newer tarball — there's
- * no dedicated button for that, see the screen's Notes (catalog.go).
+ * wizard. Also used to "update" by re-running with a newer tarball.
  * @param {string} tarballPath
  * @returns {$CancellablePromise<void>}
  */

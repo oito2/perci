@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-09
+
+### Added
+- Dev Tools → Plugins Moodle (first item): mount a plugin development folder inside one or more Moodle containers, so the plugin appears as a regular folder in the Moodle code on the host (editor) and in the containers. Type and name come from the folder's `version.php` (or are chosen when the folder is still empty), the destination follows each Moodle's layout (`public/` on 5.1+), and the table shows whether each mount is applied, with restart and remove actions.
+- Desenvolvimento → Pré-requisitos: "Librsvg Tools" item (`librsvg2-bin`, `librsvg2-tools` on Fedora) providing `rsvg-convert`.
+
+### Changed
+- Linux → Atualizar Sistema: the "remove unused" option now cleans unused Flatpak runtimes in both the user and the system installation.
+- Desenvolvimento → Pré-requisitos: "Libsecret Tools" also installs `libsecret-1-dev` on Debian/Ubuntu (the `libsecret-1` development files; Fedora already installed `libsecret-devel`).
+
+### Fixed
+- Linux → Atualizar Sistema: asks for the administrator password only once — system Flatpaks are now updated inside the same privileged batch as the packages, instead of Flatpak requesting its own authorization.
+
 ## [1.0.1] - 2026-10-02
 
 ### Added
@@ -39,6 +52,7 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/oito2/perci/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/oito2/perci/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/oito2/perci/releases/tag/v1.0.0

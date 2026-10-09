@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/ui"
@@ -41,14 +40,14 @@ type Options struct {
 // plus the cleanups opts enables.
 //
 // Progress reports through ui.Step, one call per top-level phase:
-// package/snap/journal update (all privileged) count as a single phase,
-// and flatpak (never privileged) is its own. A phase is counted only when
-// present.
+// package/snap/system-Flatpak/journal (all privileged) count as a single
+// phase, and the user's Flatpak installation (never privileged) is its
+// own. A phase is counted only when present.
 //
-// Every privileged command (package manager + snap + journalctl) runs as
-// ONE authentication via executor.RunSudoSequence. Each PrivilegedStep's
-// Announce field is echoed from inside the single privileged shell script,
-// as plain text.
+// Every privileged command (package manager + snap + system Flatpak +
+// journalctl) runs as ONE authentication via executor.RunSudoSequence.
+// Each PrivilegedStep's Announce field is echoed from inside the single
+// privileged shell script, as plain text.
 func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Options) error {
 	ui.PrintHeader(stdout, "Atualizar Sistema", distro.DisplayName())
 
@@ -78,6 +77,9 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 	} else {
 		ui.Info(stdout, "Snap não instalado. Etapa ignorada.")
 	}
+	if hasFlatpak {
+		steps = append(steps, systemFlatpakSteps(opts.Autoremove)...)
+	}
 	if opts.CleanJournal && hasJournal {
 		steps = append(steps, executor.PrivilegedStep{
 			Announce: "Limpando logs antigos do journal...",
@@ -86,7 +88,7 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 		})
 	}
 
-	total := 1 // the privileged batch above (packages + snap + journal, whichever apply) always runs
+	total := 1 // the privileged batch above (packages + snap + system Flatpaks + journal, whichever apply) always runs
 	if hasFlatpak {
 		total++
 	}
@@ -104,9 +106,9 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 	}
 
 	if hasFlatpak {
-		nextStep("Atualizando Flatpaks...")
-		if err := updateFlatpak(ctx, exe, stdout, opts.Autoremove); err != nil {
-			ui.Warning(stdout, "Falha ao atualizar flatpaks: "+err.Error())
+		nextStep("Atualizando Flatpaks do usuário...")
+		if err := updateUserFlatpak(ctx, exe, stdout, opts.Autoremove); err != nil {
+			ui.Warning(stdout, "Falha ao atualizar flatpaks do usuário: "+err.Error())
 		}
 	} else {
 		ui.Info(stdout, "Flatpak não instalado. Etapa ignorada.")
@@ -148,27 +150,41 @@ func packageSteps(family string, autoremove bool) ([]executor.PrivilegedStep, er
 	}
 }
 
-// updateFlatpak runs outside the privileged batch (it never needs root),
-// so its ui.Step call in Run is this phase's only announcement.
-//
-// The update has no --user/--system flag, so it covers both installations,
-// including apps installed outside the configured scope. Removing unused
-// runtimes is the autoremove option's Flatpak half, in the configured
-// scope.
-func updateFlatpak(ctx context.Context, exe *executor.Executor, stdout io.Writer, autoremove bool) error {
-	if !exe.CommandAvailable(ctx, "flatpak") {
-		ui.Info(stdout, "Flatpak não instalado. Etapa ignorada.")
-		return nil
+// flatpakEnv keeps Flatpak's progress output plain text.
+var flatpakEnv = []string{"TERM=dumb"}
+
+// systemFlatpakSteps updates the system Flatpak installation and, with
+// autoremove, removes its unused runtimes. The steps run as root inside the
+// privileged batch, so Flatpak never asks for authorization on its own.
+// Both are Soft: a Flatpak failure does not abort the system update.
+func systemFlatpakSteps(autoremove bool) []executor.PrivilegedStep {
+	steps := []executor.PrivilegedStep{{
+		Announce: "Atualizando Flatpaks do sistema...",
+		Soft:     true, WarnMessage: "Falha ao atualizar flatpaks do sistema.",
+		Env: flatpakEnv, Name: "flatpak", Args: []string{"update", "--system", "--noninteractive", "-y"},
+	}}
+	if autoremove {
+		steps = append(steps, executor.PrivilegedStep{
+			Announce: "Removendo runtimes Flatpak do sistema sem uso...",
+			Soft:     true, WarnMessage: "Falha ao remover flatpaks do sistema não utilizados.",
+			Env: flatpakEnv, Name: "flatpak", Args: []string{"uninstall", "--system", "--unused", "--noninteractive", "-y"},
+		})
 	}
-	opts := executor.Options{Stdout: stdout, Stderr: stdout, Env: []string{"TERM=dumb"}}
-	if err := exe.Run(ctx, opts, "flatpak", "update", "--noninteractive", "-y"); err != nil {
+	return steps
+}
+
+// updateUserFlatpak updates the user's Flatpak installation and, with
+// autoremove, removes its unused runtimes, running as the current user.
+func updateUserFlatpak(ctx context.Context, exe *executor.Executor, stdout io.Writer, autoremove bool) error {
+	opts := executor.Options{Stdout: stdout, Stderr: stdout, Env: flatpakEnv}
+	if err := exe.Run(ctx, opts, "flatpak", "update", "--user", "--noninteractive", "-y"); err != nil {
 		return fmt.Errorf("flatpak update: %w", err)
 	}
 	if !autoremove {
 		return nil
 	}
-	if err := exe.Run(ctx, opts, "flatpak", "uninstall", "--noninteractive", config.FlatpakFlag(), "--unused", "-y"); err != nil {
-		ui.Warning(stdout, "Falha ao remover flatpaks não utilizados: "+err.Error())
+	if err := exe.Run(ctx, opts, "flatpak", "uninstall", "--user", "--unused", "--noninteractive", "-y"); err != nil {
+		ui.Warning(stdout, "Falha ao remover flatpaks do usuário não utilizados: "+err.Error())
 	}
 	return nil
 }

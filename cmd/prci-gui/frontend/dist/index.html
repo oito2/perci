@@ -556,6 +556,61 @@
             </div>
           </div>
 
+          <!-- "Dev Tools :: Plugins Moodle": a plugin development folder +
+               a Moodle container + type/name, then the mounted plugins with
+               their status, a restart icon and a remove icon. -->
+          <div id="moodleplugins-container" class="hidden">
+            <p class="opacity-80 mb-4">Monte a pasta de desenvolvimento de um plugin dentro dos contêineres Moodle do Perci. O plugin aparece como uma pasta comum dentro do Moodle, no editor e no contêiner.</p>
+
+            <div class="grid gap-4 md:grid-cols-2 mb-4">
+              <div class="flex flex-col gap-2 min-w-0">
+                <span class="font-semibold">Pasta de desenvolvimento</span>
+                <span class="text-xs opacity-70">Onde o plugin é desenvolvido. Pode estar vazia.</span>
+                <span id="mp-dev-path" class="text-sm break-all opacity-60">Nenhuma pasta selecionada</span>
+                <button id="btn-mp-pick-dev" class="btn btn-sm self-start">Selecionar pasta</button>
+              </div>
+              <label class="flex flex-col gap-2 min-w-0">
+                <span class="font-semibold">Moodle</span>
+                <span class="text-xs opacity-70">Contêiner Moodle onde o plugin será montado.</span>
+                <select id="mp-app" class="select select-bordered"></select>
+              </label>
+              <label class="flex flex-col gap-2 min-w-0">
+                <span class="font-semibold">Tipo do plugin</span>
+                <select id="mp-type" class="select select-bordered"></select>
+              </label>
+              <label class="flex flex-col gap-2 min-w-0">
+                <span class="font-semibold">Nome do plugin</span>
+                <input id="mp-name" type="text" class="input input-bordered" placeholder="ex.: meuplugin" autocomplete="off" spellcheck="false" />
+              </label>
+            </div>
+            <p id="mp-locked" class="text-xs opacity-70 mb-4 hidden"></p>
+
+            <div id="mp-status" role="status" class="alert mb-4 hidden">
+              <span id="mp-status-text" class="break-all"></span>
+            </div>
+            <button id="btn-mp-create" class="btn btn-primary" disabled>Criar</button>
+            <p class="text-xs opacity-60 mt-2">Criar e remover pedem a senha de administrador. Depois de aplicar, abra Administração do site → Notificações no Moodle para instalar ou atualizar o plugin.</p>
+
+            <div class="divider"></div>
+
+            <h3 class="font-bold mb-2">Plugins montados</h3>
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Plugin</th>
+                    <th>Moodle</th>
+                    <th>Pasta de desenvolvimento</th>
+                    <th>Status</th>
+                    <th class="w-px"></th>
+                  </tr>
+                </thead>
+                <tbody id="mp-rows"></tbody>
+              </table>
+            </div>
+            <p id="mp-empty" class="opacity-70 mt-2 hidden">Nenhum plugin montado ainda.</p>
+          </div>
+
           <!-- "Dev Tools :: Repositórios": 2 tabs — "Identidade Global" (the
                "Alterar identidade Global" checkbox only shows once one is
                already configured) and "Repositórios" (working-folder picker +
@@ -797,6 +852,7 @@
 <script defer src="./js/navigation.js"></script>
 <script defer src="./js/widgets.js"></script>
 <script defer src="./js/screens/docker.js"></script>
+<script defer src="./js/screens/moodle-plugins.js"></script>
 <script defer src="./js/screens/repos.js"></script>
 <script defer src="./js/screens/agent-skills.js"></script>
 <script defer src="./js/screens/ai-context.js"></script>

@@ -62,7 +62,7 @@ export function GenMariaDBPassword() {
 /**
  * GetContainerForEdit returns the current field values for the "Editar"
  * modal, pre-filling it. kind must be "mariadb" or "app" (Nginx has no
- * Editar — see catalog.go).
+ * Editar).
  * @param {string} kind
  * @param {string} folder
  * @returns {$CancellablePromise<$models.ContainerFormRequest>}
@@ -89,9 +89,7 @@ export function GetContainerLogsSnapshot(folder) {
  * GetContainerRows lists every container registered in config.yaml (the
  * source of truth — never derived from `docker ps`), enriched with its
  * live status via appstack.ContainerStatuses — one batched call for every
- * container at once (rather than a `docker inspect`/subprocess per
- * container in a loop, which used to mean clicking "Reiniciar" on a single
- * row reprocessed the status of every registered container, one by one).
+ * container at once, not a `docker inspect` subprocess per container.
  * @returns {$CancellablePromise<$models.ContainerRow[]>}
  */
 export function GetContainerRows() {
@@ -268,11 +266,10 @@ export function StopDockerContainer(folder) {
 }
 
 /**
- * UpdateDockerContainer applies an edit — same "remove and recreate with
- * the new parameters" approach used everywhere else a container's own
- * image/version needs to change (there's no dedicated "edit" domain
- * function). Treated as a long-running operation (it may rebuild the base
- * image) — same handling as Recriar, shows the Execução tab.
+ * UpdateDockerContainer applies an edit by removing and recreating the
+ * container with the new parameters. Treated as a long-running operation
+ * (it may rebuild the base image) — same handling as Recriar, shows the
+ * Execução tab.
  * @param {$models.ContainerFormRequest} req
  * @returns {$CancellablePromise<void>}
  */

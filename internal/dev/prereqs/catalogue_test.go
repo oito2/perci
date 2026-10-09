@@ -40,6 +40,25 @@ func TestLibfuse2Pkg(t *testing.T) {
 	}
 }
 
+func TestLibrsvgPkg(t *testing.T) {
+	tests := []struct {
+		name   string
+		family string
+		want   string
+	}{
+		{"fedora", distro.Fedora, "librsvg2-tools"},
+		{"debian", distro.Debian, "librsvg2-bin"},
+		{"unknown family falls back to debian package", "arch", "librsvg2-bin"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := librsvgPkg(tt.family); got != tt.want {
+				t.Errorf("librsvgPkg(%q) = %q, want %q", tt.family, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMkcertPkgs(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -65,9 +65,23 @@ type Config struct {
 	// config.yaml is the source of truth for what is registered.
 	MCPServers []MCPServerInstall `yaml:"mcp_servers,omitempty"`
 
+	// MoodlePlugins tracks the plugin development folders mounted into
+	// Moodle containers through the GUI.
+	MoodlePlugins []MoodlePluginMount `yaml:"moodle_plugins,omitempty"`
+
 	// TrayEnabled turns on the system tray icon. Off by default; the zero
 	// value is the default, so there is no OrDefault helper.
 	TrayEnabled bool `yaml:"tray_enabled,omitempty"`
+}
+
+// MoodlePluginMount is one plugin development folder bind-mounted into a
+// Moodle container's code: DevPath appears at RelPath inside the html
+// folder of the app whose folder is App. App + RelPath identify the record.
+type MoodlePluginMount struct {
+	App       string `yaml:"app"`
+	Component string `yaml:"component"` // e.g. "local_example"
+	DevPath   string `yaml:"dev_path"`
+	RelPath   string `yaml:"rel_path"` // e.g. "public/local/example"
 }
 
 // AgentSkillInstall records one (skill, scope) pair. Global installs are

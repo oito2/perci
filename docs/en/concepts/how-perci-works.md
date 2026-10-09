@@ -20,7 +20,7 @@ The GUI groups every action into five sidebar categories:
 | 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, Linux Toys, MegaSync, WebApps. |
 | 3 | **Desenvolvimento** | Building a dev environment: prerequisites, Go/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals. |
 | 4 | **Docker** | The per-project Docker application stack: creating and managing Nginx/MariaDB/PHP/Node containers, export/import. |
-| 5 | **Dev Tools** | Working inside an already-set-up project: Git repository control, AI Context generation, AI skills, MCP server registration. |
+| 5 | **Dev Tools** | Working inside an already-set-up project: Moodle plugin development folders mounted into Moodle containers, Git repository control, AI Context generation, AI skills, MCP server registration. |
 
 ### Screens
 

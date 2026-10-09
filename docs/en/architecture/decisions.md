@@ -261,3 +261,19 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): "5.1+" offers only PHP 8.3/8.4 (still valid for 5.1). "4.x" is split into three buckets with their exact ranges: `4.1` (7.4–8.1), `4.2-4.3` (8.0–8.2) and `4.4-4.5` (8.1–8.3), all on the classic Nginx recipe. `4.x` is no longer offered but stays valid, with the 4.1 range, for containers already saved with it, and the edit form keeps showing it.
 
 **Revisit if**: a new Moodle release changes its PHP range or Nginx layout, or perci adds a PHP version.
+
+## 2026-10-09 — System Flatpaks update inside the privileged batch
+
+**Context**: "Atualizar Sistema" asked for the administrator password several times on a Zorin machine. Packages, Snap and the journal already ran as one privileged batch; Flatpak ran afterwards as the user, so updating or cleaning the system installation went through Flatpak's own authorization (polkit), whose outcome depends on each distro's rules and the user's groups.
+
+**Decision** (the user's choice): the system installation's `flatpak update --system` and, with the autoremove option, `flatpak uninstall --system --unused` run as root inside the same batch (both Soft, so a Flatpak failure doesn't abort the update). The user installation is updated afterwards without privileges, and the autoremove option now cleans unused runtimes in both installations instead of only the configured scope.
+
+**Revisit if**: another step of the update starts asking for authorization outside the batch.
+
+## 2026-10-09 — Moodle plugins are bind-mounted on the host, not linked
+
+**Context**: One plugin developed in its own folder (e.g. `oito2-hub/mdle-example`) must run in several Moodle containers (4.1 and 5.1) and be visible inside each Moodle's code in the editor. A symbolic link fails in Docker: the app container mounts only its own folder, and PHP resolves links in `__DIR__`, so `require_once(__DIR__ . '/../../config.php')` looks outside Moodle (tested in `perci-php81`). A Docker-only mount works in the container but leaves an empty folder in the editor. A host bind mount was tested end to end: after a container restart the plugin is a real folder inside it (`__DIR__` stays in Moodle), two containers share one source, files written by the container keep the user as owner, and Nginx's read-only mount sees it.
+
+**Decision** (the user's choices): **Dev Tools → Plugins Moodle** replaces the unreleased Links Simbólicos screen. The plugin is mounted with a systemd mount unit (`Before=docker.service`), its type and name come from `version.php` (locked) or, for an empty folder, from the form; the Moodle is picked from a list of Perci's Moodle containers and the destination follows its `lib/components.json`. The status column checks the real state (device and inode on the host, in the container and in Nginx); the row restarts the container and Nginx to apply, and removing restarts them too. A destination with content is refused.
+
+**Revisit if**: Moodle stops resolving plugin pages through `__DIR__`, the containers start mounting the whole workspace, or systemd mount units aren't available on a supported distro.

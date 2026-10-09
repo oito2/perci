@@ -24,7 +24,7 @@ Uma barra lateral à esquerda com cinco categorias, e um painel principal à dir
 | **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak/Linux Toys/MegaSync. |
 | **Desenvolvimento** | Pré-requisitos de build, SDKs de linguagens, aplicativos de IA/terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Criar e gerenciar a stack Docker de aplicativos por projeto. |
-| **Dev Tools** | Repositórios Git, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |
+| **Dev Tools** | Montagem de plugins Moodle, repositórios Git, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |
 
 A janela abre em **Home :: Visão Geral** — um dashboard que resume o estado do seu sistema (distro/DE, ferramentas de dev instaladas, containers Docker, etc.), além de atalhos pra atualizar ou desinstalar o próprio Perci. Veja [Como o perci.gnl funciona](../concepts/how-perci-works.md) para o que tem dentro de cada categoria.
 

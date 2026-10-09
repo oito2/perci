@@ -262,3 +262,19 @@ uma recusa.
 **Decisão** (escolhas do usuário): "5.1+" oferece só PHP 8.3/8.4 (continua válido para o 5.1). "4.x" foi dividido em três faixas com os intervalos exatos: `4.1` (7.4–8.1), `4.2-4.3` (8.0–8.2) e `4.4-4.5` (8.1–8.3), todas com a receita clássica do Nginx. `4.x` deixa de ser oferecido, mas continua válido, com a faixa do 4.1, para contêineres já salvos com ele, e o formulário de edição continua mostrando esse valor.
 
 **Rever se**: uma nova versão do Moodle mudar a faixa de PHP ou o layout do Nginx, ou o perci adicionar uma versão de PHP.
+
+## 2026-10-09 — Flatpaks do sistema atualizados dentro do lote privilegiado
+
+**Contexto**: O "Atualizar Sistema" pedia a senha de administrador várias vezes numa máquina Zorin. Pacotes, Snap e journal já rodavam num único lote privilegiado; o Flatpak rodava depois como usuário, então atualizar ou limpar a instalação do sistema passava pela autorização própria do Flatpak (polkit), cujo resultado depende das regras de cada distro e dos grupos do usuário.
+
+**Decisão** (escolha do usuário): `flatpak update --system` e, com a opção de autoremove, `flatpak uninstall --system --unused` da instalação do sistema rodam como root dentro do mesmo lote (ambos Soft, para que uma falha do Flatpak não aborte a atualização). A instalação do usuário é atualizada depois, sem privilégios, e a opção de autoremove agora limpa runtimes sem uso nas duas instalações, em vez de só no escopo configurado.
+
+**Rever se**: outra etapa da atualização passar a pedir autorização fora do lote.
+
+## 2026-10-09 — Plugins Moodle são montados no host, não linkados
+
+**Contexto**: Um plugin desenvolvido na sua própria pasta (ex.: `oito2-hub/mdle-exemplo`) precisa rodar em vários contêineres Moodle (4.1 e 5.1) e aparecer dentro do código de cada Moodle no editor. Um link simbólico falha no Docker: o contêiner do app monta só a própria pasta, e o PHP resolve links em `__DIR__`, então `require_once(__DIR__ . '/../../config.php')` procura fora do Moodle (testado no `perci-php81`). Uma montagem só no Docker funciona no contêiner, mas deixa a pasta vazia no editor. Uma montagem (bind mount) no host foi testada de ponta a ponta: depois de reiniciar o contêiner, o plugin é uma pasta comum dentro dele (`__DIR__` continua no Moodle), dois contêineres compartilham a mesma origem, arquivos gravados pelo contêiner ficam com o usuário como dono, e a montagem só leitura do Nginx o enxerga.
+
+**Decisão** (escolhas do usuário): **Dev Tools → Plugins Moodle** substitui a tela Links Simbólicos, que não chegou a ser lançada. O plugin é montado com uma unidade de montagem do systemd (`Before=docker.service`); tipo e nome vêm do `version.php` (travados) ou, com a pasta vazia, do formulário; o Moodle é escolhido numa lista dos contêineres Moodle do Perci e o destino segue o `lib/components.json` dele. A coluna de status confere o estado real (dispositivo e inode no host, no contêiner e no Nginx); a linha reinicia o contêiner e o Nginx para aplicar, e remover também reinicia. Um destino com conteúdo é recusado.
+
+**Rever se**: o Moodle deixar de resolver as páginas de plugin por `__DIR__`, os contêineres passarem a montar o workspace inteiro, ou unidades de montagem do systemd não estiverem disponíveis numa distro suportada.

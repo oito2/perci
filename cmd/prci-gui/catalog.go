@@ -244,11 +244,20 @@ var categories = []MenuCategory{
 			},
 		},
 	},
-	// Its own category, alongside "Docker": repositories and the AI tooling
-	// (contexts, skills, MCP servers).
+	// Its own category, alongside "Docker": Moodle plugin mounts,
+	// repositories and the AI tooling (contexts, skills, MCP servers).
 	{
 		Label: "Dev Tools",
 		Items: []MenuItem{
+			{
+				// "plugins moodle" mode (#moodleplugins-container): a plugin
+				// development folder + a Moodle container + type/name, then a
+				// table of the mounted plugins with status, restart and remove.
+				Title:    "Plugins Moodle",
+				Desc:     "Monte a pasta de desenvolvimento de um plugin dentro dos contêineres Moodle do Perci.",
+				ActionID: "moodleplugins",
+				Tab:      "Plugins Moodle",
+			},
 			{
 				// "repositórios" mode (#repos-container + #panel-repos-list): 2 top-level
 				// tabs, "Identidade Global" (Tab below, content of #repos-container) and

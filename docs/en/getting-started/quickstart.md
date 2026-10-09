@@ -24,7 +24,7 @@ A sidebar on the left with five categories, and a main panel on the right showin
 | **Linux** | System updates, distro/DE-aware post-installation, fonts, file templates, Flatpak/Linux Toys/MegaSync apps. |
 | **Desenvolvimento** | Build prerequisites, language SDKs, AI/terminal apps, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Create and manage the per-project Docker application stack. |
-| **Dev Tools** | Git repositories, AI context generation, AI agent skills, MCP server registration. |
+| **Dev Tools** | Moodle plugin mounts, Git repositories, AI context generation, AI agent skills, MCP server registration. |
 
 The window opens on **Home :: Visão Geral** — a dashboard summarizing your system's status (distro/DE, installed dev tools, Docker containers, and so on), plus shortcuts to update or uninstall Perci itself. See [How perci.gnl works](../concepts/how-perci-works.md) for what's inside each category.
 
