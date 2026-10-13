@@ -13,6 +13,7 @@ coverage.html
 
 # Local, per-machine tool configuration
 /.claude/settings.local.json
+/.claude/settings.json
 /.luminavault.json
 /.agents/mcp_config.json
 

@@ -167,10 +167,10 @@ func TestInstall_FilesystemGlobal(t *testing.T) {
 
 // Local scope: Claude Code runs in the project folder, Codex is skipped,
 // Antigravity writes .agents/.
-func TestInstall_SQLiteLocal(t *testing.T) {
+func TestInstall_DBHubLocal(t *testing.T) {
 	env := newAgentsEnv(t)
 	folder := t.TempDir()
-	agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, "sqlite", false, folder, "/data/db.sqlite")
+	agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, "dbhub", false, folder, "/data/dbhub.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,10 +179,54 @@ func TestInstall_SQLiteLocal(t *testing.T) {
 	}
 	calls := env.calls(t)
 	equalCalls(t, calls, []string{
-		"claude " + folder + "|mcp add --scope local sqlite -- uvx " + sqliteServerPkg + " --db-path /data/db.sqlite",
+		"claude " + folder + "|mcp add --scope local dbhub -- npx -y " + dbhubServerPkg + " --config=/data/dbhub.toml",
 	})
-	if _, ok := readServers(t, filepath.Join(folder, ".agents", "mcp_config.json"))["sqlite"]; !ok {
-		t.Error("sqlite not registered in the project's Antigravity config")
+	if _, ok := readServers(t, filepath.Join(folder, ".agents", "mcp_config.json"))["dbhub"]; !ok {
+		t.Error("dbhub not registered in the project's Antigravity config")
+	}
+}
+
+// The servers without a parameter are registered with their fixed launch
+// command.
+func TestInstall_ServersWithoutParameter(t *testing.T) {
+	cases := map[string]string{
+		"context7":        "npx -y " + context7ServerPkg,
+		"chrome-devtools": "npx -y " + chromeDevToolsServerPkg + " --isolated --no-usage-statistics",
+		"svelte":          "npx -y " + svelteServerPkg,
+		"gopls":           "gopls mcp",
+	}
+	for slug, launch := range cases {
+		env := newAgentsEnv(t)
+		if err := os.WriteFile(filepath.Join(env.bin, "gopls"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, slug, true, "", ""); err != nil {
+			t.Fatalf("%s: %v", slug, err)
+		}
+		got := argsOf(env.calls(t))
+		if len(got) == 0 || got[0] != "claude mcp add --scope user "+slug+" -- "+launch {
+			t.Errorf("%s: calls = %q", slug, got)
+		}
+		if c, a := entryCommand(readServers(t, filepath.Join(env.home, ".gemini", "config", "mcp_config.json"))[slug]); !createdByPerci(slug, c, a) {
+			t.Errorf("%s: Antigravity entry %s %v not recognized as Perci's", slug, c, a)
+		}
+	}
+}
+
+// A retired entry can no longer be installed or updated, only removed.
+func TestRetired_OnlyRemoval(t *testing.T) {
+	env := newAgentsEnv(t)
+	if s, ok := BySlug("sqlite"); !ok || !s.Retired {
+		t.Fatal("sqlite should be a retired entry")
+	}
+	if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, "", "/db.sqlite"); err == nil {
+		t.Error("Install of a retired entry must fail")
+	}
+	if _, err := Update(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, "", "/db.sqlite"); err == nil {
+		t.Error("Update of a retired entry must fail")
+	}
+	if calls := env.calls(t); len(calls) != 0 {
+		t.Errorf("nothing should run, got %q", calls)
 	}
 }
 
@@ -336,7 +380,7 @@ func TestUpdate_Generic(t *testing.T) {
 		if err := os.WriteFile(cfg, []byte(`{"mcpServers": "broken"}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		_, err := Update(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, "", "/db.sqlite")
+		_, err := Update(context.Background(), &executor.Executor{}, io.Discard, "dbhub", true, "", "/dbhub.toml")
 		if !errors.Is(err, ErrNotReinstalled) {
 			t.Errorf("err = %v, want ErrNotReinstalled", err)
 		}

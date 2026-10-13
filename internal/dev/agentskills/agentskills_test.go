@@ -113,6 +113,31 @@ func TestCatalogue(t *testing.T) {
 	}
 }
 
+// A retired entry can still be removed, but no install or update runs.
+func TestRetired_OnlyRemoval(t *testing.T) {
+	logPath := fakeNPX(t, "[]", 0)
+	sk := mustSkill(t, "php-specialist")
+	if !sk.Retired {
+		t.Fatal("php-specialist should be retired")
+	}
+	exe := &executor.Executor{}
+	if _, err := Install(context.Background(), exe, io.Discard, sk, true, ""); err == nil {
+		t.Error("Install of a retired entry must fail")
+	}
+	if _, err := Update(context.Background(), exe, io.Discard, sk, true, ""); err == nil {
+		t.Error("Update of a retired entry must fail")
+	}
+	if got := calls(t, logPath); len(got) != 0 {
+		t.Errorf("nothing should run, got %q", got)
+	}
+	if err := Remove(context.Background(), exe, io.Discard, sk, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := calls(t, logPath); len(got) != 1 || !strings.Contains(got[0], " remove --skill php-specialist ") {
+		t.Errorf("remove calls = %q", got)
+	}
+}
+
 func TestInstall(t *testing.T) {
 	logPath := fakeNPX(t, "[]", 0)
 	folder := t.TempDir()

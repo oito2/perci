@@ -39,4 +39,4 @@ Perci creates `~/.perci/config.yaml` the first time you change a setting in the 
 3. **Linux :: Pós-instalação** — the items for your detected distro/DE, each with its own **Aplicar** button (it turns into **Aplicado** once the item is in place).
 4. **Desenvolvimento :: Pré-requisitos** — install the compiler toolchain, Git, curl, Docker Engine, mkcert, and NPM; each row has its own **Instalar**, **Atualizar** and **Desinstalar** buttons, and an item that needs another one stays disabled ("Requer: …") until that one is installed.
 5. **Docker :: Criar Container** — create the Nginx and MariaDB containers, then your first application container (see the [Docker application stack guide](../guides/environments/docker.md) for the full lifecycle).
-6. **Dev Tools :: IA: Contextos** — once inside an actual project directory, generate `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.
+6. **Dev Tools :: IA: Contextos** — once inside an actual project directory, pick its **Tipo de projeto** (or check the standards by hand) and generate `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.

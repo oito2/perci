@@ -88,13 +88,15 @@ sudo dnf install -y gtk4-devel webkitgtk6.0-devel
 ```bash
 git clone https://github.com/oito2/perci.git
 cd perci
-go build -trimpath -ldflags "-X github.com/oito2/perci/internal/version.Version=v1.0.0" -o prci ./cmd/prci-gui
+go build -tags production -trimpath -ldflags "-X github.com/oito2/perci/internal/version.Version=v1.0.0" -o prci ./cmd/prci-gui
 sudo install -m 755 -o root -g root prci /usr/local/bin/prci
 ```
 
-GTK4 + WebKitGTK 6.0 é a pilha padrão do Wails v3, então o build não
-precisa de nenhuma `-tags` (a pilha antiga GTK3/WebKit2GTK 4.1 só existe
-como caminho legado opcional via `-tags gtk3`, que este projeto não usa).
+GTK4 + WebKitGTK 6.0 é a pilha padrão do Wails v3, então a única tag é
+`production`, que desliga o modo debug do Wails (as ferramentas de
+desenvolvedor do webview); o `make build` e o `make release` também a usam.
+A pilha antiga GTK3/WebKit2GTK 4.1 só existe como caminho legado opcional
+via `-tags gtk3`, que este projeto não usa.
 
 Ou, usando o `Makefile` disponível:
 

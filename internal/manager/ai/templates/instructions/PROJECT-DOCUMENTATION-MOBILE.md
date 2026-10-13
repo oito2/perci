@@ -4,6 +4,8 @@
 
 Type-specific documentation requirements for **mobile applications** (Flutter, React Native, native Swift/Kotlin). This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own.
 
+Games built with an engine (e.g. Godot) use `.instructions/PROJECT-DOCUMENTATION-GAME.md` — together with this file, or instead of it only for the engine-specific parts (export, build and run steps the engine handles).
+
 Source every version and command from the project itself — `pubspec.yaml`, `package.json`, `android/app/build.gradle(.kts)` (`minSdk`, `targetSdk`, `compileSdk`), `ios/Podfile` / the Xcode project (deployment target), CI workflows.
 
 ---

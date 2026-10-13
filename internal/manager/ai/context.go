@@ -54,20 +54,53 @@ type Model struct {
 // complement builds on.
 const docsBase = "Documentação de projeto"
 
+// Base standards other models complement.
+const (
+	goBase    = "Go"
+	tauriBase = "Rust + Tauri v2"
+	slimBase  = "PHP + Slim 4"
+)
+
 // models is the catalog of supported instruction models, in output order.
 var models = []Model{
 	{Name: "Linux Bash", Instruction: "templates/instructions/BASH.md",
 		AppliesTo: "Writing or reviewing Bash/shell scripts, CLI tools and installers"},
+	{Name: goBase, Instruction: "templates/instructions/GO.md",
+		AppliesTo: "Writing Go code (CLI tools, MCP servers, desktop backends): layout, errors, concurrency, tests, linting, releases"},
+	{Name: "Go: Servidor MCP", Instruction: "templates/instructions/GO-MCP.md", Requires: goBase,
+		AppliesTo: "Building an MCP server with the official Go SDK — together with GO.md"},
+	{Name: "Go: Wails v3", Instruction: "templates/instructions/WAILS.md", Requires: goBase,
+		AppliesTo: "Building a Wails v3 desktop app (services, bindings, frontend, packaging) — together with GO.md"},
+	{Name: tauriBase, Instruction: "templates/instructions/TAURI.md",
+		AppliesTo: "Building a Rust + Tauri v2 app (commands, capabilities, CSP, build, updater)"},
+	{Name: "Tauri: Vanilla TS + Vite", Instruction: "templates/instructions/TAURI-VANILLA.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in vanilla TypeScript + Vite — together with TAURI.md"},
+	{Name: "Tauri: SvelteKit", Instruction: "templates/instructions/TAURI-SVELTEKIT.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in SvelteKit (static) — together with TAURI.md"},
+	{Name: "Tauri: React + Vite", Instruction: "templates/instructions/TAURI-REACT.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in React + TypeScript + Vite — together with TAURI.md"},
+	{Name: slimBase, Instruction: "templates/instructions/PHP-SLIM.md",
+		AppliesTo: "Building PHP systems with Slim 4 (layout, routing, middleware, DI, security, tests)"},
+	{Name: "Slim: PDO", Instruction: "templates/instructions/SLIM-PDO.md", Requires: slimBase,
+		AppliesTo: "Data access with PDO in a Slim 4 system — together with PHP-SLIM.md"},
+	{Name: "Slim: Doctrine DBAL", Instruction: "templates/instructions/SLIM-DBAL.md", Requires: slimBase,
+		AppliesTo: "Data access with Doctrine DBAL in a Slim 4 system — together with PHP-SLIM.md"},
+	{Name: "Slim: Eloquent", Instruction: "templates/instructions/SLIM-ELOQUENT.md", Requires: slimBase,
+		AppliesTo: "Data access with Eloquent (illuminate/database) in a Slim 4 system — together with PHP-SLIM.md"},
 	{Name: "Moodle", Instruction: "templates/instructions/MOODLE.md",
 		AppliesTo: "Developing Moodle plugins (file structure, Moodle APIs, architecture)"},
 	{Name: "Dart + Flutter - oito2", Instruction: "templates/instructions/FLUTTER.md",
 		AppliesTo: "Building Dart/Flutter apps (oito2 stack: flutter_bloc, shadcn_ui, l10n)"},
+	{Name: "Godot 4 (GDScript)", Instruction: "templates/instructions/GODOT.md",
+		AppliesTo: "Building games in Godot 4 with GDScript, targeting Android"},
 	{Name: "MySQL/MariaDB", Instruction: "templates/instructions/MYSQL-MARIADB.md",
 		AppliesTo: "MySQL/MariaDB schema design, migrations, query tuning and configuration"},
+	{Name: "Website", Instruction: "templates/instructions/WEBSITE.md",
+		AppliesTo: "Building websites (structure, accessibility, performance, SEO, hosting)"},
 	{Name: "Landing Page Design", Instruction: "templates/instructions/LANDING-PAGE.md",
 		AppliesTo: "Designing or building landing pages"},
 	{Name: docsBase, Instruction: "templates/instructions/PROJECT-DOCUMENTATION.md", Legacy: []string{"DOCUMENTATION-SITE.md"},
-		AppliesTo: "Creating or updating project documentation (README, docs/, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE, license headers)"},
+		AppliesTo: "Creating or updating project documentation (README, docs/, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE, license headers, GitHub community files, repository metadata, releases)"},
 	{Name: "Documentação: Servidor MCP", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MCP.md", Requires: docsBase,
 		AppliesTo: "Documentation of an MCP server — together with PROJECT-DOCUMENTATION.md"},
 	{Name: "Documentação: Plugin Moodle", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MOODLE.md", Requires: docsBase,
@@ -78,6 +111,35 @@ var models = []Model{
 		AppliesTo: "Documentation of a mobile application — together with PROJECT-DOCUMENTATION.md"},
 	{Name: "Documentação: Aplicação Web", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-WEB.md", Requires: docsBase,
 		AppliesTo: "Documentation of a web application — together with PROJECT-DOCUMENTATION.md"},
+	{Name: "Documentação: Jogo", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-GAME.md", Requires: docsBase,
+		AppliesTo: "Documentation of a game — together with PROJECT-DOCUMENTATION.md"},
+}
+
+// Preset is a project type: the models it checks at once. Hint, when set,
+// tells the user what still has to be chosen by hand.
+type Preset struct {
+	Name   string
+	Models []string
+	Hint   string
+}
+
+// presets lists the project types, in display order.
+var presets = []Preset{
+	{Name: "Servidor MCP em Go", Models: []string{goBase, "Go: Servidor MCP", docsBase, "Documentação: Servidor MCP"}},
+	{Name: "Aplicativo Go + Wails", Models: []string{goBase, "Go: Wails v3", docsBase, "Documentação: Aplicação Desktop"}},
+	{Name: "Plugin Moodle", Models: []string{"Moodle", "MySQL/MariaDB", docsBase, "Documentação: Plugin Moodle"}},
+	{Name: "Aplicativo Rust + Tauri v2", Models: []string{tauriBase, docsBase, "Documentação: Aplicação Desktop"},
+		Hint: "Marque também o complemento do frontend do projeto (Vanilla TS, SvelteKit ou React)."},
+	{Name: "Website", Models: []string{"Website", docsBase, "Documentação: Aplicação Web"},
+		Hint: "Marque também Landing Page Design se o site tiver landing pages."},
+	{Name: "Sistema PHP + Slim", Models: []string{slimBase, "MySQL/MariaDB", docsBase, "Documentação: Aplicação Web"},
+		Hint: "Marque também o complemento da camada de dados do projeto (PDO, Doctrine DBAL ou Eloquent)."},
+	{Name: "Jogo Godot (Android)", Models: []string{"Godot 4 (GDScript)", docsBase, "Documentação: Jogo"}},
+}
+
+// Presets returns the project types.
+func Presets() []Preset {
+	return presets
 }
 
 // withRequired returns active plus every model an active one Requires that
@@ -301,7 +363,7 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 	if err := WriteFile(filepath.Join(dir, ".aiexclude"), aiexclude, overwrite, stdout); err != nil {
 		return err
 	}
-	if err := writeClaudeSettings(dir, denyRules(aiexclude), stdout); err != nil {
+	if err := writeClaudeSettings(dir, claudeDenyRules(dir, aiexclude), stdout); err != nil {
 		return err
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".claudeignore")); err == nil {

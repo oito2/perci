@@ -58,3 +58,27 @@ Adjust the web server user (`www-data`, `apache`, `nginx`) to the target environ
 ## 4. Reference
 
 Under `docs/en/reference/`, document (when present in the plugin): admin settings (`settings.php`), capabilities (`db/access.php`), events (`classes/event/`), scheduled/ad-hoc tasks (`db/tasks.php`), web services (`db/services.php`), and what personal data it stores (Privacy API).
+
+---
+
+## 5. License and Release Packaging
+
+### License
+
+Moodle core is GPL v3 or later, but the GPL does not automatically extend to plugins: plugins distributed through **Moodle Marketplace** (which replaced the Plugins Directory) are licensed by their developers, who must state the license accurately on the listing and, where applicable, in a license file inside the package. Apply the base standard's license rules (Section 5 — GPL-3.0 or later by default, the usual choice for Moodle plugins) and keep the license declared consistently in `LICENSE`, the file headers and the README.
+
+### Release ZIP
+
+Moodle's ZIP installer (*Site administration → Plugins → Install plugins*) validates the package layout — build the release ZIP so it passes:
+
+- Exactly **one top-level folder**, named after the plugin — the part of `$plugin->component` after the type prefix (e.g. `mod_quizplus` → `quizplus/`). A GitHub "Download ZIP" archive (`<repo>-<branch>/`) does not match and is rejected.
+- `version.php` at the root of that folder, and the English language file under `lang/en/` (`<name>.php` for activity modules, `<type>_<name>.php` for other types).
+- No development-only files (`.git/`, `node_modules/`, CI config) — exclude them via the build script or `.gitattributes` `export-ignore`, when the project uses one.
+
+Build it from the **tagged release** (base standard Section 9.2), e.g.:
+
+```bash
+git archive --format=zip --prefix={{PLUGIN_NAME}}/ -o {{COMPONENT}}-v1.2.0.zip v1.2.0
+```
+
+Bump `$plugin->version` and `$plugin->release` in `version.php` before tagging. Submitting or releasing the plugin on Moodle Marketplace is done by the user — the agent prepares the ZIP command, release notes and listing text.

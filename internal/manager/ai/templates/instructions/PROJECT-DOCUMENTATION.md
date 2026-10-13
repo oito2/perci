@@ -37,7 +37,16 @@ Every command, flag, path, version, and feature you document must be verified ag
 ├── README.md                          # canonical, English — see Section 4 for its required shape
 ├── CONTRIBUTING.md                    # canonical, English
 ├── CODE_OF_CONDUCT.md                 # canonical, English (Contributor Covenant)
+├── SECURITY.md                        # canonical, English — GitHub-hosted projects, see Section 8
 ├── LICENSE                            # see Section 5
+├── .github/                           # GitHub-hosted projects only — see Section 8 (English only, no mirror)
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   ├── feature_request.yml
+│   │   └── config.yml
+│   ├── pull_request_template.md
+│   ├── CODEOWNERS                     # conditional — more than one maintainer/team
+│   └── FUNDING.yml                    # conditional — only when the user has a sponsor channel
 └── docs/
     ├── en/
     │   ├── index.md                   # curated landing page / table of contents
@@ -70,13 +79,14 @@ Every command, flag, path, version, and feature you document must be verified ag
         ├── leiame.md                  # mirrors README.md
         ├── contribuindo.md            # mirrors CONTRIBUTING.md
         ├── codigo-de-conduta.md       # mirrors CODE_OF_CONDUCT.md
+        ├── seguranca.md               # mirrors SECURITY.md, if present
         └── ...                        # mirrors every docs/en/ subfolder and filename exactly
 ```
 
 Key rules:
 
-1. **Root files are the English canon.** `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `LICENSE` live at the repo root, and nowhere else.
-2. **Portuguese mirrors never live at the root.** They go under `docs/pt-br/` with translated filenames: `leiame.md`, `contribuindo.md`, `codigo-de-conduta.md` — these three are the **only** translated filenames.
+1. **Root files are the English canon.** `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` (when present), `LICENSE` live at the repo root, and nowhere else.
+2. **Portuguese mirrors never live at the root.** They go under `docs/pt-br/` with translated filenames: `leiame.md`, `contribuindo.md`, `codigo-de-conduta.md`, `seguranca.md` — these four are the **only** translated filenames. Files under `.github/` (issue forms, PR template, `CODEOWNERS`, `FUNDING.yml`) are English only and have no mirror.
 3. **`docs/pt-br/` mirrors `docs/en/` file-for-file.** Same subfolder names, same filenames (content translated, not renamed — e.g. `docs/pt-br/concepts/architecture.md`, never `arquitetura.md`). If a page exists in one language, it must exist in the other — see [Maintenance](#7-maintenance-rule) below.
 4. **`concepts/architecture.md` and the `architecture/` folder are not duplicates.** `concepts/architecture.md` is a single high-level overview for users. The `architecture/` folder holds deep, per-component internals for contributors (one file per subsystem). Don't merge them.
 5. **Conditional files and folders are not mandatory**: `getting-started/prerequisites.md`, `getting-started/uninstallation.md`, `guides/clients/`, `guides/environments/` and `prompts.md` exist only when the project actually needs them (or a complement requires them). Don't create empty placeholder files or folders. Beyond these, check whether the project needs other technical pages (alternative install methods, migration guides, FAQ, ...) and add them under the most fitting section.
@@ -170,7 +180,7 @@ Unlike the rest of `docs/`, the README is GitHub-facing: it's the first (often o
 
 ## 6. Cross-Linking Conventions
 
-### 6.1 Root files (`README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`)
+### 6.1 Root files (`README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`)
 
 Add a language switcher right after the title (or after the badges block, if there is one):
 
@@ -241,3 +251,119 @@ Mirror the same section order in both languages so the two indexes stay structur
 Whenever a page is added, removed, or meaningfully changed under `docs/en/`, make the equivalent change to its `docs/pt-br/` mirror **in the same change** — never leave the two trees out of sync as follow-up work. This is a direct application of the `Documentation Maintenance` rule in the shared agent rules (update documentation in the same change, not deferred), specialized for a bilingual doc tree: here, "the documentation" means both language copies, not just one.
 
 If a new subfolder category is needed that isn't listed in [Section 3](#3-content-guide-by-section) (e.g. a project-specific need), create it under both `docs/en/` and `docs/pt-br/` at once, and add it to both `index.md` files.
+
+---
+
+## 8. GitHub Community Files
+
+Apply this section only when the project is hosted on GitHub (or the user says it will be). These files make the repository's issue tracker, security channel and contribution flow work as GitHub expects.
+
+### 8.1 Security Policy (`SECURITY.md`)
+
+A root canonical file, like `CONTRIBUTING.md`: English at the root, mirrored as `docs/pt-br/seguranca.md`, with the root-file language switcher (Section 6.1). It contains:
+
+1. **Supported versions** — a table of which release lines still receive security fixes, derived from the project's real releases/branches:
+   ```markdown
+   | Version | Supported |
+   |---|---|
+   | 1.2.x | ✅ |
+   | < 1.2 | ❌ |
+   ```
+2. **How to report a vulnerability** — privately, never through a public issue. Use one of the channels the project really has:
+   - **GitHub private vulnerability reporting** (the repository's *Security* tab → *Report a vulnerability*). It must be enabled by a repository owner/admin under *Settings → Advanced Security → Private vulnerability reporting* — the agent tells the user to enable it; it doesn't assume it is on.
+   - **A security contact** (e.g. an e-mail address) provided by the user.
+3. **What to expect** — what the report should include and the response process. State a response time only if the user commits to one.
+
+**Never invent a contact.** If no private channel exists and the user hasn't given one, ask before writing the file.
+
+### 8.2 Issue Templates (`.github/ISSUE_TEMPLATE/`)
+
+Use **issue forms** (YAML, `.yml`) for a bug report and a feature request. Every form starts with the required top-level keys `name`, `description` and `body`; `title`, `labels`, `assignees`, `type` and `projects` are optional. Body elements are `markdown`, `input`, `textarea`, `dropdown`, `checkboxes` and `upload`; each takes `type`, an optional unique `id` (alphanumerics, `-`, `_`; not on `markdown`), `attributes` and, except `markdown`, `validations` (`required: true` is enforced only in public repositories).
+
+```yaml
+# .github/ISSUE_TEMPLATE/bug_report.yml
+name: Bug report
+description: Report something that doesn't work as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, expected and actual behavior.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: e.g. 1.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - Windows
+        - macOS
+```
+
+- `feature_request.yml` follows the same shape (problem, proposed solution, alternatives considered).
+- Ask for what the project can actually use: versions, platforms and logs that exist in this project — the dropdown options above are an example, not a default.
+- Only reference labels that exist in the repository (or tell the user which ones to create).
+- `.github/ISSUE_TEMPLATE/config.yml` configures the template chooser: `blank_issues_enabled` (`false` steers users to the forms) and `contact_links` (each with `name`, `url`, `about`) — e.g. pointing security reports to the security policy or questions to Discussions, only for channels that exist.
+- GitHub marks issue forms as public preview; if their schema changes, follow the current GitHub documentation over this example.
+
+### 8.3 Pull Request Template
+
+`.github/pull_request_template.md` — a short checklist: summary of the change, linked issue, how it was tested, and whether docs/`CHANGELOG.md` were updated (when the project has one).
+
+### 8.4 Conditional Files
+
+- **`CODEOWNERS`** (in `.github/`) — only when the project has more than one maintainer or team. Use the real GitHub usernames/teams the user provides; never guess handles.
+- **`FUNDING.yml`** (in `.github/`) — only if the user has a sponsor channel (e.g. `github`, `open_collective`, `ko_fi`, `custom`). Never add placeholder accounts.
+
+All `.github/` files are English only, with no `docs/pt-br/` mirror.
+
+---
+
+## 9. Repository Metadata and Releases
+
+Agents never run `gh` (or `git`) commands that write to a repository or hosting service. For everything in this section, the agent **prepares** the content and gives the user the **exact commands** to run in their own terminal.
+
+### 9.1 Repository Metadata
+
+| Item | Rule |
+|---|---|
+| Description | One sentence, matching the README's pitch (Section 4, item 1). |
+| Topics | Lowercase, hyphenated; real technologies, platforms and domains the project uses (e.g. `go`, `wails`, `moodle-plugin`, `accessibility`) — never marketing terms. |
+| Homepage | The published docs/site URL — only when one exists. |
+| Social preview | A 1280×640 px image (minimum 640×320, PNG/JPG/GIF, under 1 MB), uploaded by the user in the repository *Settings* under *Social preview*. Until the user provides it, list it as pending in the final report. |
+
+Commands to hand to the user:
+
+```bash
+gh repo edit {{ORG}}/{{REPO}} \
+  --description "One-sentence pitch from the README" \
+  --homepage "https://{{ORG}}.github.io/{{REPO}}/" \
+  --add-topic go --add-topic desktop-app
+```
+
+### 9.2 Releases
+
+- **Tag format:** `vX.Y.Z` (Semantic Versioning), as an **annotated** tag on the release commit.
+- **Release notes:** generated from that version's section of `CHANGELOG.md` (when the project has one) — copy the section into a notes file, never rewrite history in the CHANGELOG.
+- **Artifact naming:** include the project name, version, OS and architecture, e.g. `{{PROJECT_NAME}}-1.2.0-linux-amd64.tar.gz`, `{{PROJECT_NAME}}-1.2.0-windows-amd64.zip` — follow the names the project's build/CI already produces.
+- **Checksums:** publish a `SHA256SUMS` (or `checksums.txt`) file covering every artifact, e.g. generated with `sha256sum`.
+- **Publishing** is done by the user, or by the project's CI on tag push when such a workflow exists. The agent prepares the notes file, artifact list and commands, e.g.:
+
+```bash
+git tag -a v1.2.0 -m "Release 1.2.0"
+git push origin v1.2.0
+gh release create v1.2.0 --verify-tag --title "v1.2.0" --notes-file release-notes.md \
+  dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+```
+
+Document the release process the project actually uses in `CONTRIBUTING.md` (or a `docs/en/` page under `guides/`), and the download/verification steps in `docs/en/getting-started/installation.md`.

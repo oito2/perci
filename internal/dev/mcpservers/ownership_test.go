@@ -208,11 +208,11 @@ func TestInstall_CodexForeignEntryIsNotReplaced(t *testing.T) {
 	}
 }
 
-// npx/uvx missing: nothing is registered or removed.
+// Launcher missing: nothing is registered or removed.
 func TestInstallUpdate_RefuseWithoutLauncher(t *testing.T) {
-	for slug, tool := range map[string]string{"filesystem": "npx", "sqlite": "uvx"} {
+	for slug, tool := range map[string]string{"filesystem": "npx", "dbhub": "npx", "gopls": "gopls"} {
 		env := newAgentsEnv(t)
-		if err := os.Remove(filepath.Join(env.bin, tool)); err != nil {
+		if err := os.Remove(filepath.Join(env.bin, tool)); err != nil && !os.IsNotExist(err) {
 			t.Fatal(err)
 		}
 		bash, err := lookBash()

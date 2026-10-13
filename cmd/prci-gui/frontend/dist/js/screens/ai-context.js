@@ -46,10 +46,49 @@ btnAicPickFolder.addEventListener("click", function () {
   });
 });
 
+// aicPresets holds the project types (name, models, hint) from the backend.
+let aicPresets = [];
+
+// setAicPresetHint shows the hint of the selected project type, if any.
+function setAicPresetHint(preset) {
+  const hint = preset && preset.hint ? preset.hint : "";
+  aicPresetHint.textContent = hint;
+  aicPresetHint.classList.toggle("hidden", !hint);
+}
+
+// renderAicPresetOptions fills the project type select: "Personalizado"
+// plus one option per preset.
+function renderAicPresetOptions() {
+  aicPreset.innerHTML = "";
+  const custom = document.createElement("option");
+  custom.value = "";
+  custom.textContent = "Personalizado";
+  aicPreset.appendChild(custom);
+  aicPresets.forEach(function (p) {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    aicPreset.appendChild(opt);
+  });
+  aicPreset.value = "";
+  setAicPresetHint(null);
+}
+
+App.GetAIContextPresets().then(function (presets) {
+  aicPresets = presets || [];
+  renderAicPresetOptions();
+}).catch(function () {
+  aicPresets = [];
+});
+
 function renderAicItems() {
   aicItems.innerHTML = "";
   btnAicApply.disabled = true;
   btnAicApply.onclick = null;
+  aicPreset.disabled = true;
+  aicPreset.onchange = null;
+  aicPreset.value = "";
+  setAicPresetHint(null);
   if (!aicFolder) {
     invalidate("aicontext");
     return;
@@ -61,8 +100,23 @@ function renderAicItems() {
     items.forEach(function (it) {
       const built = buildChecklistItemLI("aic-check-", it, {});
       checkboxes[it.id] = built.checkbox;
+      // A manual change no longer matches the chosen project type.
+      built.checkbox.addEventListener("change", function () {
+        aicPreset.value = "";
+        setAicPresetHint(null);
+      });
       aicItems.appendChild(built.li);
     });
+
+    aicPreset.disabled = aicPresets.length === 0;
+    aicPreset.onchange = function () {
+      const preset = aicPresets.find(function (p) { return p.name === aicPreset.value; });
+      setAicPresetHint(preset);
+      if (!preset) return;
+      items.forEach(function (it) {
+        checkboxes[it.id].checked = preset.models.indexOf(it.id) >= 0;
+      });
+    };
 
     btnAicApply.disabled = false;
     btnAicApply.onclick = function () {

@@ -36,8 +36,12 @@ Nothing Perci downloads or runs through a package runner is "whatever is latest 
 | Used by | What is pinned | Where |
 |---|---|---|
 | Dev Tools → IA: SKILLs | `skills@1.7.0` (npm, [vercel-labs/skills](https://github.com/vercel-labs/skills)); every skill is installed from its repository at a full commit SHA (`https://github.com/<owner>/<repo>#<sha>`) | `agentskills.skillsCLI`, `Skill.Ref` |
-| Dev Tools → IA: MCPs (Filesystem) | `@modelcontextprotocol/server-filesystem@2026.8.31` (npm) | `mcpservers.filesystemServerPkg` |
-| Dev Tools → IA: MCPs (SQLite) | `mcp-server-sqlite@2025.4.25` (PyPI, via `uvx`) | `mcpservers.sqliteServerPkg` |
+| Dev Tools → IA: MCPs (Filesystem) | `@modelcontextprotocol/server-filesystem@1.0.0` (npm) | `mcpservers.filesystemServerPkg` |
+| Dev Tools → IA: MCPs (Context7) | `@upstash/context7-mcp@4.4.1` (npm) | `mcpservers.context7ServerPkg` |
+| Dev Tools → IA: MCPs (Chrome DevTools) | `chrome-devtools-mcp@1.10.1` (npm), run with `--isolated --no-usage-statistics` | `mcpservers.chromeDevToolsServerPkg` |
+| Dev Tools → IA: MCPs (Svelte) | `@sveltejs/mcp@0.1.26` (npm) | `mcpservers.svelteServerPkg` |
+| Dev Tools → IA: MCPs (DBHub) | `@bytebase/dbhub@1.5.0` (npm), run with `--config=<dbhub.toml>` | `mcpservers.dbhubServerPkg` |
+| Dev Tools → IA: MCPs (SQLite, retired — removal only) | `mcp-server-sqlite@2025.4.25` (PyPI, via `uvx`) | `mcpservers.sqliteServerPkg` |
 | Dev Tools → IA: MCPs (Dart + Flutter, Codex) | the `flutter/agent-plugins` marketplace at a fixed commit | `mcpservers.dartFlutterCodexMarket` |
 | Pré-requisitos → Node.js | the nvm installer, by tag (`v0.40.8`) | `prereqs.nvmVersion` |
 | Aplicativos: IA → Codex | `@openai/codex@0.162.1` (npm) | `llm.codexPackage` |
@@ -50,9 +54,10 @@ To upgrade one, check the new release (`npm view <pkg> version`, pypi.org, the r
 `mcpservers` registers a server per agent (Claude Code, Codex, Antigravity) and records, in `config.yaml`, which agents each registration reached (`mcp_servers[].agents`); `agentskills` does the same for skills (`agent_skills[].agents`). When some agent is missing from a registration (for instance one failed while another succeeded), the screen tags the row **parcial: …**, listing the agents that did accept it. Other rules:
 
 - A server of the same name that Perci did not register (found in Antigravity's `mcp_config.json`, or in Claude Code's or Codex's own list) is never overwritten or removed; adding it is refused with the "já existe um servidor com esse nome que não foi registrado pelo Perci" message.
-- Filesystem and SQLite are refused up front when `npx`/`uvx` isn't available.
-- Folders and MCP parameters (the Filesystem folder, the SQLite file) must have been picked in the native dialog during the session or already be recorded for that server; anything else is refused with "pasta não escolhida no seletor". The same rule applies to adding a repository folder.
+- A server is refused up front when its launcher isn't available: `npx` for Filesystem, Context7, Chrome DevTools, Svelte and DBHub; `gopls` for the gopls MCP, which runs `gopls mcp` and must be on `PATH` (Perci does not install it). Chrome DevTools warns, without failing, when no Google Chrome is found.
+- Folders and MCP parameters (the Filesystem folder, DBHub's `dbhub.toml`) must have been picked in the native dialog during the session or already be recorded for that server; anything else is refused with "pasta não escolhida no seletor". The same rule applies to adding a repository folder.
 - The `skills` CLI runs with `DISABLE_TELEMETRY=1`, and the screen shows a notice that skills are third-party content.
+- An entry that left the catalog (`Retired`: the SQLite MCP, and the SKILLs `godot-core-ui`, `moodle-plugin`, `moodle-education-expert`, `svg-logo-designer` and `php-specialist`) is listed, tagged **fora do catálogo**, only in the scopes where it is still installed, and only offers **Remover**; install and update refuse it.
 
 ## PATH Management
 

@@ -35,7 +35,7 @@ const mcpTable = createScopedTable({
   // picked in it (currentParam) in its closure, which must not carry over
   // to another scope or project folder.
   sigOf: function (row, st) {
-    return [st.scope, st.folder, row.slug, row.name, row.installed, row.partial, (row.agents || []).join(","), row.param, row.paramKind, row.paramLabel, row.manual, row.manualUrl, row.manualNote].join("|");
+    return [st.scope, st.folder, row.slug, row.name, row.note, row.retired, row.installed, row.partial, (row.agents || []).join(","), row.param, row.paramKind, row.paramLabel, row.manual, row.manualUrl, row.manualNote].join("|");
   },
   buildRow: function (row) { return buildMCPServerRow(row); },
   onScope: function (st) { mcpCodexNote.classList.toggle("hidden", st.isGlobal()); },
@@ -48,6 +48,14 @@ function buildMCPServerRow(row) {
   tdName.textContent = row.name;
   const badge = partialBadge(row);
   if (badge) tdName.appendChild(badge);
+  const retired = retiredBadge(row);
+  if (retired) tdName.appendChild(retired);
+  if (row.note) {
+    const note = document.createElement("p");
+    note.className = "text-xs opacity-70 mt-1";
+    note.textContent = row.note;
+    tdName.appendChild(note);
+  }
   tr.appendChild(tdName);
 
   const tdActions = document.createElement("td");
@@ -85,14 +93,15 @@ function buildMCPServerRow(row) {
   btnUpdate.textContent = "Atualizar";
 
   function updateButtonsState() {
-    const needsParam = !!row.paramKind && !currentParam;
+    const needsParam = !!row.paramKind && !currentParam && !row.retired;
     btnToggle.disabled = needsParam;
     btnUpdate.disabled = needsParam || !row.installed;
   }
 
-  // Filesystem/SQLite: need an extra value (folder/file) before being
+  // Filesystem/DBHub: need an extra value (folder/file) before being
   // able to install/update — without it there's no fixed command to run.
-  if (row.paramKind) {
+  // A retired entry can only be removed, so it gets no picker.
+  if (row.paramKind && !row.retired) {
     const paramRow = document.createElement("div");
     paramRow.className = "flex items-center gap-2 text-xs";
     const paramText = document.createElement("span");
@@ -139,7 +148,7 @@ function buildMCPServerRow(row) {
   const btnsRow = document.createElement("div");
   btnsRow.className = "flex gap-2";
   btnsRow.appendChild(btnToggle);
-  btnsRow.appendChild(btnUpdate);
+  if (!row.retired) btnsRow.appendChild(btnUpdate);
   wrap.appendChild(btnsRow);
 
   tdActions.appendChild(wrap);

@@ -36,8 +36,12 @@ Nada que o Perci baixa ou executa por um executor de pacotes é "a versão mais 
 | Usado por | O que é fixado | Onde |
 |---|---|---|
 | Dev Tools → IA: SKILLs | `skills@1.7.0` (npm, [vercel-labs/skills](https://github.com/vercel-labs/skills)); cada skill é instalada do seu repositório num SHA de commit completo (`https://github.com/<dono>/<repo>#<sha>`) | `agentskills.skillsCLI`, `Skill.Ref` |
-| Dev Tools → IA: MCPs (Filesystem) | `@modelcontextprotocol/server-filesystem@2026.8.31` (npm) | `mcpservers.filesystemServerPkg` |
-| Dev Tools → IA: MCPs (SQLite) | `mcp-server-sqlite@2025.4.25` (PyPI, via `uvx`) | `mcpservers.sqliteServerPkg` |
+| Dev Tools → IA: MCPs (Filesystem) | `@modelcontextprotocol/server-filesystem@1.0.0` (npm) | `mcpservers.filesystemServerPkg` |
+| Dev Tools → IA: MCPs (Context7) | `@upstash/context7-mcp@4.4.1` (npm) | `mcpservers.context7ServerPkg` |
+| Dev Tools → IA: MCPs (Chrome DevTools) | `chrome-devtools-mcp@1.10.1` (npm), executado com `--isolated --no-usage-statistics` | `mcpservers.chromeDevToolsServerPkg` |
+| Dev Tools → IA: MCPs (Svelte) | `@sveltejs/mcp@0.1.26` (npm) | `mcpservers.svelteServerPkg` |
+| Dev Tools → IA: MCPs (DBHub) | `@bytebase/dbhub@1.5.0` (npm), executado com `--config=<dbhub.toml>` | `mcpservers.dbhubServerPkg` |
+| Dev Tools → IA: MCPs (SQLite, fora do catálogo — só remoção) | `mcp-server-sqlite@2025.4.25` (PyPI, via `uvx`) | `mcpservers.sqliteServerPkg` |
 | Dev Tools → IA: MCPs (Dart + Flutter, Codex) | o marketplace `flutter/agent-plugins` num commit fixo | `mcpservers.dartFlutterCodexMarket` |
 | Pré-requisitos → Node.js | o instalador do nvm, por tag (`v0.40.8`) | `prereqs.nvmVersion` |
 | Aplicativos: IA → Codex | `@openai/codex@0.162.1` (npm) | `llm.codexPackage` |
@@ -50,9 +54,10 @@ Para atualizar um deles, confira a nova release (`npm view <pacote> version`, py
 O `mcpservers` registra um servidor por agente (Claude Code, Codex, Antigravity) e grava no `config.yaml` a quais agentes cada registro chegou (`mcp_servers[].agents`); o `agentskills` faz o mesmo com as skills (`agent_skills[].agents`). Quando algum agente falta num registro (por exemplo, um falhou enquanto outro funcionou), a tela marca a linha como **parcial: …**, listando os agentes que a aceitaram. Outras regras:
 
 - Um servidor de mesmo nome que o Perci não registrou (encontrado no `mcp_config.json` do Antigravity ou na lista do próprio Claude Code ou Codex) nunca é sobrescrito nem removido; adicioná-lo é recusado com a mensagem "já existe um servidor com esse nome que não foi registrado pelo Perci".
-- Filesystem e SQLite são recusados de cara quando `npx`/`uvx` não está disponível.
-- Pastas e parâmetros de MCP (a pasta do Filesystem, o arquivo do SQLite) precisam ter sido escolhidos no diálogo nativo durante a sessão ou já estar registrados para aquele servidor; qualquer outra coisa é recusada com "pasta não escolhida no seletor". A mesma regra vale para adicionar uma pasta de repositório.
+- Um servidor é recusado de cara quando seu lançador não está disponível: `npx` para Filesystem, Context7, Chrome DevTools, Svelte e DBHub; `gopls` para o gopls MCP, que roda `gopls mcp` e precisa estar no `PATH` (o Perci não o instala). O Chrome DevTools avisa, sem falhar, quando nenhum Google Chrome é encontrado.
+- Pastas e parâmetros de MCP (a pasta do Filesystem, o `dbhub.toml` do DBHub) precisam ter sido escolhidos no diálogo nativo durante a sessão ou já estar registrados para aquele servidor; qualquer outra coisa é recusada com "pasta não escolhida no seletor". A mesma regra vale para adicionar uma pasta de repositório.
 - O CLI `skills` roda com `DISABLE_TELEMETRY=1`, e a tela mostra um aviso de que skills são conteúdo de terceiros.
+- Uma entrada que saiu do catálogo (`Retired`: o MCP SQLite e as SKILLs `godot-core-ui`, `moodle-plugin`, `moodle-education-expert`, `svg-logo-designer` e `php-specialist`) só é listada, com a etiqueta **fora do catálogo**, nos escopos em que ainda está instalada, e só oferece **Remover**; instalar e atualizar a recusam.
 
 ## Gerenciamento de PATH
 

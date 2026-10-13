@@ -709,6 +709,16 @@
               <button id="btn-aic-pick-folder" class="btn btn-sm ml-auto">Selecionar Pasta</button>
             </div>
 
+            <!-- Project type: checks the standards of one project kind at
+                 once; the checkboxes below stay editable. -->
+            <label class="form-control max-w-md mb-2">
+              <div class="label"><span class="label-text">Tipo de projeto</span></div>
+              <select id="aic-preset" class="select select-bordered" disabled>
+                <option value="">Personalizado</option>
+              </select>
+            </label>
+            <p id="aic-preset-hint" class="text-sm opacity-70 mb-4 hidden"></p>
+
             <ul id="aic-items" class="space-y-2 mb-4"></ul>
             <button id="btn-aic-apply" class="btn btn-primary" disabled>Aplicar</button>
           </div>

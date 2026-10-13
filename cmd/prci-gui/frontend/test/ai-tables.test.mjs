@@ -86,3 +86,42 @@ test("SKILLs: the intro says the content is from third parties", () => {
   assert.match(container.children[1].textContent, /conteúdo de terceiros/);
   assert.match(container.children[1].textContent, /commit/);
 });
+
+// The texts of the buttons inside a row's actions cell, at any depth.
+function buttonTexts(el) {
+  const out = [];
+  (function walk(n) {
+    if (n.tagName && n.tagName.toLowerCase() === "button") out.push(n.textContent);
+    (n.children || []).forEach(walk);
+  })(el);
+  return out;
+}
+
+test("SKILLs: a retired entry is tagged and can only be removed", async () => {
+  const rows = [
+    { slug: "old", name: "Old", installed: true, partial: false, agents: [], retired: true },
+    { slug: "new", name: "New", installed: true, partial: false, agents: [], retired: false },
+  ];
+  const { ctx, element } = loadScripts(scriptOrder(), { fixtures: { GetAgentSkillsRows: rows } });
+  ctx.renderAgentSkillsScreen();
+  await tick();
+  const trs = element("as-rows").children;
+  assert.deepEqual(tags(trs[0].children[0]), ["fora do catálogo"]);
+  assert.deepEqual(buttonTexts(trs[0].children[1]), ["Remover"]);
+  assert.deepEqual(buttonTexts(trs[1].children[1]), ["Remover", "Atualizar"]);
+});
+
+test("MCPs: the note is shown, and a retired entry has no picker and only Remover", async () => {
+  const rows = [
+    { slug: "sqlite", name: "SQLite", note: "Fora do catálogo", installed: true, partial: false, agents: [], retired: true, param: "/d", paramKind: "file", paramLabel: "Arquivo" },
+    { slug: "dbhub", name: "DBHub", note: "Bancos num dbhub.toml", installed: false, partial: false, agents: [], paramKind: "file", paramLabel: "Arquivo dbhub.toml" },
+  ];
+  const { ctx, element } = loadScripts(scriptOrder(), { fixtures: { GetMCPServerRows: rows } });
+  ctx.renderMCPServersScreen();
+  await tick();
+  const trs = element("mcp-rows").children;
+  assert.deepEqual(tags(trs[0].children[0]), ["fora do catálogo", "Fora do catálogo"]);
+  assert.deepEqual(buttonTexts(trs[0].children[1]), ["Remover"]);
+  assert.deepEqual(tags(trs[1].children[0]), ["Bancos num dbhub.toml"]);
+  assert.deepEqual(buttonTexts(trs[1].children[1]), ["Selecionar", "Instalar", "Atualizar"]);
+});

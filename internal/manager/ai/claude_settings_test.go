@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -246,5 +247,61 @@ func TestAIExcludeHeaderIsHonest(t *testing.T) {
 	}
 	if !strings.Contains(tpl, "not a security boundary") || !strings.Contains(tpl, ".claude/settings.json") {
 		t.Error("the header must say it is not a security boundary and point Claude Code users to settings.json")
+	}
+}
+
+func TestWithoutTrackedSource_KeepsVersionedSourceReadable(t *testing.T) {
+	ignore := "dist/\nbuild/\n*.png\n*.jpg\nnode_modules/\n.env\n*.pem\n"
+	tracked := []string{"cmd/app/frontend/dist/index.html", "docs/img/main.png", "node_modules/x/index.js", ".env", "certs/a.pem"}
+	rules := denyRules(withoutTrackedSource(ignore, tracked))
+	for _, gone := range []string{"Read(dist/**)", "Read(*.png)"} {
+		if slices.Contains(rules, gone) {
+			t.Errorf("%s hides tracked files: %v", gone, rules)
+		}
+	}
+	for _, kept := range []string{"Read(build/**)", "Read(*.jpg)", "Read(node_modules/**)", "Read(.env)", "Read(*.pem)"} {
+		if !slices.Contains(rules, kept) {
+			t.Errorf("missing %s in %v", kept, rules)
+		}
+	}
+	if got := denyRules(withoutTrackedSource(ignore, nil)); !slices.Contains(got, "Read(dist/**)") {
+		t.Errorf("without a git listing every rule stays: %v", got)
+	}
+}
+
+func TestMatchesTracked_DirectoryNeedsAPathComponent(t *testing.T) {
+	if matchesTracked("dist/", []string{"dist"}) {
+		t.Error("a file named dist is not a dist/ directory")
+	}
+	if !matchesTracked("dist/", []string{"a/dist/b.js"}) {
+		t.Error("a nested dist/ directory must match")
+	}
+	if matchesTracked("*.png", []string{"img.png/readme.md"}) {
+		t.Error("a file pattern matches base names only")
+	}
+}
+
+func TestClaudeDenyRules_ReadsTheGitListing(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	if err := os.MkdirAll(filepath.Join(dir, "web", "dist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "web", "dist", "app.js"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "web/dist/app.js"}} {
+		if out, err := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	rules := claudeDenyRules(dir, "dist/\nbuild/\n")
+	if slices.Contains(rules, "Read(dist/**)") || !slices.Contains(rules, "Read(build/**)") {
+		t.Errorf("rules = %v", rules)
 	}
 }

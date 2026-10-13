@@ -144,6 +144,16 @@ export function GetAIContextItems(folder) {
 }
 
 /**
+ * GetAIContextPresets lists the project types the screen offers.
+ * @returns {$CancellablePromise<$models.AIContextPreset[]>}
+ */
+export function GetAIContextPresets() {
+    return $Call.ByName("main.DevToolsService.GetAIContextPresets").then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * GetAgentSkillsRows lists the whole catalog with its installed state for
  * the given scope (global, or local at folder).
  * @param {boolean} global
@@ -152,7 +162,7 @@ export function GetAIContextItems(folder) {
  */
 export function GetAgentSkillsRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetAgentSkillsRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType5($result);
     }));
 }
 
@@ -164,7 +174,7 @@ export function GetAgentSkillsRows(global, folder) {
  */
 export function GetGlobalGitIdentity() {
     return $Call.ByName("main.DevToolsService.GetGlobalGitIdentity").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType6($result);
     }));
 }
 
@@ -177,7 +187,7 @@ export function GetGlobalGitIdentity() {
  */
 export function GetMCPServerRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetMCPServerRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
@@ -189,7 +199,7 @@ export function GetMCPServerRows(global, folder) {
  */
 export function GetMoodlePluginTypes(folder) {
     return $Call.ByName("main.DevToolsService.GetMoodlePluginTypes", folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType9($result);
     }));
 }
 
@@ -200,7 +210,7 @@ export function GetMoodlePluginTypes(folder) {
  */
 export function GetMoodlePlugins() {
     return $Call.ByName("main.DevToolsService.GetMoodlePlugins").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType10($result);
     }));
 }
 
@@ -211,7 +221,7 @@ export function GetMoodlePlugins() {
  */
 export function GetRepoFolderState(path) {
     return $Call.ByName("main.DevToolsService.GetRepoFolderState", path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType11($result);
     }));
 }
 
@@ -225,7 +235,7 @@ export function GetRepoFolderState(path) {
  */
 export function GetRepoFolders() {
     return $Call.ByName("main.DevToolsService.GetRepoFolders").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType13($result);
     }));
 }
 
@@ -252,7 +262,7 @@ export function InitRepoAt(folder, name, email) {
  */
 export function InspectMoodlePlugin(dev, folder, ptype, name) {
     return $Call.ByName("main.DevToolsService.InspectMoodlePlugin", dev, folder, ptype, name).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -310,10 +320,9 @@ export function PickMCPFolder() {
 
 /**
  * PickMCPServerParam opens the right native dialog for slug's extra
- * parameter — a folder picker for "filesystem" (allowed directory), a
- * "Salvar Como"-style dialog for "sqlite" (lets the user point at a new,
- * not-yet-existing .sqlite file, not just browse for one that already
- * exists). Returns an error if slug doesn't take a parameter.
+ * parameter — a folder picker for "filesystem" (allowed directory), a file
+ * picker filtered to TOML files for "dbhub" (its dbhub.toml). Returns an
+ * error if slug doesn't take a parameter or left the catalog.
  * @param {string} slug
  * @returns {$CancellablePromise<string>}
  */
@@ -417,14 +426,16 @@ export function UpdateMCPServer(slug, global, folder, param) {
 // Private type creation functions
 const $$createType0 = $models.MultiSelectItemInfo.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.AgentSkillRow.createFrom;
+const $$createType2 = $models.AIContextPreset.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.GitIdentity.createFrom;
-const $$createType5 = $models.MCPServerRow.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = $Create.Array($Create.Any);
-const $$createType8 = $models.MoodlePluginsScreen.createFrom;
-const $$createType9 = $models.RepoFolderState.createFrom;
-const $$createType10 = $models.RepoFolderInfo.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $models.MoodlePluginCheck.createFrom;
+const $$createType4 = $models.AgentSkillRow.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $models.GitIdentity.createFrom;
+const $$createType7 = $models.MCPServerRow.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = $Create.Array($Create.Any);
+const $$createType10 = $models.MoodlePluginsScreen.createFrom;
+const $$createType11 = $models.RepoFolderState.createFrom;
+const $$createType12 = $models.RepoFolderInfo.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $models.MoodlePluginCheck.createFrom;

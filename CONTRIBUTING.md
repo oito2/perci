@@ -27,8 +27,8 @@ go mod download
 # Build (development mode)
 go build ./cmd/prci-gui
 
-# Build with version injection
-go build -ldflags "-X github.com/oito2/perci/internal/version.Version=v1.0.0" -o prci ./cmd/prci-gui
+# Release-like build (production tag: Wails debug mode and webview devtools off)
+go build -tags production -ldflags "-X github.com/oito2/perci/internal/version.Version=v1.0.0" -o prci ./cmd/prci-gui
 
 # Run directly
 go run ./cmd/prci-gui

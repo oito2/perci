@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-13
+
+### Added
+- Dev Tools → IA: Contextos: a **Tipo de projeto** selector that checks the standards of a project kind at once — Servidor MCP em Go, Aplicativo Go + Wails, Plugin Moodle, Aplicativo Rust + Tauri v2, Website, Sistema PHP + Slim and Jogo Godot (Android); the checkboxes stay editable.
+- New standards: Go (with MCP server and Wails v3 complements), Rust + Tauri v2 (with Vanilla TS + Vite, SvelteKit and React + Vite frontend complements), PHP + Slim 4 (with PDO, Doctrine DBAL and Eloquent complements), Godot 4 (GDScript), Website, and the "Documentação: Jogo" documentation complement.
+- Dev Tools → IA: MCPs: Context7 (`@upstash/context7-mcp@4.4.1`), gopls MCP (`gopls mcp`, needs `gopls` on `PATH`), Chrome DevTools MCP (`chrome-devtools-mcp@1.10.1`, isolated profile, usage statistics off), Svelte MCP (`@sveltejs/mcp@0.1.26`) and DBHub (`@bytebase/dbhub@1.5.0`, configured through a `dbhub.toml` picked in the file dialog). Each server shows a short note under its name.
+- Dev Tools → IA: SKILLs: Go (Wails, Testing, Security, Lint, Error Handling, Continuous Integration), Rust Best Practices, Svelte (official Code Writer and Best Practices), React Best Practices (Vercel), Vite, Vitest, Web accessibility/SEO/performance, Web App Testing (Playwright), MariaDB (official Query Optimization and Features), SQL Code Review, GitHub Actions Hardening, MCP Security Audit, Security Review (Sentry) and Godot Mobile — each pinned to a full commit.
+
+### Changed
+- The project documentation standard covers GitHub community files (SECURITY.md, issue and pull request templates), repository metadata (description, topics, homepage — prepared as commands for the user) and releases; the desktop complement covers Tauri bundles and updater signing, the web complement GitHub Pages, and the Moodle complement the plugin license declaration and the release ZIP for the Moodle Marketplace. `SECURITY.md` is a canonical root file mirrored as `docs/pt-br/seguranca.md`.
+- Dev Tools → IA: MCPs: the Filesystem server is pinned to `@modelcontextprotocol/server-filesystem@1.0.0` (the package moved to semantic versioning); **Atualizar** re-registers it.
+- Dev Tools → IA: SKILLs: "Godot: Master" is installed from the repository's new address (`thedivergentai/Game-Design-Agentic-Skills`), at the same commit.
+
+### Removed
+- Dev Tools → IA: MCPs: SQLite (the server is archived and allows writes; DBHub replaces it). Dev Tools → IA: SKILLs: "Godot: Core UI Knowledge", "Moodle: Plugin Development", "Moodle: Education Expert", "SVG Logo Designer" and "PHP: Specialist". Where one of them is still installed it stays listed, tagged **fora do catálogo**, with only **Remover**.
+
+### Fixed
+- Release builds use Wails' `production` tag: the published binary no longer runs in debug mode with the webview's developer tools enabled.
+- Dev Tools → IA: Contextos: the `.claude/settings.json` read rules no longer block `dist/`, `build/`, `out/` or images (`*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`) when the project's git repository tracks files there, so versioned source code and screenshots stay readable by Claude Code.
+
 ## [1.2.0] - 2026-10-13
 
 ### Added
@@ -110,7 +130,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/oito2/perci/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/oito2/perci/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oito2/perci/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/oito2/perci/compare/v1.0.0...v1.0.1

@@ -17,13 +17,17 @@ package ai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/ui"
@@ -54,6 +58,85 @@ func denyRules(ignoreFile string) []string {
 		}
 	}
 	return rules
+}
+
+// sourceAmbiguous lists the ignore patterns that name build output or media
+// in most projects but may hold versioned source in others (e.g. a frontend
+// committed under dist/, screenshots under docs/img/).
+var sourceAmbiguous = []string{"dist/", "build/", "out/", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"}
+
+// gitTrackedFiles lists the files git tracks in dir, as slash-separated
+// paths relative to the repository root. It returns nil when git is
+// missing, dir is not inside a repository, or the listing fails.
+func gitTrackedFiles(ctx context.Context, dir string) []string {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return nil
+	}
+	cmd := exec.CommandContext(ctx, gitPath, "-C", dir, "ls-files", "-z") //nolint:gosec // fixed argument list, dir is the project folder
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for f := range strings.SplitSeq(string(out), "\x00") {
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+// matchesTracked reports whether an ignore pattern covers any of the
+// tracked files: a directory pattern ("dist/") matches a file below a
+// directory of that name at any depth, any other pattern matches a file's
+// base name.
+func matchesTracked(pattern string, tracked []string) bool {
+	dirPattern, isDir := strings.CutSuffix(pattern, "/")
+	for _, f := range tracked {
+		parts := strings.Split(f, "/")
+		if isDir {
+			for _, p := range parts[:len(parts)-1] {
+				if ok, _ := path.Match(dirPattern, p); ok {
+					return true
+				}
+			}
+			continue
+		}
+		if ok, _ := path.Match(pattern, parts[len(parts)-1]); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// withoutTrackedSource removes from ignoreFile the sourceAmbiguous patterns
+// that cover files tracked in tracked, so the read rules built from it do
+// not hide versioned source code or images from Claude Code.
+func withoutTrackedSource(ignoreFile string, tracked []string) string {
+	if len(tracked) == 0 {
+		return ignoreFile
+	}
+	lines := strings.Split(ignoreFile, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		p := strings.TrimSpace(line)
+		if slices.Contains(sourceAmbiguous, p) && matchesTracked(p, tracked) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+// claudeDenyRules builds the read rules for the project at dir from
+// ignoreFile, keeping the build-output and media patterns readable where
+// git tracks files under them.
+func claudeDenyRules(dir, ignoreFile string) []string {
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	defer cancel()
+	return denyRules(withoutTrackedSource(ignoreFile, gitTrackedFiles(ctx, dir)))
 }
 
 // mergeDenyRules adds rules to the permissions.deny list of the settings

@@ -19,13 +19,15 @@ VERSION  ?= dev
 MODULE   := github.com/oito2/perci
 LDFLAGS  := -X $(MODULE)/internal/version.Version=$(VERSION)
 DIST     := dist
+# The production tag turns off Wails' debug mode (webview developer tools).
+TAGS     := production
 
 .PHONY: build run test test-frontend lint clean install release generate-bindings
 
-# Builds without a `-tags` flag: GTK4 + WebKitGTK 6.0 is the default
+# Builds with the production tag only: GTK4 + WebKitGTK 6.0 is the default
 # stack. -trimpath keeps the builder's local paths out of the binary.
 build:
-	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(CMD)
+	go build -tags $(TAGS) -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(CMD)
 
 run: build
 	./$(BINARY)
@@ -88,7 +90,7 @@ MENU_STAGE := $(DIST)/menu
 release:
 	@echo "Building release $(VERSION)..."
 	@mkdir -p $(DIST)
-	go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/prci-linux-amd64 $(CMD)
+	go build -tags $(TAGS) -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/prci-linux-amd64 $(CMD)
 	rm -rf $(MENU_STAGE)
 	mkdir -p $(MENU_STAGE)/share/applications $(MENU_STAGE)/share/icons
 	cp packaging/perci.desktop $(MENU_STAGE)/share/applications/perci.desktop

@@ -50,6 +50,16 @@ function partialBadge(row) {
   return badge;
 }
 
+// retiredBadge is the "fora do catálogo" tag of an entry that left the
+// catalog and is listed only so it can be removed, or null for any other row.
+function retiredBadge(row) {
+  if (!row.retired) return null;
+  const badge = document.createElement("span");
+  badge.className = "badge badge-ghost badge-sm ml-2";
+  badge.textContent = "fora do catálogo";
+  return badge;
+}
+
 const asTable = createScopedTable({
   els: { select: asScopeSelect, alertTitle: asScopeAlertTitle, alertDesc: asScopeAlertDesc, pickButton: btnAsPickFolder, rows: asRows },
   noun: "das SKILLs",
@@ -57,7 +67,7 @@ const asTable = createScopedTable({
   pickFolder: function () { return App.PickAgentSkillsFolder(); },
   fetchRows: function (global, folder) { return App.GetAgentSkillsRows(global, folder); },
   keyOf: function (row) { return row.slug; },
-  sigOf: function (row) { return [row.slug, row.name, row.installed, row.partial, (row.agents || []).join(",")].join("|"); },
+  sigOf: function (row) { return [row.slug, row.name, row.installed, row.partial, row.retired, (row.agents || []).join(",")].join("|"); },
   buildRow: function (row) { return buildAgentSkillRow(row); },
 });
 
@@ -70,6 +80,8 @@ function buildAgentSkillRow(row) {
   tdName.textContent = row.name;
   const badge = partialBadge(row);
   if (badge) tdName.appendChild(badge);
+  const retired = retiredBadge(row);
+  if (retired) tdName.appendChild(retired);
   tr.appendChild(tdName);
 
   const tdActions = document.createElement("td");
@@ -105,7 +117,8 @@ function buildAgentSkillRow(row) {
   });
 
   wrap.appendChild(btnToggle);
-  wrap.appendChild(btnUpdate);
+  // A retired entry can only be removed.
+  if (!row.retired) wrap.appendChild(btnUpdate);
   tdActions.appendChild(wrap);
   tr.appendChild(tdActions);
   return tr;

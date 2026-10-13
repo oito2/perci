@@ -17,6 +17,7 @@ package main
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -221,6 +222,54 @@ func TestRecreateDockerContainer_UnknownKindFailsTheAction(t *testing.T) {
 	}
 }
 
+// countActive counts the catalogue entries that are not retired.
+func countActive[T any](catalogue []T, retired func(T) bool) int {
+	n := 0
+	for _, e := range catalogue {
+		if !retired(e) {
+			n++
+		}
+	}
+	return n
+}
+
+// A retired catalogue entry is listed only in the scope where it is still
+// installed, flagged so the screen offers only its removal.
+func TestRetiredEntries_ListedOnlyWhileInstalled(t *testing.T) {
+	isolateActions(t)
+	b, _ := newTestBase(t)
+	devTools := &DevToolsService{*b}
+
+	if rows := rowsOrNil(devTools.GetAgentSkillsRows(true, "")); slices.ContainsFunc(rows, func(r AgentSkillRow) bool { return r.Slug == "php-specialist" }) {
+		t.Error("a retired skill that is not installed must not be listed")
+	}
+	if err := recordAgentSkillInstall("php-specialist", true, "", []string{"claude-code"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := recordMCPServerInstall("sqlite", true, "", "/db.sqlite", []string{"claude"}, true); err != nil {
+		t.Fatal(err)
+	}
+	skills := rowsOrNil(devTools.GetAgentSkillsRows(true, ""))
+	if i := slices.IndexFunc(skills, func(r AgentSkillRow) bool { return r.Slug == "php-specialist" }); i < 0 || !skills[i].Retired || !skills[i].Installed {
+		t.Errorf("installed retired skill row missing or unflagged: %+v", skills)
+	}
+	servers := rowsOrNil(devTools.GetMCPServerRows(true, ""))
+	if i := slices.IndexFunc(servers, func(r MCPServerRow) bool { return r.Slug == "sqlite" }); i < 0 || !servers[i].Retired || !servers[i].Installed {
+		t.Errorf("registered retired MCP row missing or unflagged: %+v", servers)
+	}
+	if local := rowsOrNil(devTools.GetMCPServerRows(false, t.TempDir())); slices.ContainsFunc(local, func(r MCPServerRow) bool { return r.Slug == "sqlite" }) {
+		t.Error("a retired MCP registered in another scope must not be listed")
+	}
+}
+
+// rowsOrNil returns rows, or nil on err so the assertions on them fail.
+func rowsOrNil[T any](rows []T, err error) []T {
+	if err != nil {
+		return nil
+	}
+	return rows
+}
+
 // The screens' read-only getters answer without panicking and list one row
 // per catalogue entry. GetSelfUpdateInfo is left out: it asks GitHub.
 func TestGetters_ListTheirCatalogues(t *testing.T) {
@@ -239,8 +288,8 @@ func TestGetters_ListTheirCatalogues(t *testing.T) {
 		"sdks":      {len(devSetup.GetSDKsInfo()), len(sdks.Catalogue)},
 		"flatpak":   {len(linux.GetFlatpakAppsInfo()), len(apps.Catalogue)},
 		"templates": {len(linux.GetTemplatesInfo()), len(templates.Catalogue)},
-		"skills":    {mustLen(devTools.GetAgentSkillsRows(true, "")), len(agentskills.Catalogue)},
-		"mcp":       {mustLen(devTools.GetMCPServerRows(true, "")), len(mcpservers.Catalogue)},
+		"skills":    {mustLen(devTools.GetAgentSkillsRows(true, "")), countActive(agentskills.Catalogue, func(s agentskills.Skill) bool { return s.Retired })},
+		"mcp":       {mustLen(devTools.GetMCPServerRows(true, "")), countActive(mcpservers.Catalogue, func(s mcpservers.Server) bool { return s.Retired })},
 	}
 	for name, l := range lists {
 		if l.got != l.want || l.got == 0 {

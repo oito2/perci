@@ -39,4 +39,4 @@ O Perci cria o `~/.perci/config.yaml` na primeira vez que você altera uma confi
 3. **Linux :: Pós-instalação** — os itens da sua distro/DE detectada, cada um com seu próprio botão **Aplicar** (que vira **Aplicado** quando o item já está aplicado).
 4. **Desenvolvimento :: Pré-requisitos** — instale o toolchain de compilação, Git, curl, Docker Engine, mkcert e NPM; cada linha tem seus próprios botões **Instalar**, **Atualizar** e **Desinstalar**, e um item que precisa de outro fica desabilitado ("Requer: …") até esse outro estar instalado.
 5. **Docker :: Criar Container** — crie os containers Nginx e MariaDB, depois seu primeiro container de aplicativo (veja o [guia da stack Docker de aplicativos](../guides/environments/docker.md) para o ciclo de vida completo).
-6. **Dev Tools :: IA: Contextos** — já dentro de um projeto real, gere `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.
+6. **Dev Tools :: IA: Contextos** — já dentro de um projeto real, escolha o **Tipo de projeto** (ou marque os padrões à mão) e gere `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.

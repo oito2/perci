@@ -63,11 +63,17 @@ type Server struct {
 	Slug string
 	Name string
 
+	// Note is a short description shown under the name.
+	Note string
+
 	// Param/ParamLabel: some servers need an extra value before Install
-	// can run (Filesystem: an allowed directory; SQLite: a .sqlite file
-	// path).
+	// can run (Filesystem: an allowed directory; DBHub: its dbhub.toml).
 	Param      ParamKind
 	ParamLabel string
+
+	// Retired: the entry left the catalog. It is listed only where it is
+	// still registered, and can only be removed.
+	Retired bool
 
 	// Manual: true means there is no command to automate, so
 	// Install/Remove/Update don't apply. ManualURL/ManualNote are shown
@@ -85,8 +91,34 @@ var Catalogue = []Server{
 		Param: ParamDirectory, ParamLabel: "Pasta permitida",
 	},
 	{
+		Slug: "context7", Name: "Context7",
+		Note: "Documentação atualizada de bibliotecas e frameworks. As consultas são enviadas para context7.com.",
+	},
+	{
+		Slug: "gopls", Name: "Go: gopls MCP",
+		Note: "Diagnósticos, referências e vulncheck do servidor de linguagem oficial do Go. Requer o gopls no PATH " +
+			"(go install golang.org/x/tools/gopls@v0.23.0); usa a pasta em que o agente é aberto como workspace.",
+	},
+	{
+		Slug: "chrome-devtools", Name: "Chrome DevTools MCP",
+		Note: "Navegação, console, rede e performance no navegador. Requer o Google Chrome; abre um perfil " +
+			"temporário isolado e a telemetria de uso fica desligada.",
+	},
+	{
+		Slug: "svelte", Name: "Svelte MCP (oficial)",
+		Note: "Documentação do Svelte/SvelteKit e verificação de componentes.",
+	},
+	{
+		Slug: "dbhub", Name: "DBHub (MySQL, MariaDB, SQLite...)",
+		Note: "Bancos configurados num dbhub.toml ([[sources]] com o dsn). Para somente leitura, adicione " +
+			"[[tools]] com name = \"execute_sql\" e readonly = true. A senha fica no arquivo — mantenha-o fora do git.",
+		Param: ParamFile, ParamLabel: "Arquivo dbhub.toml",
+	},
+	{
 		Slug: "sqlite", Name: "SQLite",
+		Note:  "Fora do catálogo: o servidor foi arquivado e permite escrita. Use o DBHub.",
 		Param: ParamFile, ParamLabel: "Caminho do arquivo .sqlite",
+		Retired: true,
 	},
 	{
 		Slug: "godot-studio", Name: "Godot Studio",
@@ -99,11 +131,15 @@ var Catalogue = []Server{
 	},
 }
 
-// filesystemServerPkg/sqliteServerPkg pin the exact package versions the
-// agents launch, instead of whatever npx/uvx resolves as latest.
+// The *ServerPkg constants pin the exact package versions the agents
+// launch, instead of whatever npx/uvx resolves as latest.
 const (
-	filesystemServerPkg = "@modelcontextprotocol/server-filesystem@2026.8.31"
-	sqliteServerPkg     = "mcp-server-sqlite@2025.4.25"
+	filesystemServerPkg     = "@modelcontextprotocol/server-filesystem@1.0.0"
+	sqliteServerPkg         = "mcp-server-sqlite@2025.4.25"
+	context7ServerPkg       = "@upstash/context7-mcp@4.4.1"
+	chromeDevToolsServerPkg = "chrome-devtools-mcp@1.10.1"
+	svelteServerPkg         = "@sveltejs/mcp@0.1.26"
+	dbhubServerPkg          = "@bytebase/dbhub@1.5.0"
 )
 
 // BySlug resolves a catalog entry by its Slug.
@@ -150,22 +186,56 @@ func ExpectedAgents(slug string, global bool) []string {
 	return agents
 }
 
-// genericLaunch describes how the generic servers (Filesystem, SQLite) are
-// launched: the command, and the package name — without its version — among
-// the arguments.
-type genericLaunch struct {
+// genericServer describes a server registered through the agents' plain
+// command + arguments form: the launcher command, the marker found among
+// the arguments of an entry Perci registered (the package name without its
+// version, or the subcommand), the arguments for a given parameter, and the
+// error shown when the launcher is not installed.
+type genericServer struct {
 	command string
-	pkg     string
+	marker  string
+	args    func(param string) []string
+	missing string
 }
 
-func launchOf(slug string) (genericLaunch, bool) {
-	switch slug {
-	case "filesystem":
-		return genericLaunch{"npx", pkgBase(filesystemServerPkg)}, true
-	case "sqlite":
-		return genericLaunch{"uvx", pkgBase(sqliteServerPkg)}, true
+const npxMissing = "npx não encontrado — instale o Node.js em Pré-requisitos antes de registrar este MCP"
+
+// npxServer is a server launched as `npx -y <pkg> <extra...>`.
+func npxServer(pkg string, extra ...string) genericServer {
+	return genericServer{
+		command: "npx",
+		marker:  pkgBase(pkg),
+		args:    func(string) []string { return append([]string{"-y", pkg}, extra...) },
+		missing: npxMissing,
 	}
-	return genericLaunch{}, false
+}
+
+// genericServers maps each catalog slug registered as a plain command to
+// how it is launched.
+var genericServers = map[string]genericServer{
+	"filesystem": {
+		command: "npx", marker: pkgBase(filesystemServerPkg),
+		args:    func(dir string) []string { return []string{"-y", filesystemServerPkg, dir} },
+		missing: npxMissing,
+	},
+	"sqlite": {
+		command: "uvx", marker: pkgBase(sqliteServerPkg),
+		args:    func(db string) []string { return []string{sqliteServerPkg, "--db-path", db} },
+		missing: "uvx não encontrado — instale o uv (https://docs.astral.sh/uv/) antes de registrar o MCP SQLite",
+	},
+	"context7":        npxServer(context7ServerPkg),
+	"chrome-devtools": npxServer(chromeDevToolsServerPkg, "--isolated", "--no-usage-statistics"),
+	"svelte":          npxServer(svelteServerPkg),
+	"dbhub": {
+		command: "npx", marker: pkgBase(dbhubServerPkg),
+		args:    func(cfg string) []string { return []string{"-y", dbhubServerPkg, "--config=" + cfg} },
+		missing: npxMissing,
+	},
+	"gopls": {
+		command: "gopls", marker: "mcp",
+		args:    func(string) []string { return []string{"mcp"} },
+		missing: "gopls não encontrado no PATH — instale com `go install golang.org/x/tools/gopls@v0.23.0` e adicione o diretório de binários do Go (`go env GOPATH`/bin) ao PATH",
+	},
 }
 
 // pkgBase strips the "@version" suffix of an npm/PyPI package reference.
@@ -178,33 +248,39 @@ func pkgBase(ref string) string {
 
 // createdByPerci reports whether a server entry with this command and
 // arguments is the one Perci registers for slug, whatever the package
-// version or the parameter: the entry's command and package name match.
+// version or the parameter: the entry's command and marker match.
 func createdByPerci(slug, command string, args []string) bool {
-	l, ok := launchOf(slug)
-	if !ok || command != l.command {
+	g, ok := genericServers[slug]
+	if !ok || command != g.command {
 		return false
 	}
-	return slices.ContainsFunc(args, func(a string) bool { return a == l.pkg || strings.HasPrefix(a, l.pkg+"@") })
+	return slices.ContainsFunc(args, func(a string) bool { return a == g.marker || strings.HasPrefix(a, g.marker+"@") })
 }
 
 // errNotCreatedByPerci means a server of that name exists but was not
 // registered by Perci, so it is left alone.
 var errNotCreatedByPerci = errors.New("já existe um servidor com esse nome que não foi registrado pelo Perci — foi mantido")
 
-// requireTool fails when the launcher a generic server needs (npx for
-// Filesystem, uvx for SQLite) is not installed.
+// requireTool fails when the launcher a generic server needs is not
+// installed.
 func requireTool(ctx context.Context, exe *executor.Executor, slug string) error {
-	switch slug {
-	case "filesystem":
-		if !localbin.Which(ctx, exe, "npx") {
-			return fmt.Errorf("npx não encontrado — instale o Node.js em Pré-requisitos antes de registrar o MCP Filesystem")
-		}
-	case "sqlite":
-		if !localbin.Which(ctx, exe, "uvx") {
-			return fmt.Errorf("uvx não encontrado — instale o uv (https://docs.astral.sh/uv/) antes de registrar o MCP SQLite")
+	g, ok := genericServers[slug]
+	if !ok || localbin.Which(ctx, exe, g.command) {
+		return nil
+	}
+	return errors.New(g.missing)
+}
+
+// warnMissingChrome tells the user, without failing, when no Google Chrome
+// binary is found for the Chrome DevTools MCP, which launches the stable
+// channel.
+func warnMissingChrome(ctx context.Context, exe *executor.Executor, stdout io.Writer) {
+	for _, c := range []string{"google-chrome", "google-chrome-stable"} {
+		if localbin.Which(ctx, exe, c) {
+			return
 		}
 	}
-	return nil
+	ui.Warning(stdout, "Google Chrome não encontrado — o Chrome DevTools MCP só funciona com o Chrome instalado.")
 }
 
 // ── shared scope handling (Claude Code + cwd-based execution) ───────────
@@ -467,7 +543,7 @@ func (r *agentResults) err(what string) error {
 	return fmt.Errorf("nenhum agente aceitou %s: %w", what, errors.Join(r.errs...))
 }
 
-// ── generic registration (Filesystem, SQLite) ────────────────────────────
+// ── generic registration ─────────────────────────────────────────────────
 
 // installGeneric registers a generic server with every agent that applies
 // and returns the agents that accepted it.
@@ -613,21 +689,16 @@ func updateDartFlutter(ctx context.Context, exe *executor.Executor, stdout io.Wr
 
 // ── catalog dispatch ──────────────────────────────────────────────────────
 
-// validateParam checks the extra parameter filesystem/sqlite need: an
-// absolute path (a directory or a .sqlite file), which also means it can
-// never start with "-" and be read as an option by npx/uvx.
+// validateParam checks the extra parameter a server takes (Filesystem's
+// directory, DBHub's dbhub.toml): an absolute path, which also means it can
+// never start with "-" and be read as an option by the launcher.
 func validateParam(slug, param string) error {
-	switch slug {
-	case "filesystem":
-		if param == "" {
-			return fmt.Errorf("selecione uma pasta permitida antes de instalar")
-		}
-	case "sqlite":
-		if param == "" {
-			return fmt.Errorf("informe o caminho do arquivo .sqlite antes de instalar")
-		}
-	default:
+	sv, ok := BySlug(slug)
+	if !ok || sv.Param == ParamNone {
 		return nil
+	}
+	if param == "" {
+		return fmt.Errorf("selecione o parâmetro (%s) antes de instalar", strings.ToLower(sv.ParamLabel))
 	}
 	if !filepath.IsAbs(param) {
 		return fmt.Errorf("o parâmetro de %s deve ser um caminho absoluto (recebido: %q)", slug, param)
@@ -635,27 +706,41 @@ func validateParam(slug, param string) error {
 	return nil
 }
 
+// refuseRetired fails for an entry that left the catalog: it can still be
+// removed, but not installed or updated.
+func refuseRetired(slug string) error {
+	if sv, ok := BySlug(slug); ok && sv.Retired {
+		return fmt.Errorf("%s saiu do catálogo do Perci — só pode ser removido", sv.Name)
+	}
+	return nil
+}
+
 // Install registers slug with every supported agent and returns the IDs of
-// the agents that accepted it. param is required for "filesystem" (an
-// allowed directory) and "sqlite" (a .sqlite file path); ignored
-// otherwise. Fails when no agent accepted the registration, and — for the
-// servers launched through npx/uvx — when that launcher is not installed.
+// the agents that accepted it. param is required for the servers that take
+// one (Server.Param) and ignored otherwise. Fails when no agent accepted the
+// registration, when the server's launcher is not installed, and for an
+// entry that left the catalog.
 func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug string, global bool, folder, param string) ([]string, error) {
+	if err := refuseRetired(slug); err != nil {
+		return nil, err
+	}
 	if err := validateParam(slug, param); err != nil {
 		return nil, err
 	}
 	if err := requireTool(ctx, exe, slug); err != nil {
 		return nil, err
 	}
-	switch slug {
-	case "dart-flutter":
+	if slug == "dart-flutter" {
 		return installDartFlutter(ctx, exe, stdout, global, folder)
-	case "filesystem":
-		return installGeneric(ctx, exe, stdout, "filesystem", global, folder, "npx", []string{"-y", filesystemServerPkg, param})
-	case "sqlite":
-		return installGeneric(ctx, exe, stdout, "sqlite", global, folder, "uvx", []string{sqliteServerPkg, "--db-path", param})
 	}
-	return nil, fmt.Errorf("instalação não suportada para %s", slug)
+	g, ok := genericServers[slug]
+	if !ok {
+		return nil, fmt.Errorf("instalação não suportada para %s", slug)
+	}
+	if slug == "chrome-devtools" {
+		warnMissingChrome(ctx, exe, stdout)
+	}
+	return installGeneric(ctx, exe, stdout, slug, global, folder, g.command, g.args(param))
 }
 
 // Remove unregisters slug from every supported agent. Failures stay
@@ -663,15 +748,15 @@ func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug
 // still be removable from Perci's list. A server of the same name that
 // Perci did not register is kept.
 func Remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug string, global bool, folder string) error {
-	switch slug {
-	case "dart-flutter":
+	if slug == "dart-flutter" {
 		removeDartFlutter(ctx, exe, stdout, global, folder)
 		return nil
-	case "filesystem", "sqlite":
-		removeGeneric(ctx, exe, stdout, slug, global, folder)
-		return nil
 	}
-	return fmt.Errorf("remoção não suportada para %s", slug)
+	if _, ok := genericServers[slug]; !ok {
+		return fmt.Errorf("remoção não suportada para %s", slug)
+	}
+	removeGeneric(ctx, exe, stdout, slug, global, folder)
+	return nil
 }
 
 // Update refreshes slug's registration and returns the agents that hold it
@@ -680,24 +765,27 @@ func Remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug 
 // first so a missing parameter or launcher can't remove the server and
 // then fail.
 func Update(ctx context.Context, exe *executor.Executor, stdout io.Writer, slug string, global bool, folder, param string) ([]string, error) {
-	switch slug {
-	case "dart-flutter":
-		return updateDartFlutter(ctx, exe, stdout, global, folder)
-	case "filesystem", "sqlite":
-		if err := validateParam(slug, param); err != nil {
-			return nil, err
-		}
-		if err := requireTool(ctx, exe, slug); err != nil {
-			return nil, err
-		}
-		removeGeneric(ctx, exe, stdout, slug, global, folder)
-		agents, err := Install(ctx, exe, stdout, slug, global, folder, param)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrNotReinstalled, err)
-		}
-		return agents, nil
+	if err := refuseRetired(slug); err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("atualização não suportada para %s", slug)
+	if slug == "dart-flutter" {
+		return updateDartFlutter(ctx, exe, stdout, global, folder)
+	}
+	if _, ok := genericServers[slug]; !ok {
+		return nil, fmt.Errorf("atualização não suportada para %s", slug)
+	}
+	if err := validateParam(slug, param); err != nil {
+		return nil, err
+	}
+	if err := requireTool(ctx, exe, slug); err != nil {
+		return nil, err
+	}
+	removeGeneric(ctx, exe, stdout, slug, global, folder)
+	agents, err := Install(ctx, exe, stdout, slug, global, folder, param)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNotReinstalled, err)
+	}
+	return agents, nil
 }
 
 // ErrNotReinstalled means Update removed the server but no agent accepted

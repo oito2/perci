@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
-
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/dev/mcpservers"
 )
@@ -38,24 +36,22 @@ func (t *DevToolsService) PickMCPFolder() (string, error) {
 }
 
 // PickMCPServerParam opens the right native dialog for slug's extra
-// parameter — a folder picker for "filesystem" (allowed directory), a
-// "Salvar Como"-style dialog for "sqlite" (lets the user point at a new,
-// not-yet-existing .sqlite file, not just browse for one that already
-// exists). Returns an error if slug doesn't take a parameter.
+// parameter — a folder picker for "filesystem" (allowed directory), a file
+// picker filtered to TOML files for "dbhub" (its dbhub.toml). Returns an
+// error if slug doesn't take a parameter or left the catalog.
 func (t *DevToolsService) PickMCPServerParam(slug string) (string, error) {
 	sv, ok := mcpservers.BySlug(slug)
-	if !ok {
+	if !ok || sv.Retired {
 		return "", fmt.Errorf("MCP desconhecido: %s", slug)
 	}
 	switch sv.Param {
 	case mcpservers.ParamDirectory:
 		return t.pickFolder("Selecionar pasta permitida")
 	case mcpservers.ParamFile:
-		return approvePath(t.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
-			Title:    "Selecionar/criar arquivo .sqlite",
-			Filename: "database.sqlite",
-			Filters:  []application.FileFilter{{DisplayName: "SQLite (*.sqlite, *.db)", Pattern: "*.sqlite;*.db"}},
-		}).PromptForSingleSelection())
+		return approvePath(t.wailsApp.Dialog.OpenFile().
+			SetTitle("Selecionar "+sv.ParamLabel).
+			AddFilter("TOML (*.toml)", "*.toml").
+			PromptForSingleSelection())
 	}
 	return "", fmt.Errorf("%s não precisa de um parâmetro extra", slug)
 }
@@ -63,10 +59,13 @@ func (t *DevToolsService) PickMCPServerParam(slug string) (string, error) {
 // MCPServerRow is one row of "Dev Tools :: IA: MCPs". Agents lists, by
 // name, the agents that accepted the registration (empty for a record
 // written before they were recorded); Partial is set when some agent that
-// applies to the scope is missing.
+// applies to the scope is missing. Retired marks an entry that left the
+// catalog, listed only while registered so it can be removed.
 type MCPServerRow struct {
 	Slug       string   `json:"slug"`
 	Name       string   `json:"name"`
+	Note       string   `json:"note"`
+	Retired    bool     `json:"retired"`
 	Installed  bool     `json:"installed"`
 	Partial    bool     `json:"partial"`
 	Agents     []string `json:"agents"`
@@ -94,20 +93,23 @@ func (t *DevToolsService) GetMCPServerRows(global bool, folder string) ([]MCPSer
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]MCPServerRow, len(mcpservers.Catalogue))
-	for i, sv := range mcpservers.Catalogue {
-		rows[i] = MCPServerRow{
-			Slug: sv.Slug, Name: sv.Name, Agents: []string{},
+	rows := make([]MCPServerRow, 0, len(mcpservers.Catalogue))
+	for _, sv := range mcpservers.Catalogue {
+		row := MCPServerRow{
+			Slug: sv.Slug, Name: sv.Name, Note: sv.Note, Retired: sv.Retired, Agents: []string{},
 			ParamKind: string(sv.Param), ParamLabel: sv.ParamLabel,
 			Manual: sv.Manual, ManualURL: sv.ManualURL, ManualNote: sv.ManualNote,
 		}
 		if idx := findMCPServerInstall(cfg.MCPServers, sv.Slug, global, folder); idx >= 0 {
 			rec := cfg.MCPServers[idx]
-			rows[i].Installed = true
-			rows[i].Param = rec.Param
-			rows[i].Partial = isPartial(rec.Agents, mcpservers.ExpectedAgents(sv.Slug, global))
-			rows[i].Agents = agentLabels(rec.Agents, mcpservers.AgentLabel)
+			row.Installed = true
+			row.Param = rec.Param
+			row.Partial = isPartial(rec.Agents, mcpservers.ExpectedAgents(sv.Slug, global))
+			row.Agents = agentLabels(rec.Agents, mcpservers.AgentLabel)
+		} else if sv.Retired {
+			continue
 		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }

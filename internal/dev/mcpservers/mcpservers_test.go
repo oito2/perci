@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -36,6 +37,10 @@ func TestValidateParam(t *testing.T) {
 		{"filesystem", "--help", false},
 		{"sqlite", "/home/u/db.sqlite", true},
 		{"sqlite", "", false},
+		{"dbhub", "/home/u/dbhub.toml", true},
+		{"dbhub", "", false},
+		{"dbhub", "dbhub.toml", false},
+		{"context7", "", true},
 		{"dart-flutter", "", true},
 	}
 	for _, tc := range cases {
@@ -116,5 +121,27 @@ func TestAntigravityConfig_RejectsNonObjectServers(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(path); string(data) != `{"mcpServers":[1,2]}` {
 		t.Errorf("file must be left untouched, got %s", data)
+	}
+}
+
+// Every automated catalog entry has a launch definition, and every npm/PyPI
+// package is pinned to an exact version.
+func TestCatalogue_GenericEntriesArePinned(t *testing.T) {
+	for _, sv := range Catalogue {
+		if sv.Manual || sv.Slug == "dart-flutter" {
+			continue
+		}
+		g, ok := genericServers[sv.Slug]
+		if !ok {
+			t.Errorf("%s: no launch definition", sv.Slug)
+			continue
+		}
+		if g.command == "gopls" {
+			continue
+		}
+		args := strings.Join(g.args("/p"), " ")
+		if !regexp.MustCompile(regexp.QuoteMeta(g.marker) + `@\d+\.\d+\.\d+( |$)`).MatchString(args) {
+			t.Errorf("%s: package not pinned to an exact version: %s", sv.Slug, args)
+		}
 	}
 }

@@ -52,6 +52,24 @@ func (t *DevToolsService) GetAIContextItems(folder string) []MultiSelectItemInfo
 	return items
 }
 
+// AIContextPreset is a project type of "Dev Tools :: IA: Contextos": the
+// models it checks at once and an optional hint about what to add by hand.
+type AIContextPreset struct {
+	Name   string   `json:"name"`
+	Models []string `json:"models"`
+	Hint   string   `json:"hint,omitempty"`
+}
+
+// GetAIContextPresets lists the project types the screen offers.
+func (t *DevToolsService) GetAIContextPresets() []AIContextPreset {
+	all := managerai.Presets()
+	out := make([]AIContextPreset, len(all))
+	for i, p := range all {
+		out[i] = AIContextPreset{Name: p.Name, Models: p.Models, Hint: p.Hint}
+	}
+	return out
+}
+
 // ApplyAIContext (re)generates CLAUDE.md/AGENTS.md/ignore files and each
 // checked model's .instructions/*.md file in folder, and removes the
 // .instructions/*.md of any model that was active and got unchecked (see

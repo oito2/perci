@@ -181,7 +181,7 @@ func TestGenerateSharedFiles_ContainsInstructionReference(t *testing.T) {
 func TestGenerateSharedFiles_MultipleModels(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	active := []Model{models[0], models[1]} // Linux Bash + Moodle
+	active := []Model{modelNamed(t, "Linux Bash"), modelNamed(t, "Moodle")}
 	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestGenerateSharedFiles_EmptySelection(t *testing.T) {
 func TestGenerateSharedFiles_WritesInstructionFiles(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	active := []Model{models[0], models[1]} // Linux Bash + Moodle
+	active := []Model{modelNamed(t, "Linux Bash"), modelNamed(t, "Moodle")}
 	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
@@ -238,12 +238,13 @@ func TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel(t *testin
 	t.Chdir(t.TempDir())
 
 	// First run with both active — both instruction files get created.
-	both := []Model{models[0], models[1]} // Linux Bash + Moodle
+	moodle := modelNamed(t, "Moodle")
+	both := []Model{models[0], moodle} // Linux Bash + Moodle
 	if err := GenerateSharedFiles("", both, false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles (both): %v", err)
 	}
 	bashDest := filepath.Join(".instructions", filepath.Base(models[0].Instruction))
-	moodleDest := filepath.Join(".instructions", filepath.Base(models[1].Instruction))
+	moodleDest := filepath.Join(".instructions", filepath.Base(moodle.Instruction))
 	if _, err := os.Stat(bashDest); err != nil {
 		t.Fatalf("setup: expected %s to exist: %v", bashDest, err)
 	}
@@ -549,4 +550,54 @@ func TestGenerateSharedFiles_DeselectKeepsEditedInstruction(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Every preset names catalog models only, and carries the base each of its
+// complements requires.
+func TestPresets_ReferenceCatalogModels(t *testing.T) {
+	byName := map[string]Model{}
+	for _, m := range Models() {
+		byName[m.Name] = m
+	}
+	for _, p := range Presets() {
+		inPreset := map[string]bool{}
+		for _, name := range p.Models {
+			if _, ok := byName[name]; !ok {
+				t.Errorf("preset %q: unknown model %q", p.Name, name)
+			}
+			inPreset[name] = true
+		}
+		for _, name := range p.Models {
+			if req := byName[name].Requires; req != "" && !inPreset[req] {
+				t.Errorf("preset %q: %q requires %q, which is missing", p.Name, name, req)
+			}
+		}
+	}
+}
+
+// Every catalog model points at an embedded instruction file, and every
+// required base exists and comes before its complement.
+func TestModels_InstructionFilesAndRequires(t *testing.T) {
+	seen := map[string]bool{}
+	for _, m := range Models() {
+		if _, err := readTpl(m.Instruction); err != nil {
+			t.Errorf("%s: %v", m.Name, err)
+		}
+		if m.Requires != "" && !seen[m.Requires] {
+			t.Errorf("%s requires %q, which is not listed before it", m.Name, m.Requires)
+		}
+		seen[m.Name] = true
+	}
+}
+
+// modelNamed returns the catalog model called name.
+func modelNamed(t *testing.T, name string) Model {
+	t.Helper()
+	for _, m := range Models() {
+		if m.Name == name {
+			return m
+		}
+	}
+	t.Fatalf("no model named %q", name)
+	return Model{}
 }

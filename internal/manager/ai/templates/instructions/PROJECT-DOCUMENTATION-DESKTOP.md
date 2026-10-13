@@ -34,6 +34,25 @@ Document the commands to produce each distributable artifact **the project actua
 
 For each: the exact build command, its build-time dependencies, the output path, and code signing/notarization steps when the project has them. Artifacts the project doesn't produce are not documented.
 
+### Tauri v2
+
+- `tauri build` (run through the project's package manager, e.g. `npm run tauri build`, or `cargo tauri build`) builds and bundles the targets set in `bundle.targets` of `tauri.conf.json`; `--bundles` selects specific ones (e.g. `--bundles deb,rpm`), `--no-bundle` skips bundling.
+- Bundle target names: `deb`, `rpm`, `appimage` (Linux); `msi`, `nsis` (Windows); `app`, `dmg` (macOS); `all` bundles every target.
+- Platform constraints: `msi` (WiX) can only be built on Windows; `nsis` can be cross-compiled from Linux/macOS with caveats; `app`/`dmg` are built on macOS. Document the OS each artifact must be built on.
+- Take the output path from the build log or the CI workflow (bundles are written under the Cargo target directory, e.g. `target/<triple>/release/bundle/nsis/` for a `--target` build) — don't guess it.
+
+**Updater signing** (only when the project uses the updater plugin):
+
+- Keys are generated with `tauri signer generate -w ~/.tauri/<app>.key`. The **public key** content goes in `plugins.updater.pubkey` in `tauri.conf.json` (committed); the **private key** is never committed — it is provided at build time through the environment variables `TAURI_SIGNING_PRIVATE_KEY` (path or content) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (`.env` files are not read), or as CI secrets.
+- `bundle.createUpdaterArtifacts: true` makes the build emit signed update artifacts next to the installers: `.AppImage` + `.sig` (Linux), `.app.tar.gz` + `.sig` (macOS), the `-setup.exe`/`.msi` + `.sig` (Windows).
+- `plugins.updater.endpoints` lists HTTPS URLs (TLS is enforced in production) returning the update manifest — a static JSON with `version`, optional `notes` and `pub_date` (RFC 3339), and `platforms` keyed `OS-ARCH` (e.g. `linux-x86_64`, `windows-x86_64`, `darwin-x86_64`), each with `url` and `signature` (the **content** of the `.sig` file, not a path). Document where the project publishes it (e.g. a release asset) and how a release updates it.
+
+### Wails v3
+
+- `wails3 package` runs the project's Taskfile `package` task for the target OS (`<os>:package` in `build/<os>/Taskfile.yml`); check those Taskfiles for what the project actually produces.
+- Generated defaults: **Linux** — AppImage, `.deb`, `.rpm` and an Arch Linux package; **Windows** — an NSIS installer (`FORMAT=msix` produces an `.msix` instead); **macOS** — the `.app` bundle, with the separate `package:dmg` task for a `.dmg`.
+- `wails3 tool package` generates individual packages (`--format deb|rpm|archlinux|dmg`) from the project's package config — document it when the project calls it directly.
+
 ---
 
 ## 3. Installation Footprint and Uninstallation

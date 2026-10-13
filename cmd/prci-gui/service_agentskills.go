@@ -37,13 +37,16 @@ func (t *DevToolsService) PickAgentSkillsFolder() (string, error) {
 
 // AgentSkillRow is one row of "Dev Tools :: IA: SKILLs". Agents lists, by
 // name, the agents that accepted the skill (empty for a record written
-// before they were recorded); Partial is set when some agent is missing.
+// before they were recorded); Partial is set when some agent is missing;
+// Retired marks an entry that left the catalog, listed only while
+// installed so it can be removed.
 type AgentSkillRow struct {
 	Slug      string   `json:"slug"`
 	Name      string   `json:"name"`
 	Installed bool     `json:"installed"`
 	Partial   bool     `json:"partial"`
 	Agents    []string `json:"agents"`
+	Retired   bool     `json:"retired"`
 }
 
 // findAgentSkillInstall returns the index of cfg.AgentSkills matching
@@ -87,15 +90,18 @@ func (t *DevToolsService) GetAgentSkillsRows(global bool, folder string) ([]Agen
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]AgentSkillRow, len(agentskills.Catalogue))
-	for i, sk := range agentskills.Catalogue {
-		rows[i] = AgentSkillRow{Slug: sk.Slug, Name: sk.Name, Agents: []string{}}
+	rows := make([]AgentSkillRow, 0, len(agentskills.Catalogue))
+	for _, sk := range agentskills.Catalogue {
+		row := AgentSkillRow{Slug: sk.Slug, Name: sk.Name, Agents: []string{}, Retired: sk.Retired}
 		if idx := findAgentSkillInstall(cfg.AgentSkills, sk.Slug, global, folder); idx >= 0 {
 			rec := cfg.AgentSkills[idx]
-			rows[i].Installed = true
-			rows[i].Partial = isPartial(rec.Agents, agentskills.TargetAgents())
-			rows[i].Agents = agentLabels(rec.Agents, agentskills.AgentLabel)
+			row.Installed = true
+			row.Partial = isPartial(rec.Agents, agentskills.TargetAgents())
+			row.Agents = agentLabels(rec.Agents, agentskills.AgentLabel)
+		} else if sk.Retired {
+			continue
 		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }

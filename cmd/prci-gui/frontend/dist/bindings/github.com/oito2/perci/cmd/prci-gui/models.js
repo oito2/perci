@@ -7,9 +7,61 @@
 import { Create as $Create } from "/wails/runtime.js";
 
 /**
+ * AIContextPreset is a project type of "Dev Tools :: IA: Contextos": the
+ * models it checks at once and an optional hint about what to add by hand.
+ */
+export class AIContextPreset {
+    /**
+     * Creates a new AIContextPreset instance.
+     * @param {Partial<AIContextPreset>} [$$source = {}] - The source object to create the AIContextPreset.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("models" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["models"] = [];
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["hint"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextPreset instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextPreset}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField1_0($$parsedSource["models"]);
+        }
+        return new AIContextPreset(/** @type {Partial<AIContextPreset>} */($$parsedSource));
+    }
+}
+
+/**
  * AgentSkillRow is one row of "Dev Tools :: IA: SKILLs". Agents lists, by
  * name, the agents that accepted the skill (empty for a record written
- * before they were recorded); Partial is set when some agent is missing.
+ * before they were recorded); Partial is set when some agent is missing;
+ * Retired marks an entry that left the catalog, listed only while
+ * installed so it can be removed.
  */
 export class AgentSkillRow {
     /**
@@ -51,6 +103,13 @@ export class AgentSkillRow {
              * @type {string[]}
              */
             this["agents"] = [];
+        }
+        if (!("retired" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["retired"] = false;
         }
 
         Object.assign(this, $$source);
@@ -485,7 +544,8 @@ export class ImportPreview {
  * MCPServerRow is one row of "Dev Tools :: IA: MCPs". Agents lists, by
  * name, the agents that accepted the registration (empty for a record
  * written before they were recorded); Partial is set when some agent that
- * applies to the scope is missing.
+ * applies to the scope is missing. Retired marks an entry that left the
+ * catalog, listed only while registered so it can be removed.
  */
 export class MCPServerRow {
     /**
@@ -506,6 +566,20 @@ export class MCPServerRow {
              * @type {string}
              */
             this["name"] = "";
+        }
+        if (!("note" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["note"] = "";
+        }
+        if (!("retired" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["retired"] = false;
         }
         if (!("installed" in $$source)) {
             /**
@@ -583,10 +657,10 @@ export class MCPServerRow {
      * @returns {MCPServerRow}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
+        const $$createField6_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("agents" in $$parsedSource) {
-            $$parsedSource["agents"] = $$createField4_0($$parsedSource["agents"]);
+            $$parsedSource["agents"] = $$createField6_0($$parsedSource["agents"]);
         }
         return new MCPServerRow(/** @type {Partial<MCPServerRow>} */($$parsedSource));
     }
