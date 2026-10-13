@@ -17,7 +17,7 @@ The GUI groups every action into five sidebar categories:
 | # | Category | Covers |
 |---|---|---|
 | 1 | **Home** | Dashboard/overview (with self-update and self-uninstall), settings. |
-| 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, Linux Toys, MegaSync, WebApps. |
+| 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, MegaSync, WebApps. |
 | 3 | **Desenvolvimento** | Building a dev environment: prerequisites, Go/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals. |
 | 4 | **Docker** | The per-project Docker application stack: creating and managing Nginx/MariaDB/PHP/Node containers, export/import. |
 | 5 | **Dev Tools** | Working inside an already-set-up project: Moodle plugin development folders mounted into Moodle containers, Git repository control, AI Context generation, AI skills, MCP server registration. |
@@ -29,6 +29,7 @@ The GUI groups every action into five sidebar categories:
 ![Linux → Atualizar Sistema](../../img/screenshots/linux-window.png)
 
 ![Desenvolvimento → Pré-requisitos](../../img/screenshots/dev-window.png)
+<!-- TODO: recapture dev-window.png with the Pré-requisitos table (Instalar/Atualizar/Desinstalar per row) -->
 
 ![Docker → Criar Contêiner](../../img/screenshots/docker-window.png)
 
@@ -60,6 +61,12 @@ The GUI groups every action into five sidebar categories:
 </table>
 
 ![System tray menu — Abrir Aplicativo shows the main window; Contêineres, Repositórios and Atualizar Sistema open the compact window](../../img/screenshots/tray-window.png)
+
+Only one Perci instance runs per session: opening it again from the distro menu (or running `prci`) brings the running window to the front instead of starting a second copy with its own tray icon.
+
+## Closing While an Action Runs
+
+Only one action runs at a time, and Perci doesn't quit under it: with the tray off, closing the main window — or choosing **Sair** in the tray menu — while an action is running is refused. The main window comes to the front on the **Execução** tab with a notice, and quitting works again once the action ends. The Execução terminal batches its output (about every 30 ms), so long outputs don't freeze the window.
 
 ## Distro-Aware, Not Distro-Agnostic
 

@@ -277,3 +277,43 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): **Dev Tools → Plugins Moodle** replaces the unreleased Links Simbólicos screen. The plugin is mounted with a systemd mount unit (`Before=docker.service`), its type and name come from `version.php` (locked) or, for an empty folder, from the form; the Moodle is picked from a list of Perci's Moodle containers and the destination follows its `lib/components.json`. The status column checks the real state (device and inode on the host, in the container and in Nginx); the row restarts the container and Nginx to apply, and removing restarts them too. A destination with content is refused.
 
 **Revisit if**: Moodle stops resolving plugin pages through `__DIR__`, the containers start mounting the whole workspace, or systemd mount units aren't available on a supported distro.
+
+## 2026-10-13 — Post-install items are applied one at a time
+
+**Context**: Linux → Pós-instalação was a checklist with one "Executar" button; each selected item escalated on its own, so a run asked for the administrator password once per item, and nothing showed what had already been applied.
+
+**Decision** (the user's choices): every item has its own **Aplicar** button, which turns into a disabled **Aplicado** once the item is in place; the "Executar" button is gone and an applied item is not run again. Applied state is detected on the system where the item leaves one (packages, sysctl file, swap, `fstrim.timer`, Flathub apps, Ubuntu components, RPM Fusion); the items that leave none (package index refresh, system upgrade, driver detection, cleanup) are recorded in `postinstall_applied` after a successful run. An item whose dependency isn't applied keeps its button disabled with a "Requer: <item>" hint.
+
+**Revisit if**: an item gains a detectable state, or re-running an applied item becomes necessary.
+
+## 2026-10-13 — Prerequisites are managed one item at a time, in dependency order
+
+**Context**: Desenvolvimento → Pré-requisitos was a checklist applied as one batch (check to install, uncheck to remove), with no way to update an item and nothing stopping an item from being installed before what its installer needs (curl for the GitHub CLI, Node.js and AppImageTool; Go for the Wails3 CLI).
+
+**Decision** (the user's choices): a table with one row per item and its own **Instalar**, **Atualizar** and **Desinstalar** buttons — Instalar only while the item isn't installed, the other two only while it is. Atualizar upgrades the item's own packages through the package manager, moves Node.js to the latest LTS (via nvm, carrying over the global npm packages of the default version) and reinstalls the version-pinned Wails3 CLI and AppImageTool. Requirements: Curl → GitHub CLI, Node.js, AppImageTool; Flatpak → Flatpak Builder; Go (Linguagens e SDKs) → Wails3 CLI; those come first in the list, and a dependent item's Instalar stays disabled with "Requer: …" until they are installed. Uninstalling is always allowed for an installed item (an installed dependent keeps working) and always asks for confirmation.
+
+**Revisit if**: an installer starts needing another catalogue item, or the pinned versions start following upstream releases.
+
+## 2026-10-13 — Linguagens e SDKs uses the Pré-requisitos table
+
+**Context**: Linguagens e SDKs (Go and Flutter) was the same install/remove checklist Pré-requisitos used to be. Go's installer downloads with `curl` and Flutter's starts with `git clone`, both Pré-requisitos items.
+
+**Decision** (the user's choice: same layout and behavior as Pré-requisitos): one table row per SDK with Instalar/Atualizar/Desinstalar, shared with Pré-requisitos (one frontend screen, one service helper). Atualizar installs the latest stable Go only when it is newer than the installed one, and runs `flutter upgrade` for Flutter. Go requires Curl and Flutter requires Git, shown as "Requer: … (Pré-requisitos)" until installed. Uninstalling always asks for confirmation.
+
+**Revisit if**: an SDK installer stops depending on those tools, or more SDKs are added with requirements between them.
+
+## 2026-10-13 — Budgie support (Ubuntu Budgie 24.04/26.04, Fedora Budgie 44)
+
+**Context**: Budgie 10.9 (Ubuntu Budgie 24.04) sets `XDG_CURRENT_DESKTOP=Budgie:GNOME` and Budgie 10.10 (Ubuntu Budgie 26.04, Fedora Budgie 44, Wayland with labwc) sets `Budgie` — read from the upstream session files. Ubuntu Budgie reports `ID=ubuntu`, so it already fell into the Ubuntu GNOME profile, which installs `gnome-tweaks` and `gnome-software-plugin-flatpak`; the latter depends on `gnome-software` (checked in `ubuntu:24.04`/`ubuntu:26.04`), a second software store on a desktop that uses Nemo and the snap store. Ubuntu Budgie 26.04 ships VLC as a package. Fedora's post-install actions don't depend on the desktop; the Budgie spin uses KDE apps (Dolphin, Konsole, Discover) and ships the Flathub remote.
+
+**Decision** (the user's choices): `DetectDE` recognizes Budgie (before GNOME). Ubuntu Budgie gets its own 24.04/26.04 profiles: the Ubuntu list without `gnome-tweaks` and `gnome-software-plugin-flatpak`, and on 26.04 the Flatpak step installs only the web-app manager. Fedora Budgie gets a "Fedora 44 Budgie" profile with the Fedora actions.
+
+**Revisit if**: Ubuntu Budgie adopts GNOME Software, or a Budgie release changes `XDG_CURRENT_DESKTOP`.
+
+## 2026-10-13 — Code review hardening
+
+**Context**: A full code review (security, bugs, consistency, documentation) raised more than a hundred findings, several with more than one reasonable fix. They were implemented together before publishing 1.2.0.
+
+**Decision** (the user's choices): implement the whole plan before release. Remove Linux Toys entirely, with no uninstaller. Keep Flutter's full-history clone. Bound unprivileged network commands (`curl --connect-timeout/--max-time`, a 30-minute limit); nothing interrupts `apt`/`dnf` and there is no Cancel button. Record, per agent, which agents accepted an SKILL or MCP server, and show "parcial" when one is missing. Never overwrite an existing `credential.helper`; on Fedora "Libsecret Tools" installs `git-credential-libsecret`, and a fall back to `cache` is warned about. Warn in Flutter's description that the Android SDK licenses are accepted. Generate `MOODLE_PATH` as the relative `.`. Tie the post-install record to `/etc/machine-id`. Closing or quitting during an action doesn't quit: the main window opens on the Execução tab with a notice. Split the release workflow into reusable `test` and `build` jobs and add ShellCheck to CI. Keep the official installers, with timeouts, and pin nvm (tag), Codex (version) and the Nerd Font (SHA-256). Pin SKILLs by commit, turn the `skills` CLI telemetry off and show a third-party-content notice. Pin composer/pecl, take Node from the official Node image instead of NodeSource, and renew the mkcert certificate before it expires. Stop generating `.claudeignore` (Claude Code ignores it): merge `permissions.deny` read rules into `.claude/settings.json` and keep `.aiexclude`. Validate the Nginx config with `nginx -t` in a throwaway container when Nginx is stopped. Group terminal output every ~30 ms. Use `--mount` instead of `-v`, refusing a comma in the workspace path.
+
+**Revisit if**: PHP 7.4/8.0 packages disappear from `archive.debian.org` (those images would have to be dropped), the `skills` CLI gains a lockfile for pinned installs, or a Cancel button for long actions is wanted.

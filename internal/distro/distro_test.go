@@ -115,7 +115,9 @@ func TestDetectDE(t *testing.T) {
 		{"cinnamon", "X-Cinnamon", "cinnamon"},
 		{"gnome", "GNOME", "gnome"},
 		{"xfce", "XFCE", "xfce"},
-		{"cosmic", "COSMIC", "cosmic"}, // Pop!_OS 24.04
+		{"cosmic", "COSMIC", "cosmic"},            // Pop!_OS 24.04
+		{"budgie 10.9", "Budgie:GNOME", "budgie"}, // Ubuntu Budgie 24.04
+		{"budgie 10.10", "Budgie", "budgie"},      // Ubuntu Budgie 26.04, Fedora Budgie 44
 		{"unrecognized", "KDE", "other"},
 		{"empty", "", "other"},
 	}

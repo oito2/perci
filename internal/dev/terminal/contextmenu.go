@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/oito2/perci/internal/executor"
+	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/ui"
 )
 
@@ -52,7 +53,7 @@ func AddContextMenuEntries(t Terminal, stdout io.Writer) {
 	ui.Info(stdout, "Integrando "+t.Name+" ao menu de contexto dos gerenciadores de arquivos...")
 	writeContextMenuFile(nautilusScriptPath(t, home), nautilusScript(t), 0o755, "Nautilus", stdout)
 	writeContextMenuFile(nemoScriptPath(t, home), nemoScript(t), 0o755, "Nemo", stdout)
-	writeContextMenuFile(dolphinMenuPath(t, home), dolphinMenu(t), 0o644, "Dolphin", stdout)
+	writeContextMenuFile(dolphinMenuPath(t, home), dolphinMenu(t), 0o755, "Dolphin", stdout)
 }
 
 // RemoveContextMenuEntries removes "Open here" entries for all file managers.
@@ -70,6 +71,7 @@ func RemoveContextMenuEntries(t Terminal, stdout io.Writer) {
 		dolphinMenuPath(t, home),
 	} {
 		_ = os.Remove(p)
+		_ = os.Remove(p + ".perci-bak")
 	}
 }
 
@@ -80,7 +82,7 @@ func writeContextMenuFile(path, content string, perm os.FileMode, label string, 
 		ui.Warning(stdout, label+": falha ao criar diretório: "+err.Error())
 		return
 	}
-	if err := os.WriteFile(path, []byte(content), perm); err != nil {
+	if err := fsutil.WriteGenerated(path, []byte(content), perm); err != nil {
 		ui.Warning(stdout, label+": falha ao escrever arquivo: "+err.Error())
 	}
 }

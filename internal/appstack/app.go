@@ -118,6 +118,34 @@ func envNames(env []string) []string {
 // at.
 const phpConfMount = "/usr/local/etc/php/conf.d/" + phpMemoryLimitOverrideFile
 
+// hostGatewayAlias makes host.docker.internal resolve to the host inside a
+// container: Docker Engine on Linux only defines it when asked.
+const hostGatewayAlias = "host.docker.internal:host-gateway"
+
+// bindMount returns the `--mount` argument pair for a bind mount of source
+// at target, read-only when readonly. Unlike `-v`, the source and target
+// are separate key=value fields, so a ':' in either cannot be misparsed.
+// A ',' or '"' in either would still split the value; mountableError
+// refuses such paths before they get here.
+func bindMount(source, target string, readonly bool) []string {
+	spec := "type=bind,source=" + source + ",target=" + target
+	if readonly {
+		spec += ",readonly"
+	}
+	return []string{"--mount", spec}
+}
+
+// mountableError returns an error naming the first of paths that cannot be
+// written into a `--mount` value (it holds a ',', a '"' or a line break).
+func mountableError(paths ...string) error {
+	for _, p := range paths {
+		if strings.ContainsAny(p, ",\"\r\n") {
+			return fmt.Errorf("o caminho %q não pode ser montado no contêiner: remova vírgulas, aspas e quebras de linha do nome da pasta", p)
+		}
+	}
+	return nil
+}
+
 // appRunArgs builds the "docker run" argument list for a Container
 // Aplicativo. dataDir is only included when non-empty (AppTypeMoodle).
 // Unit-testable without a Docker daemon.
@@ -127,13 +155,14 @@ func appRunArgs(folder, image, htmlDir, dataDir, logDir, phpConfPath string, dbE
 		"--name", folder,
 		"--network", NetworkName,
 		"--restart", "unless-stopped",
-		"-v", htmlDir + ":/var/www/html",
+		"--add-host", hostGatewayAlias,
 	}
+	args = append(args, bindMount(htmlDir, "/var/www/html", false)...)
 	if dataDir != "" {
-		args = append(args, "-v", dataDir+":/var/www/data")
+		args = append(args, bindMount(dataDir, "/var/www/data", false)...)
 	}
-	args = append(args, "-v", logDir+":/var/log/php")
-	args = append(args, "-v", phpConfPath+":"+phpConfMount+":ro")
+	args = append(args, bindMount(logDir, "/var/log/php", false)...)
+	args = append(args, bindMount(phpConfPath, phpConfMount, true)...)
 	args = append(args, envNames(dbEnv)...) // values go through the client env, see envNames
 	args = append(args, "--", image)
 	return args
@@ -149,17 +178,15 @@ func appRunArgs(folder, image, htmlDir, dataDir, logDir, phpConfPath string, dbE
 // single argv element to sh -c inside the container, and exe.Run never
 // invokes a host shell to parse it.
 func nodeAppRunArgs(folder, image, appDir, devCommand string) []string {
-	return []string{
+	args := []string{
 		"run", "-d",
 		"--name", folder,
 		"--network", NetworkName,
 		"--restart", "unless-stopped",
 		"--user", "node",
-		"-v", appDir + ":/app",
-		"--",
-		image,
-		"sh", "-c", devCommand,
 	}
+	args = append(args, bindMount(appDir, "/app", false)...)
+	return append(args, "--", image, "sh", "-c", devCommand)
 }
 
 // comboAppRunArgs builds the "docker run" argument list for an
@@ -179,13 +206,13 @@ func comboAppRunArgs(folder, image, apiDir, appDir, logDir, phpConfPath, devComm
 		"--name", folder,
 		"--network", NetworkName,
 		"--restart", "unless-stopped",
-		"-v", apiDir + ":/var/www/html",
-		"-v", appDir + ":/app",
-		"-v", logDir + ":/var/log/php",
-		"-v", phpConfPath + ":" + phpConfMount + ":ro",
-		"-e", "DEV_COMMAND=" + devCommand,
-		"-e", "WORKER_COMMAND=" + workerCommand,
+		"--add-host", hostGatewayAlias,
 	}
+	args = append(args, bindMount(apiDir, "/var/www/html", false)...)
+	args = append(args, bindMount(appDir, "/app", false)...)
+	args = append(args, bindMount(logDir, "/var/log/php", false)...)
+	args = append(args, bindMount(phpConfPath, phpConfMount, true)...)
+	args = append(args, "-e", "DEV_COMMAND="+devCommand, "-e", "WORKER_COMMAND="+workerCommand)
 	args = append(args, envNames(dbEnv)...) // values go through the client env, see envNames
 	args = append(args, "--", image)
 	return args
@@ -261,6 +288,9 @@ func ValidateApp(app config.AppContainer) error {
 			return fmt.Errorf("porta do dev server inválida: %d", app.DevPort)
 		}
 	}
+	if app.Type == config.AppTypeNode && app.DBAccess {
+		return fmt.Errorf("acesso a banco não é suportado para aplicativos Node")
+	}
 	if app.Type != config.AppTypeNode && !ValidPHPVersion(app.PHPVersion) {
 		return fmt.Errorf("versão PHP não suportada: %s", app.PHPVersion)
 	}
@@ -308,6 +338,101 @@ func checkURLUnique(app config.AppContainer, apps []config.AppContainer) error {
 	return nil
 }
 
+// appPrep is what prepareApp resolved for an app: the workspace folder and
+// the DB_* assignments its container gets (nil without DBAccess).
+type appPrep struct {
+	workspace string
+	dbEnv     []string
+}
+
+// prepareApp does everything an app needs before its container can be
+// created and that may take minutes or fail: it validates app, ensures
+// NetworkName, creates the project/data/log folders and builds the base
+// image. It never touches a running container, so callers run it before
+// removing the old one and without holding stackMu.
+func prepareApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer) (appPrep, error) {
+	if err := ValidateApp(app); err != nil {
+		return appPrep{}, err
+	}
+	if !isDockerInstalled(ctx, exe) {
+		return appPrep{}, fmt.Errorf("docker não instalado")
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return appPrep{}, fmt.Errorf("carregar config: %w", err)
+	}
+	if err := checkURLUnique(app, cfg.Docker.Apps); err != nil {
+		return appPrep{}, err
+	}
+
+	workspace, err := resolveWorkspace(cfg)
+	if err != nil {
+		return appPrep{}, err
+	}
+
+	prep := appPrep{workspace: workspace}
+	if app.DBAccess {
+		if cfg.Docker.MariaDB.DBUser == "" {
+			return appPrep{}, fmt.Errorf(`nenhum Contêiner MariaDB configurado ainda — crie um em "Gerenciar Docker :: Criar Contêiner MariaDB" antes de habilitar acesso a banco`)
+		}
+		prep.dbEnv = dbAccessEnv(cfg.Docker.MariaDB)
+	}
+
+	if err := EnsureNetwork(ctx, exe, stdout); err != nil {
+		return appPrep{}, err
+	}
+
+	dirs := []string{AppHTMLDir(workspace, app.Folder)}
+	switch app.Type {
+	case config.AppTypeNode:
+	case config.AppTypePHPNode:
+		dirs = append(dirs, AppComboAPIDir(workspace, app.Folder), AppComboAppDir(workspace, app.Folder), AppLogDir(workspace, app.Folder))
+	default:
+		dirs = append(dirs, AppLogDir(workspace, app.Folder))
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return appPrep{}, fmt.Errorf("criar %s: %w", dir, err)
+		}
+	}
+	if app.Type == config.AppTypeMoodle {
+		if err := ensureMoodleDataDir(stdout, AppDataDir(workspace, app.Folder)); err != nil {
+			return appPrep{}, err
+		}
+	}
+
+	switch app.Type {
+	case config.AppTypeNode:
+		err = EnsureNodeImage(ctx, exe, stdout, app.NodeVersion)
+	case config.AppTypePHPNode:
+		err = EnsureComboImage(ctx, exe, stdout, app.PHPVersion, app.NodeVersion)
+	default:
+		err = EnsureImage(ctx, exe, stdout, app.PHPVersion)
+	}
+	if err != nil {
+		return appPrep{}, err
+	}
+	return prep, nil
+}
+
+// moodleDataMode is the permission of an app's moodledata folder: it holds
+// sessions and uploads, so other local users get no access.
+const moodleDataMode = 0o750
+
+// ensureMoodleDataDir creates dir with moodleDataMode and tightens the
+// permissions of one that already exists; a folder it cannot chmod only
+// produces a warning.
+func ensureMoodleDataDir(stdout io.Writer, dir string) error {
+	if err := os.MkdirAll(dir, moodleDataMode); err != nil {
+		return fmt.Errorf("criar %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, moodleDataMode); err != nil {
+		ui.Warning(stdout, "Não foi possível restringir as permissões de "+dir+": "+err.Error())
+	}
+	return nil
+}
+
 // CreateApp creates one Container Aplicativo: ensures NetworkName and the
 // right base image (PHP for PHP-family types, Node for AppTypeNode, the
 // PHP+Node combo image for AppTypePHPNode), creates its project folder(s)
@@ -316,6 +441,9 @@ func checkURLUnique(app config.AppContainer, apps []config.AppContainer) error {
 // entry with the same Folder), and regenerates + reloads Nginx's routing
 // to include it.
 //
+// The image build runs before stackMu is taken, so a long build does not
+// block the other stack operations.
+//
 // app.Folder and app.URL must already be validated by the caller
 // (ValidAppFolder, ValidAppURL); CreateApp re-checks everything anyway:
 // PHPVersion (ValidPHPVersion, plus MoodleVersion/
@@ -323,27 +451,23 @@ func checkURLUnique(app config.AppContainer, apps []config.AppContainer) error {
 // NodeVersion/DevCommand/DevPort for AppTypeNode, and both for
 // AppTypePHPNode.
 func CreateApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer) error {
+	prep, err := prepareApp(ctx, exe, stdout, app)
+	if err != nil {
+		return err
+	}
 	stackMu.Lock()
 	defer stackMu.Unlock()
-	apps, err := createAppContainer(ctx, exe, stdout, app)
+	apps, err := startAppContainer(ctx, exe, stdout, app, prep)
 	if err != nil {
 		return err
 	}
 	return ReloadNginxConfig(ctx, exe, stdout, apps)
 }
 
-// createAppContainer is CreateApp minus the final ReloadNginxConfig call,
-// so ImportConfig can recreate N apps and trigger one nginx reload at the
-// end, using the final apps list. Returns the updated cfg.Docker.Apps list
-// on success.
-func createAppContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer) ([]config.AppContainer, error) {
-	if err := ValidateApp(app); err != nil {
-		return nil, err
-	}
-	if !isDockerInstalled(ctx, exe) {
-		return nil, fmt.Errorf("docker não instalado")
-	}
-
+// startAppContainer runs app's container from its prepared image and
+// folders, writes its CLI wrappers and records app in cfg.Docker.Apps. The
+// caller holds stackMu.
+func startAppContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer, prep appPrep) ([]config.AppContainer, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("carregar config: %w", err)
@@ -352,99 +476,62 @@ func createAppContainer(ctx context.Context, exe *executor.Executor, stdout io.W
 		return nil, err
 	}
 
-	workspace, err := resolveWorkspace(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	// DBAccess is checked unconditionally rather than gated on app.Type, so a
-	// hand-edited config enabling it on a Node app is rejected instead of
-	// silently doing nothing.
-	var dbEnv []string
-	if app.DBAccess {
-		if cfg.Docker.MariaDB.DBUser == "" {
-			return nil, fmt.Errorf(`nenhum Contêiner MariaDB configurado ainda — crie um em "Gerenciar Docker :: Criar Contêiner MariaDB" antes de habilitar acesso a banco`)
-		}
-		dbEnv = dbAccessEnv(cfg.Docker.MariaDB)
-	}
-
-	if err := EnsureNetwork(ctx, exe, stdout); err != nil {
-		return nil, err
-	}
-
+	workspace := prep.workspace
 	projectDir := AppHTMLDir(workspace, app.Folder)
-	if err := os.MkdirAll(projectDir, 0o755); err != nil {
-		return nil, fmt.Errorf("criar %s: %w", projectDir, err)
-	}
-
+	runOpts := executor.Options{Stdout: stdout, Stderr: stdout, Env: prep.dbEnv}
 	ui.Info(stdout, "Criando contêiner "+app.Folder+"...")
 
 	switch app.Type {
 	case config.AppTypeNode:
-		if err := EnsureNodeImage(ctx, exe, stdout, app.NodeVersion); err != nil {
+		if err := mountableError(projectDir); err != nil {
 			return nil, err
 		}
 		args := nodeAppRunArgs(app.Folder, NodeImageName(app.NodeVersion), projectDir, app.DevCommand)
-		if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", args...); err != nil {
+		if err := exe.Run(ctx, runOpts, "docker", args...); err != nil {
 			return nil, fmt.Errorf("criar contêiner %s: %w", app.Folder, err)
 		}
+		removeAppWrappers(app.Folder)
 		writeNodeAppWrappers(app.Folder, projectDir, "", stdout)
 
 	case config.AppTypePHPNode:
-		if err := EnsureComboImage(ctx, exe, stdout, app.PHPVersion, app.NodeVersion); err != nil {
-			return nil, err
-		}
-
 		apiDir := AppComboAPIDir(workspace, app.Folder)
-		if err := os.MkdirAll(apiDir, 0o755); err != nil {
-			return nil, fmt.Errorf("criar %s: %w", apiDir, err)
-		}
 		comboAppDir := AppComboAppDir(workspace, app.Folder)
-		if err := os.MkdirAll(comboAppDir, 0o755); err != nil {
-			return nil, fmt.Errorf("criar %s: %w", comboAppDir, err)
-		}
 		logDir := AppLogDir(workspace, app.Folder)
-		if err := os.MkdirAll(logDir, 0o755); err != nil {
-			return nil, fmt.Errorf("criar %s: %w", logDir, err)
-		}
 		phpConfPath, err := WritePHPMemoryLimitConf(app.Folder, app.PHPMemoryLimit)
 		if err != nil {
 			return nil, err
 		}
+		if err := mountableError(apiDir, comboAppDir, logDir, phpConfPath); err != nil {
+			return nil, err
+		}
 
-		args := comboAppRunArgs(app.Folder, ComboImageName(app.PHPVersion, app.NodeVersion), apiDir, comboAppDir, logDir, phpConfPath, app.DevCommand, app.WorkerCommand, dbEnv)
-		if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout, Env: dbEnv}, "docker", args...); err != nil {
+		args := comboAppRunArgs(app.Folder, ComboImageName(app.PHPVersion, app.NodeVersion), apiDir, comboAppDir, logDir, phpConfPath, app.DevCommand, app.WorkerCommand, prep.dbEnv)
+		if err := exe.Run(ctx, runOpts, "docker", args...); err != nil {
 			return nil, fmt.Errorf("criar contêiner %s: %w", app.Folder, err)
 		}
+		removeAppWrappers(app.Folder)
 		writeAppWrappers(app.Folder, apiDir, stdout)
 		writeNodeAppWrappers(app.Folder, comboAppDir, wrapperUser, stdout)
 
 	default:
-		if err := EnsureImage(ctx, exe, stdout, app.PHPVersion); err != nil {
-			return nil, err
-		}
-
 		var dataDir string
 		if app.Type == config.AppTypeMoodle {
 			dataDir = AppDataDir(workspace, app.Folder)
-			if err := os.MkdirAll(dataDir, 0o755); err != nil {
-				return nil, fmt.Errorf("criar %s: %w", dataDir, err)
-			}
 		}
-
 		logDir := AppLogDir(workspace, app.Folder)
-		if err := os.MkdirAll(logDir, 0o755); err != nil {
-			return nil, fmt.Errorf("criar %s: %w", logDir, err)
-		}
 		phpConfPath, err := WritePHPMemoryLimitConf(app.Folder, app.PHPMemoryLimit)
 		if err != nil {
 			return nil, err
 		}
+		if err := mountableError(projectDir, dataDir, logDir, phpConfPath); err != nil {
+			return nil, err
+		}
 
-		args := appRunArgs(app.Folder, ImageName(app.PHPVersion), projectDir, dataDir, logDir, phpConfPath, dbEnv)
-		if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout, Env: dbEnv}, "docker", args...); err != nil {
+		args := appRunArgs(app.Folder, ImageName(app.PHPVersion), projectDir, dataDir, logDir, phpConfPath, prep.dbEnv)
+		if err := exe.Run(ctx, runOpts, "docker", args...); err != nil {
 			return nil, fmt.Errorf("criar contêiner %s: %w", app.Folder, err)
 		}
+		removeAppWrappers(app.Folder)
 		writeAppWrappers(app.Folder, projectDir, stdout)
 	}
 
@@ -460,13 +547,74 @@ func createAppContainer(ctx context.Context, exe *executor.Executor, stdout io.W
 	return apps, nil
 }
 
-// RecreateApp is CreateApp's "Recriar" flavor: reuses the AppContainer
-// already persisted in cfg.Docker.Apps for folder, with no form and no
-// confirmation of its own. Errors if folder isn't registered.
-func RecreateApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, folder string) error {
+// replaceAppContainer removes app's current container, if any, and starts
+// it again from its prepared image. The caller holds stackMu and has run
+// prepareApp, so a failed build never reaches the removal.
+func replaceAppContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer, prep appPrep) ([]config.AppContainer, error) {
+	if AppExists(ctx, exe, app.Folder) {
+		if err := RemoveApp(ctx, exe, stdout, app.Folder); err != nil {
+			return nil, err
+		}
+	}
+	return startAppContainer(ctx, exe, stdout, app, prep)
+}
+
+// UpdateApp applies an edit to a Container Aplicativo: it validates app
+// against the rest of the stack and builds whatever image it needs before
+// the running container is touched, then replaces the container with one
+// created from the new parameters and reloads Nginx's routing.
+func UpdateApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, app config.AppContainer) error {
+	if err := ValidateAppInStack(app); err != nil {
+		return err
+	}
+	prep, err := prepareApp(ctx, exe, stdout, app)
+	if err != nil {
+		return err
+	}
 	stackMu.Lock()
 	defer stackMu.Unlock()
-	apps, err := recreateAppContainer(ctx, exe, stdout, folder)
+	apps, err := replaceAppContainer(ctx, exe, stdout, app, prep)
+	if err != nil {
+		return err
+	}
+	return ReloadNginxConfig(ctx, exe, stdout, apps)
+}
+
+// registeredApp returns the validated cfg.Docker.Apps entry for folder.
+func registeredApp(folder string) (config.AppContainer, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return config.AppContainer{}, fmt.Errorf("carregar config: %w", err)
+	}
+	app, found := FindAppByFolder(cfg.Docker.Apps, folder)
+	if !found {
+		return config.AppContainer{}, fmt.Errorf("contêiner aplicativo %q não está registrado em cfg.Docker.Apps", folder)
+	}
+	// Validated before the running container is removed, so a bad entry
+	// (hand-edited config, an import) does not leave the app down.
+	if err := ValidateApp(app); err != nil {
+		return config.AppContainer{}, err
+	}
+	return app, nil
+}
+
+// RecreateApp is CreateApp's "Recriar" flavor: reuses the AppContainer
+// already persisted in cfg.Docker.Apps for folder, with no form and no
+// confirmation of its own. Errors if folder isn't registered. The image is
+// built before the running container is removed and before stackMu is
+// taken.
+func RecreateApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, folder string) error {
+	app, err := registeredApp(folder)
+	if err != nil {
+		return err
+	}
+	prep, err := prepareApp(ctx, exe, stdout, app)
+	if err != nil {
+		return err
+	}
+	stackMu.Lock()
+	defer stackMu.Unlock()
+	apps, err := replaceAppContainer(ctx, exe, stdout, app, prep)
 	if err != nil {
 		return err
 	}
@@ -475,36 +623,53 @@ func RecreateApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 
 // recreateAppContainer is RecreateApp minus the final ReloadNginxConfig
 // call, so ImportConfig can recreate N apps and trigger one nginx reload at
-// the end.
+// the end. The caller holds stackMu.
 func recreateAppContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, folder string) ([]config.AppContainer, error) {
-	cfg, err := config.Load()
+	app, err := registeredApp(folder)
 	if err != nil {
-		return nil, fmt.Errorf("carregar config: %w", err)
-	}
-	app, found := FindAppByFolder(cfg.Docker.Apps, folder)
-	if !found {
-		return nil, fmt.Errorf("contêiner aplicativo %q não está registrado em cfg.Docker.Apps", folder)
-	}
-	// Validated before the running container is removed, so a bad entry
-	// (hand-edited config, an import) does not leave the app down.
-	if err := ValidateApp(app); err != nil {
 		return nil, err
 	}
-	if AppExists(ctx, exe, folder) {
-		if err := RemoveApp(ctx, exe, stdout, folder); err != nil {
-			return nil, err
-		}
+	prep, err := prepareApp(ctx, exe, stdout, app)
+	if err != nil {
+		return nil, err
 	}
-	return createAppContainer(ctx, exe, stdout, app)
+	return replaceAppContainer(ctx, exe, stdout, app, prep)
+}
+
+// requireStackContainer refuses a container name that is neither the
+// stack's nginx/mariadb nor a registered Container Aplicativo, so the quick
+// actions and the log view never act on an unrelated container of the host.
+func requireStackContainer(name string) error {
+	if name == NginxContainerName || name == MariaDBContainerName {
+		return nil
+	}
+	return requireRegisteredApp(name)
+}
+
+// requireRegisteredApp refuses a name that is not a Container Aplicativo
+// registered in cfg.Docker.Apps (nginx and mariadb included).
+func requireRegisteredApp(name string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("carregar config: %w", err)
+	}
+	if _, ok := FindAppByFolder(cfg.Docker.Apps, name); !ok {
+		return fmt.Errorf("%q não é um contêiner do Perci", name)
+	}
+	return nil
 }
 
 // DeleteApp removes the app's container (if any), drops its entry from
 // cfg.Docker.Apps, and regenerates + reloads Nginx's routing without it.
-// html/data on disk are never touched. The caller is responsible for
-// confirming with the user first.
+// html/data on disk are never touched. Only a registered Container
+// Aplicativo is accepted: nginx, mariadb and unknown names are refused. The
+// caller is responsible for confirming with the user first.
 func DeleteApp(ctx context.Context, exe *executor.Executor, stdout io.Writer, folder string) error {
 	stackMu.Lock()
 	defer stackMu.Unlock()
+	if err := requireRegisteredApp(folder); err != nil {
+		return err
+	}
 	if AppExists(ctx, exe, folder) {
 		if err := RemoveApp(ctx, exe, stdout, folder); err != nil {
 			return err

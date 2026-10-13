@@ -31,7 +31,21 @@ profile bwrap /usr/bin/bwrap flags=(unconfined) {
 depois recarregue o AppArmor com `sudo systemctl reload apparmor` e abra o Perci de novo.
 
 **Uma entrada de pós-instalação que eu esperava ver em Linux não aparece na lista**
-Entradas de pós-instalação em **Linux** são restritas por distro + ambiente de desktop — só a entrada correspondente à sua distro/DE detectada aparece, as demais ficam de fora da lista por completo (veja [Instalação → Distribuições Suportadas](../getting-started/installation.md#distribuições-suportadas)). Confira `distro`/`de` em `~/.perci/config.yaml` — se a auto-detecção errou o seu setup, sobrescreva ali (veja a [Referência de Configuração](../reference/configuration.md)).
+Entradas de pós-instalação em **Linux** são restritas por distro + ambiente de desktop — só a entrada correspondente à sua distro/DE detectada aparece, as demais ficam de fora da lista por completo (veja [Instalação → Distribuições Suportadas](../getting-started/installation.md#distribuições-suportadas)). O Perci detecta a distribuição pelo `/etc/os-release` e o desktop pelo `XDG_CURRENT_DESKTOP`; não existe configuração para sobrescrevê-los (as chaves `distro`/`de` citadas em docs antigas nunca são lidas). Se a entrada não aparece, confira esses dois valores num terminal (`cat /etc/os-release`, `echo $XDG_CURRENT_DESKTOP`) e compare com a lista de suportadas.
+
+## Linux e Uso Geral
+
+**A janela não fecha, ou "Sair" na bandeja não faz nada, e a aba Execução mostra um aviso**
+Uma ação ainda está rodando. O Perci não encerra no meio de uma ação (uma execução interrompida do gerenciador de pacotes poderia deixar o sistema meio configurado); espere ela terminar na aba **Execução** e feche de novo.
+
+**Uma ação terminou como "concluído com avisos" em vez de sucesso**
+O trabalho principal terminou, mas uma ou mais etapas secundárias falharam — por exemplo Snap, Flatpak, limpeza do journal ou `autoremove` em **Atualizar Sistema**, ou um app de um lote de Flatpak ou de fontes. As linhas de aviso no terminal dizem o que falhou; rode a ação de novo depois de corrigir a causa.
+
+**Itens de pós-instalação que apliquei antes aparecem disponíveis de novo**
+O registro dos itens sem estado detectável está vinculado ao `/etc/machine-id` da máquina (`postinstall_machine_id`). Depois de reinstalar o SO mantendo o `$HOME` (ou na primeira vez que você roda uma versão que grava o ID), os registros antigos deixam de valer e esses itens são oferecidos mais uma vez. Aplicá-los de novo é seguro; os itens que podem ser detectados no sistema (pacotes, arquivo do sysctl, swap, `fstrim.timer`, Flathub) nunca foram afetados.
+
+**A instalação de uma fonte falha com "nenhuma fonte .ttf encontrada" ou a remoção de uma fonte é recusada**
+As fontes baixadas são instaladas em `~/.local/share/fonts/perci/<fonte>`; um arquivo sem nenhum `.ttf` falha em vez de instalar nada. Em sistemas da família Debian, uma fonte de pacote da qual outro pacote depende não é removida (o `dpkg --purge` recusa) — remova antes o pacote dependente.
 
 ## Stack Docker de Aplicativos
 
@@ -43,6 +57,18 @@ Na primeira criação, `mkcert -install` pode escalar para root por conta própr
 
 **Um plugin Moodle montado fica em "Reinício pendente" ou as páginas do plugin falham**
 Um contêiner em execução só enxerga uma montagem nova depois de reiniciar — use a ação de reiniciar da linha em **Dev Tools → Plugins Moodle** (ela reinicia também o Nginx). "Montagem inativa" significa que a montagem no host sumiu (unidade removida ou com falha: `systemctl status <unidade>`); remova a linha e crie de novo. Não use um link simbólico para o plugin no lugar: dentro do contêiner o link aponta para fora do código montado, e o `__DIR__` do PHP o resolve, então o `config.php` não é encontrado.
+
+**Um app não pode ser criado ou recriado: "o caminho … não pode ser montado no contêiner"**
+As pastas do projeto são montadas com `--mount`, cujo valor não pode conter vírgula, aspas duplas nem quebra de linha. Renomeie a pasta (ou a pasta do workspace) sem esses caracteres.
+
+**Um contêiner de app não inicia depois que a pasta `html` ou `logs` dele foi apagada**
+Com `--mount`, o Docker não recria mais uma pasta de origem que sumiu, então iniciar (ou o reinício no boot) falha. Use **Recriar** em Docker → Gerenciar Containers: ele cria as pastas de novo.
+
+**A imagem do PHP 7.4 / 8.0 constrói, mas me preocupo com atualizações**
+Essas duas imagens são baseadas no Debian bullseye, que está fora de suporte, então seus pacotes vêm do `archive.debian.org` e elas não recebem mais atualizações de segurança. Use-as só para projetos legados; prefira o 8.1 ou mais novo quando o projeto permitir.
+
+**O Xdebug não alcança minha IDE num app criado antes**
+Os containers agora sobem com `--add-host host.docker.internal:host-gateway`; um container existente não o tem até você **Recriar** em **Docker → Gerenciar Containers**.
 
 **Editar um container causou uma indisponibilidade breve só daquele app**
 Esperado — "Editar" é remove-e-recria com os novos parâmetros (a única forma real de trocar a imagem/versão de PHP/Node de um container em execução). Os volumes (`html`/`data`) são preservados; os outros containers não são afetados.
@@ -64,6 +90,18 @@ Wrappers criados por versões anteriores rodavam como root dentro dos containers
 **Clicar em "Aplicar" em IA: Contextos sobrescreveu meu `AGENTS.md` personalizado**
 Isso é por design — **Aplicar** sempre regenera e sobrescreve `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md` de todo modelo marcado, sem nenhuma caixa de confirmação; o próprio clique já é a confirmação, mesma convenção de toda ação não-interativa da GUI. Faça backup de qualquer edição manual nesses arquivos antes de clicar em Aplicar de novo, ou mantenha suas personalizações num arquivo que o gerador não toca.
 
+**Aplicar falha com "pasta não escolhida no seletor"**
+As pastas passadas às telas de Contexto IA, Repositórios e MCP precisam ter sido escolhidas no diálogo nativo de pastas nesta sessão (ou já estar registradas). Use o botão do seletor de pastas (**Selecionar pasta**) em vez de digitar ou colar um caminho.
+
+**Não existe mais `.claudeignore`, e apareceram arquivos `*.perci-bak`**
+O Claude Code ignora o `.claudeignore`, então o Perci parou de gerá-lo: as regras de leitura equivalentes são mescladas no `.claude/settings.json` do projeto (`permissions.deny`), ao lado do `.aiexclude`. Se um `.claudeignore` antigo for encontrado, um aviso diz que ele pode ser apagado. Um `<arquivo>.perci-bak` é a versão anterior de um arquivo gerado que o Perci substituiu por conteúdo diferente — apague-o quando não precisar mais.
+
+**Registrar um servidor MCP falha com "já existe um servidor com esse nome que não foi registrado pelo Perci"**
+Um agente (Antigravity, Claude Code ou Codex) já tem um servidor com esse nome que o Perci não criou; o Perci nunca sobrescreve nem remove esses. Renomeie ou remova-o na configuração do próprio agente e registre de novo.
+
+**Uma linha de servidor MCP ou SKILL diz "parcial: …"**
+O registro chegou só aos agentes listados depois de "parcial"; os outros falharam ou não estavam disponíveis. Veja a saída do terminal da execução, corrija a causa (por exemplo um CLI ausente) e rode a ação dessa linha de novo.
+
 **Placeholders do Moodle (`{{MOODLE_VERSION}}`, etc.) não foram preenchidos**
 O gerador procura por `version.php` (ou `public/version.php`) na pasta que você escolheu em **IA: Contextos**. Se não encontrar, a GUI deixa os placeholders literais no lugar e registra um aviso em vez de perguntar os valores — preencha na mão, ou escolha a raiz real do projeto e clique em Aplicar de novo.
 
@@ -73,11 +111,19 @@ Corrigido: versões anteriores removiam essas três entradas (que instalam todas
 ## Ambiente de Desenvolvimento
 
 **Depois de instalar o Go, meu shell fish perdeu o `/usr/bin` (e a maioria dos comandos) do `PATH`**
-Corrigido: versões anteriores gravavam `export PATH=$PATH:/usr/local/go/bin` no `~/.config/fish/config.fish`; no fish essa linha sem aspas deixa o `PATH` só com `/bin` e o `bin` do Go. A linha agora fica entre aspas (`export PATH="$PATH:/usr/local/go/bin"`, válida em bash, zsh e fish). Para consertar uma instalação existente, desmarque o Go em **Linguagens e SDKs** e execute (remove o Go e as duas formas da linha); depois marque de novo para reinstalar. À mão: apague a linha antiga do `config.fish` e abra um shell novo.
+Corrigido: versões anteriores gravavam `export PATH=$PATH:/usr/local/go/bin` no `~/.config/fish/config.fish`; no fish essa linha sem aspas deixa o `PATH` só com `/bin` e o `bin` do Go. A linha agora fica entre aspas (`export PATH="$PATH:/usr/local/go/bin"`, válida em bash, zsh e fish). Para consertar uma instalação existente, clique em **Desinstalar** no Go em **Linguagens e SDKs** (remove o Go e as duas formas da linha); depois em **Instalar** para reinstalar. À mão: apague a linha antiga do `config.fish` e abra um shell novo.
+
+**Desinstalar um item é recusado com "… também removeria: …"**
+Antes de remover um pacote de pré-requisito, terminal (Alacritty, GNOME Console) ou IDE (VS Code, VSCodium), o Perci simula a remoção e para quando o gerenciador de pacotes removeria também outros pacotes — nada é removido. Veja os pacotes listados; se tiver certeza, remova você mesmo pelo terminal.
+
+**A instalação do Flutter menciona licenças do Android**
+Instalar o Flutter aceita as licenças do Android SDK em seu nome (`sdkmanager --licenses`); os termos estão linkados na descrição do item. Não instale se não concordar com eles.
+
+**Um download longo ou um passo do `npx` termina com erro de timeout**
+Comandos de rede sem privilégio (nvm, `npx`, `git`, downloads com `curl`) são cortados depois de 30 minutos para que uma conexão travada não prenda para sempre a única ação em execução. Verifique a conexão e rode a ação de novo. Os passos de `apt`/`dnf` nunca são interrompidos assim. O clone do Flutter (o histórico completo é grande) não tem limite total: o git o interrompe quando a transferência fica abaixo de 1 KB/s por 2 minutos.
 
 ## Limitações Conhecidas e Aceitas (Não São Bugs)
 
-- **Android cmdline-tools** (`internal/dev/flutter`) e **`appimagetool`** (`internal/dev/prereqs`) são baixados sem verificação de checksum. Nem o Google nem o projeto AppImage publicam um checksum oficial para esses artefatos específicos — isso é um risco documentado e aceito, não um descuido. Veja o [log de decisões interno](../architecture/decisions.md) para o raciocínio completo (e por que o `appimagetool` especificamente fica na tag de release `continuous` em vez de uma "stable").
 - **Distros baseadas em Arch não são suportadas.** O `internal/distro` só detecta as famílias Debian e Fedora; não há plano de adicionar suporte a Arch a menos que isso mude.
 - O perci em si não tem telemetria, processo em segundo plano nem daemon — se algo parece "travado", é um único comando síncrono; confira a saída do terminal diretamente em vez de procurar um serviço para reiniciar.
 

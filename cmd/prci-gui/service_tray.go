@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -112,7 +113,8 @@ func (t *TrayService) ensureTray() {
 		tray.OnRightClick(tray.OpenMenu)
 		t.tray = tray
 	}
-	t.tray.SetIcon(t.traySmallIconSource())
+	_, trayIcon := t.icons()
+	t.tray.SetIcon(trayIcon)
 	t.tray.SetTooltip("Perci")
 	t.tray.SetMenu(t.buildTrayMenu())
 }
@@ -152,9 +154,53 @@ func (t *TrayService) buildTrayMenu() *application.Menu {
 	})
 	menu.AddSeparator()
 	menu.Add("Sair").OnClick(func(_ *application.Context) {
+		if t.quitBlocked() {
+			return
+		}
 		t.wailsApp.Quit()
 	})
 	return menu
+}
+
+// quitAllowed is set once Perci is quitting on purpose (a finished
+// uninstall), so quitBlocked no longer refuses.
+var quitAllowed atomic.Bool
+
+// quitBlocked reports whether quitting must be refused because an action
+// holds the action lock. When it does, it shows the main window and emits
+// "quit-blocked" so the frontend opens the Execução tab with a notice.
+func (t *TrayService) quitBlocked() bool {
+	if quitAllowed.Load() {
+		return false
+	}
+	if runMu.TryLock() {
+		runMu.Unlock()
+		return false
+	}
+	t.FocusMainWindow()
+	// The action may be running in the compact window: it is brought to
+	// the front too, above the main window.
+	t.windowMu.Lock()
+	if t.compactWindow != nil {
+		t.compactWindow.Show().Focus()
+	}
+	t.windowMu.Unlock()
+	t.emit("quit-blocked", nil)
+	return true
+}
+
+// mainCloseDecision decides what closing the main window does: with the
+// tray enabled it cancels the close and hides the window; otherwise it
+// cancels the close only while an action is running (quitBlocked), and lets
+// the application quit when idle.
+func (t *TrayService) mainCloseDecision() (cancel, hide bool) {
+	if cfg, err := config.Load(); err == nil && cfg.TrayEnabled {
+		return true, true
+	}
+	if t.quitBlocked() {
+		return true, false
+	}
+	return false, false
 }
 
 // FocusMainWindow brings the main window to the front — used by the tray
@@ -189,6 +235,7 @@ func (t *TrayService) openCompactWindow(tab string) {
 		return
 	}
 
+	windowIcon, _ := t.icons()
 	win := t.wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Perci",
 		Width:     735,
@@ -197,7 +244,7 @@ func (t *TrayService) openCompactWindow(tab string) {
 		MinHeight: 560,
 		URL:       "/?compact=" + tab,
 		Linux: application.LinuxWindow{
-			Icon:             t.trayIconSource(),
+			Icon:             windowIcon,
 			WebviewGpuPolicy: application.WebviewGpuPolicyNever,
 		},
 	})
@@ -210,24 +257,14 @@ func (t *TrayService) openCompactWindow(tab string) {
 	})
 }
 
-// trayIconSource returns which 512 px square icon (iconBlue/iconPink) to
-// use as the window icon of the main and compact windows — follows the
-// AppIconOrDefault choice.
-func (t *TrayService) trayIconSource() []byte {
-	if cfg, err := config.Load(); err == nil && cfg.AppIconOrDefault() == "pink" {
-		return iconPink
+// icons returns the window and tray icons for the configured app icon
+// variant.
+func (t *TrayService) icons() (window, tray []byte) {
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = nil
 	}
-	return iconBlue
-}
-
-// traySmallIconSource returns the tray's dedicated square icon
-// (iconBlueTray/iconPinkTray) — not the window's large PNG:
-// StatusNotifierItem expects a small icon.
-func (t *TrayService) traySmallIconSource() []byte {
-	if cfg, err := config.Load(); err == nil && cfg.AppIconOrDefault() == "pink" {
-		return iconPinkTray
-	}
-	return iconBlueTray
+	return appIcons(cfg)
 }
 
 // autostartDesktopPath is where writeAutostartDesktopFile/

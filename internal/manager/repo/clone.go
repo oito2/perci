@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/ui"
 )
@@ -54,7 +55,9 @@ func Clone(ctx context.Context, exe *executor.Executor, stdout io.Writer, url, d
 	}
 
 	ui.Info(stdout, "Clonando repositório...")
-	if err := exe.Run(ctx, opts, "git", args...); err != nil {
+	cloneCtx, cancel := nettimeout.Context(ctx)
+	defer cancel()
+	if err := exe.Run(cloneCtx, opts, "git", args...); err != nil {
 		return fmt.Errorf("git clone: %w", err)
 	}
 

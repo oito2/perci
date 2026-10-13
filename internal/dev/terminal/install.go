@@ -21,6 +21,8 @@ import (
 	"io"
 
 	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 )
@@ -31,9 +33,12 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, t
 
 	switch t.Cmd {
 	case "kitty":
-		// pipefail makes a failed download fail the whole command.
-		script := `set -Eeuo pipefail; curl -fsSL https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin`
-		if err := exe.Run(ctx, opts, "bash", "-c", script); err != nil {
+		// pipefail makes a failed download fail the whole command;
+		// launch=n keeps the installer from opening Kitty when it ends.
+		script := `set -Eeuo pipefail; curl -fsSL ` + nettimeout.CurlShellFlags + ` https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin launch=n`
+		netCtx, cancel := nettimeout.Context(ctx)
+		defer cancel()
+		if err := exe.Run(netCtx, opts, "bash", "-c", script); err != nil {
 			return err
 		}
 		linkScript := `
@@ -41,7 +46,11 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$HOME/.local/kitty.app/bin/kitty"  "$HOME/.local/bin/kitty"
 ln -sf "$HOME/.local/kitty.app/bin/kitten" "$HOME/.local/bin/kitten"
 `
-		return exe.Run(ctx, opts, "bash", "-c", linkScript)
+		if err := exe.Run(ctx, opts, "bash", "-c", linkScript); err != nil {
+			return err
+		}
+		localbin.EnsureInPath(stdout)
+		return nil
 
 	case "alacritty":
 		// One privileged batch, so the password is asked once.

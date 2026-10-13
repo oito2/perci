@@ -103,9 +103,9 @@ func FlatpakSetupSteps(ctx context.Context, exe *executor.Executor) (privileged 
 		case distro.Debian:
 			privileged = append(privileged, executor.PrivilegedStep{
 				Announce: "Instalando Flatpak...",
-				Env:      []string{"DEBIAN_FRONTEND=noninteractive"},
+				Env:      distro.AptEnv,
 				Name:     "apt-get",
-				Args:     []string{"install", "-y", "-o", "Dpkg::Use-Pty=0", "-o", "Dpkg::Progress-Fancy=0", "-o", "APT::Color=0", "--", "flatpak"},
+				Args:     distro.AptArgs("install", "-y", "--", "flatpak"),
 			})
 		case distro.Fedora:
 			privileged = append(privileged, executor.PrivilegedStep{Announce: "Instalando Flatpak...", Name: "dnf", Args: []string{"install", "-y", "--", "flatpak"}})

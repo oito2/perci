@@ -57,8 +57,8 @@ func (t *DevToolsService) GetGlobalGitIdentity() GitIdentity {
 	return GitIdentity{Name: name, Email: email}
 }
 
-// ApplyGlobalGitIdentity sets the global git user.name/user.email/
-// credential.helper (managerrepo.ConfigureGlobal) — shows the Execução tab
+// ApplyGlobalGitIdentity sets the global git user.name/user.email and, when
+// none is configured yet, credential.helper (managerrepo.ConfigureGlobal) — shows the Execução tab
 // like every other mutating action in this screen.
 func (t *DevToolsService) ApplyGlobalGitIdentity(name, email string) error {
 	return t.runAction(func(stdout io.Writer) error {
@@ -100,17 +100,22 @@ func (t *DevToolsService) GetRepoFolders() []RepoFolderInfo {
 	return infos
 }
 
-// AddRepoFolder appends path to the remembered repo folder list — a no-op
-// (not an error) if it's already there. Always reloads the config first,
+// AddRepoFolder appends path — which must have been picked in a native
+// dialog this session — to the remembered repo folder list; a no-op (not an
+// error) if it's already there. Always reloads the config first,
 // same reasoning as SetTheme/SetWorkspacePath: don't clobber other fields
 // another process may have changed while the GUI was open.
 func (t *DevToolsService) AddRepoFolder(path string) error {
 	if err := requireFolder(path); err != nil {
 		return err
 	}
+	if err := requireApprovedPath(path); err != nil {
+		return err
+	}
+	path = filepath.Clean(path)
 	return config.Update(func(cfg *config.Config) error {
 		for _, p := range cfg.RepoFolders {
-			if p == path {
+			if filepath.Clean(p) == path {
 				return nil
 			}
 		}
@@ -123,10 +128,11 @@ func (t *DevToolsService) AddRepoFolder(path string) error {
 // the card goes away, nothing on disk is touched. A no-op if it isn't
 // there. Same reload-first reasoning as AddRepoFolder.
 func (t *DevToolsService) RemoveRepoFolder(path string) error {
+	path = filepath.Clean(path)
 	return config.Update(func(cfg *config.Config) error {
 		kept := make([]string, 0, len(cfg.RepoFolders))
 		for _, p := range cfg.RepoFolders {
-			if p != path {
+			if filepath.Clean(p) != path {
 				kept = append(kept, p)
 			}
 		}
@@ -154,11 +160,11 @@ type RepoFolderState struct {
 func (t *DevToolsService) GetRepoFolderState(path string) (RepoFolderState, error) {
 	var state RepoFolderState
 
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
-		return state, fmt.Errorf("pasta inválida: %s", path)
+	if err := requireKnownFolder(path); err != nil {
+		return state, err
 	}
 
+	var err error
 	if state.IsEmpty, err = managerrepo.IsEmptyDir(path); err != nil {
 		return state, fmt.Errorf("ler pasta: %w", err)
 	}
@@ -186,7 +192,7 @@ func (t *DevToolsService) GetRepoFolderState(path string) (RepoFolderState, erro
 // folder must be empty — there's no separate subfolder field) and applies
 // name/email as its local identity.
 func (t *DevToolsService) CloneRepo(url, folder, name, email string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -197,7 +203,7 @@ func (t *DevToolsService) CloneRepo(url, folder, name, email string) error {
 // InitRepoAt runs "git init" in folder (created if it doesn't exist yet)
 // and, when name/email are given, applies them as its local identity.
 func (t *DevToolsService) InitRepoAt(folder, name, email string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -205,10 +211,10 @@ func (t *DevToolsService) InitRepoAt(folder, name, email string) error {
 	})
 }
 
-// ApplyLocalGitIdentityAt sets folder's local user.name/user.email/
-// credential.helper.
+// ApplyLocalGitIdentityAt sets folder's local user.name/user.email and,
+// when no helper is configured for it, credential.helper.
 func (t *DevToolsService) ApplyLocalGitIdentityAt(folder, name, email string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -219,7 +225,7 @@ func (t *DevToolsService) ApplyLocalGitIdentityAt(folder, name, email string) er
 // GenerateGitignoreAt creates folder/.gitignore, or merges the missing
 // patterns into an existing one (managergitignore.Generate).
 func (t *DevToolsService) GenerateGitignoreAt(folder string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -233,7 +239,7 @@ func (t *DevToolsService) GenerateGitignoreAt(folder string) error {
 // copies, with contactEmail as the address for reporting violations (the
 // frontend pre-fills it with the folder's Git e-mail).
 func (t *DevToolsService) CreateConductAt(folder, contactEmail string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {

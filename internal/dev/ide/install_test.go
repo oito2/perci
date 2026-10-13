@@ -43,7 +43,7 @@ func TestInstallVSCode(t *testing.T) {
 			"gpg --batch --yes --dearmor",
 			"/etc/apt/sources.list.d/vscode.list",
 			"deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main",
-			"apt-get install -y 'code'",
+			"'install' '-y' '--' 'code'",
 		} {
 			if !strings.Contains(out, want) {
 				t.Errorf("script do VS Code (Debian) não contém %q\nscript completo:\n%s", want, out)
@@ -81,7 +81,7 @@ func TestInstallVSCodium(t *testing.T) {
 			"/etc/apt/sources.list.d/vscodium.sources",
 			"Types: deb",
 			"URIs: https://download.vscodium.com/debs",
-			"apt-get install -y 'codium'",
+			"'install' '-y' '--' 'codium'",
 		} {
 			if !strings.Contains(out, want) {
 				t.Errorf("script do VSCodium (Debian) não contém %q\nscript completo:\n%s", want, out)
@@ -177,7 +177,8 @@ func TestUninstallZed_RemovesUserFiles(t *testing.T) {
 	t.Setenv("HOME", home)
 	app := filepath.Join(home, ".local", "zed.app")
 	bin := filepath.Join(home, ".local", "bin", "zed")
-	for _, p := range []string{filepath.Join(app, "x"), bin} {
+	desktop := filepath.Join(home, ".local", "share", "applications", "dev.zed.Zed.desktop")
+	for _, p := range []string{filepath.Join(app, "x"), bin, desktop} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -189,10 +190,29 @@ func TestUninstallZed_RemovesUserFiles(t *testing.T) {
 	if err := UninstallOne(context.Background(), executor.New(&buf, &buf), &buf, Catalogue[0], distro.Debian); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{app, bin} {
+	for _, p := range []string{app, bin, desktop} {
 		if _, err := os.Stat(p); !os.IsNotExist(err) {
 			t.Errorf("%s still exists", p)
 		}
+	}
+}
+
+// Zed's installer runs with bounded curl timeouts and ~/.local/bin ends up
+// on PATH.
+func TestInstallZed_BoundedAndOnPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/bash")
+	var buf bytes.Buffer
+	exe := &executor.Executor{DryRun: true, Stdout: &buf, Stderr: &buf}
+	if err := InstallOne(context.Background(), exe, &buf, Catalogue[0], distro.Debian); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "--connect-timeout 10 --max-time 600") {
+		t.Errorf("curl without time limits:\n%s", buf.String())
+	}
+	if rc, _ := os.ReadFile(filepath.Join(home, ".bashrc")); !strings.Contains(string(rc), ".local/bin") {
+		t.Errorf("~/.local/bin not added to PATH: %q", rc)
 	}
 }
 

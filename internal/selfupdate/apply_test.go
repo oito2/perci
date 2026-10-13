@@ -279,3 +279,184 @@ func TestUninstall_UserOwnedBinary(t *testing.T) {
 		})
 	}
 }
+
+// Binary, alias and menu files that all need root are removed by ONE
+// privileged batch.
+func TestUninstall_AllPrivilegedInOneBatch(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	exe := withExecutable(t, dir)
+	alias := filepath.Join(dir, "perci")
+	if err := os.Symlink(exe, alias); err != nil {
+		t.Fatal(err)
+	}
+	sysDir := t.TempDir()
+	icon := filepath.Join(sysDir, "a.png")
+	if err := os.WriteFile(icon, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{dir, sysDir} {
+		if err := os.Chmod(d, 0o555); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(d, 0o755) })
+	}
+	origMenu := uninstallMenuPaths
+	uninstallMenuPaths = func() []string { return []string{icon} }
+	t.Cleanup(func() { uninstallMenuPaths = origMenu })
+
+	var buf bytes.Buffer
+	if err := Uninstall(context.Background(), dryRunExecutor(&buf), &buf, false); !errors.Is(err, ErrUninstalled) {
+		t.Fatalf("err = %v, want ErrUninstalled", err)
+	}
+	out := buf.String()
+	if n := strings.Count(out, "pkexec"); n != 1 {
+		t.Errorf("want exactly one pkexec call, got %d:\n%s", n, out)
+	}
+	for _, p := range []string{exe, alias, icon} {
+		if !strings.Contains(out, p) {
+			t.Errorf("batch must remove %s:\n%s", p, out)
+		}
+	}
+}
+
+// Only a symlink to the binary counts as the 'perci' alias; anything else
+// with that name is left alone.
+func TestUninstall_KeepsForeignPerciEntry(t *testing.T) {
+	makers := map[string]func(t *testing.T, alias string){
+		"regular file": func(t *testing.T, alias string) {
+			if err := os.WriteFile(alias, []byte("other tool"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"directory": func(t *testing.T, alias string) {
+			if err := os.Mkdir(alias, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"symlink elsewhere": func(t *testing.T, alias string) {
+			if err := os.Symlink("/usr/bin/true", alias); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	for name, mk := range makers {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			dir := t.TempDir()
+			withExecutable(t, dir)
+			alias := filepath.Join(dir, "perci")
+			mk(t, alias)
+			origMenu := uninstallMenuPaths
+			uninstallMenuPaths = func() []string { return nil }
+			t.Cleanup(func() { uninstallMenuPaths = origMenu })
+
+			var buf bytes.Buffer
+			if err := Uninstall(context.Background(), dryRunExecutor(&buf), &buf, false); !errors.Is(err, ErrUninstalled) {
+				t.Fatalf("err = %v", err)
+			}
+			if _, err := os.Lstat(alias); err != nil {
+				t.Errorf("foreign %s was removed: %v", name, err)
+			}
+		})
+	}
+}
+
+func TestIsOurAlias_RelativeLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "prci")
+	alias := filepath.Join(dir, "perci")
+	if err := os.Symlink("prci", alias); err != nil {
+		t.Fatal(err)
+	}
+	if !isOurAlias(alias, target) {
+		t.Error("relative symlink to the binary must count as the alias")
+	}
+}
+
+// The alias counts when the link goes through a symlinked directory.
+func TestIsOurAlias_SymlinkedDirectory(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "bin")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(real, "perci")
+	if err := os.Symlink(filepath.Join(link, "prci"), alias); err != nil {
+		t.Fatal(err)
+	}
+	if !isOurAlias(alias, filepath.Join(real, "prci")) {
+		t.Error("a link through a symlinked directory must count as the alias")
+	}
+}
+
+// While the binary needs the privileged batch, a user-writable menu entry
+// is not removed directly: canceling the prompt keeps both.
+func TestUninstall_MenuWaitsForPrivilegedBinary(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	withExecutable(t, dir)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	entry := filepath.Join(t.TempDir(), "perci.desktop")
+	if err := os.WriteFile(entry, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origMenu := uninstallMenuPaths
+	uninstallMenuPaths = func() []string { return []string{entry} }
+	t.Cleanup(func() { uninstallMenuPaths = origMenu })
+
+	var buf bytes.Buffer
+	_ = Uninstall(context.Background(), dryRunExecutor(&buf), &buf, false)
+	if _, err := os.Stat(entry); err != nil {
+		t.Errorf("the menu entry was removed directly: %v", err)
+	}
+	if !strings.Contains(buf.String(), entry) {
+		t.Errorf("the menu entry must go in the privileged batch:\n%s", buf.String())
+	}
+}
+
+// Apply refuses a release with no checksum source, before downloading.
+func TestApply_RefusesReleaseWithoutChecksum(t *testing.T) {
+	dir := t.TempDir()
+	exe := withExecutable(t, dir)
+	rel := serveBinary(t, []byte("new-binary"), "")
+	var buf bytes.Buffer
+	if err := Apply(context.Background(), dryRunExecutor(&buf), &buf, rel); err == nil {
+		t.Fatal("Apply must refuse a release without checksum")
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "old" {
+		t.Errorf("binary changed: %q", got)
+	}
+	assertNoTempFiles(t, dir)
+}
+
+// A development build is never overwritten by the self-update.
+func TestRun_RefusesDevBuild(t *testing.T) {
+	origVersion := version.Version
+	t.Cleanup(func() { version.Version = origVersion })
+	version.Version = "dev"
+	dir := t.TempDir()
+	exe := withExecutable(t, dir)
+	hits := 0
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) { hits++ })
+
+	var buf bytes.Buffer
+	if err := Run(context.Background(), dryRunExecutor(&buf), &buf); err == nil {
+		t.Fatal("Run must refuse a dev build")
+	}
+	if hits != 0 {
+		t.Errorf("no request expected, got %d", hits)
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "old" {
+		t.Errorf("binary changed: %q", got)
+	}
+}

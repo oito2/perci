@@ -31,7 +31,21 @@ profile bwrap /usr/bin/bwrap flags=(unconfined) {
 then reload AppArmor with `sudo systemctl reload apparmor` and start Perci again.
 
 **A post-installation entry I expect to see under Linux isn't in the list**
-Post-installation entries under **Linux** are gated on distro + desktop environment — only the entry matching your detected distro/DE shows up, the rest are left out of the list entirely (see [Installation → Supported Distributions](../getting-started/installation.md#supported-distributions)). Check `distro`/`de` in `~/.perci/config.yaml` — if auto-detection got your setup wrong, override them there (see [Configuration reference](../reference/configuration.md)).
+Post-installation entries under **Linux** are gated on distro + desktop environment — only the entry matching your detected distro/DE shows up, the rest are left out of the list entirely (see [Installation → Supported Distributions](../getting-started/installation.md#supported-distributions)). Perci detects the distribution from `/etc/os-release` and the desktop from `XDG_CURRENT_DESKTOP`; there is no setting to override them (the `distro`/`de` keys older docs mentioned are never read). If the entry is missing, check those two values in a terminal (`cat /etc/os-release`, `echo $XDG_CURRENT_DESKTOP`) and compare with the supported list.
+
+## Linux and General Use
+
+**The window won't close, or "Sair" in the tray does nothing, and the Execução tab shows a notice**
+An action is still running. Perci doesn't quit under a running action (an interrupted package-manager run could leave the system half-configured); wait for it to finish on the **Execução** tab and close it again.
+
+**An action ended as "concluído com avisos" instead of success**
+The main work finished, but one or more secondary steps failed — for example Snap, Flatpak, journal vacuum or `autoremove` during **Atualizar Sistema**, or one app in a Flatpak or font batch. The warning lines in the terminal name what failed; re-run the action after fixing the cause.
+
+**Post-installation items I applied before show up as available again**
+The record of items without a detectable state is tied to the machine's `/etc/machine-id` (`postinstall_machine_id`). After reinstalling the OS while keeping `$HOME` (or the first time you run a version that records the ID) the old records no longer count, and those items are offered once more. Applying them again is safe; items that can be detected on the system (packages, sysctl file, swap, `fstrim.timer`, Flathub) were never affected.
+
+**A font install fails with "nenhuma fonte .ttf encontrada" or a font removal is refused**
+Downloaded fonts are installed under `~/.local/share/fonts/perci/<font>`; an archive that carries no `.ttf` fails instead of installing nothing. On Debian-family systems a packaged font that another package depends on is not removed (`dpkg --purge` refuses) — remove the dependent package first.
 
 ## Docker Application Stack
 
@@ -43,6 +57,18 @@ On first creation, `mkcert -install` may escalate to root on its own (mkcert's o
 
 **A mounted Moodle plugin stays "Reinício pendente" or the plugin's pages fail**
 A running container only sees a new mount after it restarts — use the row's restart action in **Dev Tools → Plugins Moodle** (it also restarts Nginx). "Montagem inativa" means the host mount is gone (unit removed or failed: `systemctl status <unit>`); remove the row and create it again. Don't use a symbolic link for a plugin instead: inside the container the link points outside the mounted code, and PHP's `__DIR__` resolves it, so `config.php` isn't found.
+
+**An app can't be created or recreated: "o caminho … não pode ser montado no contêiner"**
+Project folders are bind-mounted with `--mount`, whose value can't carry a comma, a double quote or a line break. Rename the folder (or the workspace folder) without those characters.
+
+**An app container doesn't start after its `html` or `logs` folder was deleted**
+With `--mount`, Docker no longer recreates a missing source folder, so starting (or the restart at boot) fails. Use **Recriar** in Docker → Gerenciar Containers: it creates the folders again.
+
+**The PHP 7.4 / 8.0 image builds, but I'm worried about updates**
+These two images are based on Debian bullseye, which is out of support, so their packages come from `archive.debian.org` and they receive no more security updates. Use them only for legacy projects; prefer 8.1 or newer when the project allows.
+
+**Xdebug can't reach my IDE from an app created before**
+Containers now start with `--add-host host.docker.internal:host-gateway`; an existing container doesn't have it until you **Recriar** it in **Docker → Gerenciar Containers**.
 
 **Editing a container caused a brief outage of just that app**
 Expected — "Editar" is remove-and-recreate with the new parameters (the only real way to change a running container's image/PHP/Node version). Volumes (`html`/`data`) are preserved; other containers are untouched.
@@ -64,6 +90,18 @@ Wrappers created by older versions ran as root inside PHP-family and combo conta
 **Clicking "Aplicar" in IA: Contextos overwrote my customized `AGENTS.md`**
 That's by design — **Aplicar** always regenerates and overwrites `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md` for every checked model, with no confirmation dialog; the click itself is the confirmation, same convention as every other non-interactive GUI action. Back up any manual edits to those files before clicking Aplicar again, or keep your customizations in a file the generator doesn't touch.
 
+**Aplicar fails with "pasta não escolhida no seletor"**
+Folders handed to the AI Context, repository and MCP screens must have been picked in the native folder dialog in this session (or already be registered). Use the folder-picker button (**Selecionar pasta**) instead of typing or pasting a path.
+
+**There is no `.claudeignore` anymore, and `*.perci-bak` files appeared**
+Claude Code ignores `.claudeignore`, so Perci stopped generating it: the equivalent read rules are merged into the project's `.claude/settings.json` (`permissions.deny`), next to the `.aiexclude`. If an old `.claudeignore` is found, a warning says it can be deleted. A `<file>.perci-bak` is the previous version of a generated file that Perci replaced with different content — delete it when you no longer need it.
+
+**Registering an MCP server fails with "já existe um servidor com esse nome que não foi registrado pelo Perci"**
+An agent (Antigravity, Claude Code or Codex) already has a server with that name that Perci didn't create; Perci never overwrites or removes those. Rename or remove it in the agent's own configuration, then register again.
+
+**An MCP server or SKILL row says "parcial: …"**
+The registration reached only the agents listed after "parcial"; the others failed or weren't available. Check the terminal output of the run, fix the cause (for example a missing CLI) and run the action on that row again.
+
 **Moodle placeholders (`{{MOODLE_VERSION}}`, etc.) weren't filled in**
 The generator looks for `version.php` (or `public/version.php`) in the folder you picked in **IA: Contextos**. If it's not found, the GUI leaves the literal placeholders in place and logs a warning instead of prompting for values — fill them in by hand, or pick the project's actual root folder and click Aplicar again.
 
@@ -73,11 +111,19 @@ Fixed: older versions removed those three entries (which install every skill of 
 ## Development Environment
 
 **After installing Go, my fish shell lost `/usr/bin` (and most commands) from `PATH`**
-Fixed: older versions wrote `export PATH=$PATH:/usr/local/go/bin` to `~/.config/fish/config.fish`; in fish that unquoted line leaves `PATH` with just `/bin` and Go's `bin`. The line is now quoted (`export PATH="$PATH:/usr/local/go/bin"`, valid in bash, zsh and fish). To repair an existing install, uncheck Go in **Linguagens e SDKs** and run it (removes Go and both forms of the line), then check it again to reinstall. By hand: delete the old line from `config.fish` and open a new shell.
+Fixed: older versions wrote `export PATH=$PATH:/usr/local/go/bin` to `~/.config/fish/config.fish`; in fish that unquoted line leaves `PATH` with just `/bin` and Go's `bin`. The line is now quoted (`export PATH="$PATH:/usr/local/go/bin"`, valid in bash, zsh and fish). To repair an existing install, click **Desinstalar** on Go in **Linguagens e SDKs** (removes Go and both forms of the line), then **Instalar** to reinstall. By hand: delete the old line from `config.fish` and open a new shell.
+
+**Uninstalling an item is refused with "… também removeria: …"**
+Before removing a prerequisite, terminal (Alacritty, GNOME Console) or IDE (VS Code, VSCodium) package, Perci simulates the removal and stops when the package manager would also remove other packages — nothing is removed. Look at the listed packages; if you are sure, remove it from a terminal yourself.
+
+**Flutter's install mentions Android licenses**
+Installing Flutter accepts the Android SDK licenses on your behalf (`sdkmanager --licenses`); the terms are linked in the item's description. Don't install it if you don't agree to them.
+
+**A long download or `npx` step ends with a timeout error**
+Unprivileged network commands (nvm, `npx`, `git`, `curl` downloads) are cut off after 30 minutes so a stalled connection can't hold the single running action forever. Check the connection and run the action again. `apt`/`dnf` steps are never interrupted this way. The Flutter clone (its full history is large) has no total limit: git aborts it when the transfer stays below 1 KB/s for 2 minutes.
 
 ## Known, Accepted Limitations (Not Bugs)
 
-- **Android cmdline-tools** (`internal/dev/flutter`) and **`appimagetool`** (`internal/dev/prereqs`) are downloaded without checksum verification. Neither Google nor the AppImage project publishes an official checksum for these specific artifacts — this is a documented, accepted risk, not an oversight. See the [internal decisions log](../architecture/decisions.md) for the full reasoning (and why `appimagetool` specifically stays on the `continuous` release tag rather than a "stable" one).
 - **Arch-based distros are not supported.** `internal/distro` only detects Debian and Fedora families; there is no plan to add Arch support unless that changes.
 - perci itself has no telemetry, background process, or daemon — if something looks "stuck," it's a single synchronous command; check the terminal output directly rather than looking for a service to restart.
 

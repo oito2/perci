@@ -49,8 +49,7 @@ var (
 )
 
 // loadOSRelease reads and parses /etc/os-release exactly once per process
-// lifetime, in a single pass over its lines computing everything every
-// caller needs.
+// lifetime, computing everything every caller needs.
 func loadOSRelease() {
 	osReleaseOnce.Do(func() {
 		data, _ := os.ReadFile("/etc/os-release") // err == read as empty content
@@ -133,9 +132,9 @@ func classify(id string) string {
 	return Unknown
 }
 
-// clean removes surrounding quotes and lowercases the value.
+// clean removes surrounding single or double quotes and lowercases the value.
 func clean(s string) string {
-	return strings.ToLower(strings.Trim(strings.TrimSpace(s), `"`))
+	return strings.ToLower(strings.Trim(strings.TrimSpace(s), `"'`))
 }
 
 // normalizedDistro maps a raw OS ID to the distro token
@@ -175,9 +174,10 @@ func displayName(id string) string {
 }
 
 // DetectDE returns the normalized desktop environment token
-// (cinnamon | gnome | xfce | cosmic | other). Reads XDG_CURRENT_DESKTOP
-// with DESKTOP_SESSION as fallback. The COSMIC session sets
-// XDG_CURRENT_DESKTOP=COSMIC.
+// (cinnamon | budgie | gnome | xfce | cosmic | other). Reads
+// XDG_CURRENT_DESKTOP with DESKTOP_SESSION as fallback. The COSMIC session
+// sets XDG_CURRENT_DESKTOP=COSMIC; Budgie sets "Budgie:GNOME" (10.9) or
+// "Budgie" (10.10), so it is checked before GNOME.
 func DetectDE() string {
 	desktop := strings.ToLower(os.Getenv("XDG_CURRENT_DESKTOP"))
 	if desktop == "" {
@@ -186,6 +186,8 @@ func DetectDE() string {
 	switch {
 	case strings.Contains(desktop, "cinnamon"):
 		return "cinnamon"
+	case strings.Contains(desktop, "budgie"):
+		return "budgie"
 	case strings.Contains(desktop, "gnome"):
 		return "gnome"
 	case strings.Contains(desktop, "xfce"):

@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/ui"
 )
 
@@ -88,7 +89,7 @@ func CreateConduct(stdout io.Writer, dir, contactEmail string, overwrite bool) e
 			return fmt.Errorf("criar %s: %w", filepath.Dir(path), err)
 		}
 		content := strings.ReplaceAll(f.content, contactPlaceholder, contactEmail)
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := fsutil.WriteGenerated(path, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("criar %s: %w", path, err)
 		}
 		ui.Info(stdout, "Criado: "+path)

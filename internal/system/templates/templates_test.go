@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/oito2/perci/internal/system/templates"
@@ -155,8 +156,9 @@ func TestApply_RejectsTraversalAndKeepsExisting(t *testing.T) {
 		}
 	}
 
-	if err := templates.Apply(io.Discard, dir, []string{"Texto.txt"}, []string{"../keep.txt", ".."}); err != nil {
-		t.Fatal(err)
+	err := templates.Apply(io.Discard, dir, []string{"Texto.txt"}, []string{"../keep.txt", ".."})
+	if err == nil || !strings.Contains(err.Error(), "2 modelo(s) com falha") {
+		t.Fatalf("invalid names must be reported as failures, got %v", err)
 	}
 	for _, p := range []string{outside, existing} {
 		if b, err := os.ReadFile(p); err != nil || string(b) != "mine" {
@@ -180,5 +182,55 @@ func TestCreateZip_Deterministic(t *testing.T) {
 	}
 	if !bytes.Equal(ba, bb) {
 		t.Error("two docx builds differ")
+	}
+}
+
+// A template failing to be created is reported in the returned error; one
+// that already exists is not a failure.
+func TestApply_ReportsFailures(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Texto.txt"), []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := templates.Apply(io.Discard, dir, []string{"Texto.txt"}, nil); err != nil {
+		t.Errorf("an existing template is not a failure: %v", err)
+	}
+	// A non-empty directory cannot be removed as a file.
+	if err := os.MkdirAll(filepath.Join(dir, "Script.py", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := templates.Apply(io.Discard, dir, []string{"Documento.md"}, []string{"Script.py"})
+	if err == nil || !strings.Contains(err.Error(), "1 modelo(s) com falha: Script.py") {
+		t.Errorf("err = %v, want one failure naming Script.py", err)
+	}
+}
+
+// Dir honors the directory xdg-user-dir reports, even when it doesn't exist
+// yet, and falls back to ~/Modelos or ~/Templates otherwise.
+func TestDir_UsesXDGThenFallbacks(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	bin := t.TempDir()
+	write := func(out string) {
+		script := "#!/bin/sh\n" + out + "\n"
+		if err := os.WriteFile(filepath.Join(bin, "xdg-user-dir"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+
+	write("echo " + filepath.Join(home, "Vorlagen"))
+	if dir, _ := templates.Dir(); dir != filepath.Join(home, "Vorlagen") {
+		t.Errorf("Dir() = %q, want the xdg directory", dir)
+	}
+	write("echo " + home)
+	if dir, _ := templates.Dir(); dir != filepath.Join(home, "Templates") {
+		t.Errorf("Dir() = %q, want ~/Templates", dir)
+	}
+	if err := os.Mkdir(filepath.Join(home, "Modelos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if dir, _ := templates.Dir(); dir != filepath.Join(home, "Modelos") {
+		t.Errorf("Dir() = %q, want ~/Modelos", dir)
 	}
 }

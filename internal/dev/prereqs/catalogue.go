@@ -31,9 +31,11 @@ import (
 	"time"
 
 	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/fsutil"
+	"github.com/oito2/perci/internal/shellrc"
 	"github.com/oito2/perci/internal/ui"
 )
 
@@ -46,12 +48,24 @@ type Prereq struct {
 	// is uninstalled — for a removal that takes more with it than the
 	// item itself.
 	RemoveWarning string
+	// Requires lists what must be installed before this item: IDs of other
+	// Catalogue items, or of externalRequirements.
+	Requires []string
 }
 
-// Catalogue lists all prerequisites managed by perci.gnl, ordered by essentiality.
+// externalRequirements maps the requirement IDs installed outside this
+// catalogue to their label.
+var externalRequirements = map[string]string{
+	"go": "Go (Linguagens e SDKs)",
+}
+
+// Catalogue lists all prerequisites managed by perci.gnl: the items others
+// require come first, then the rest by essentiality. Every item comes after
+// the Catalogue items it requires.
 var Catalogue = []Prereq{
-	{Name: "Git", ID: "git", Description: "Sistema de controle de versão distribuído"},
 	{Name: "Curl", ID: "curl", Description: "Ferramenta de linha de comando para transferência de dados via URL"},
+	{Name: "Flatpak", ID: "flatpak", Description: "Gerenciador de pacotes e distribuição de aplicativos sandbox"},
+	{Name: "Git", ID: "git", Description: "Sistema de controle de versão distribuído"},
 	{Name: "OpenSSL", ID: "openssl", Description: "Ferramentas e bibliotecas para criptografia SSL/TLS"},
 	{Name: "Lsof", ID: "lsof", Description: "Utilitário para listagem de arquivos abertos pelo sistema"},
 	{Name: "CMake", ID: "cmake", Description: "Gerador de sistemas de compilação cross-platform"},
@@ -60,19 +74,23 @@ var Catalogue = []Prereq{
 	{Name: "GTK3 Dev Headers", ID: "gtk3dev", Description: "Arquivos de cabeçalho e desenvolvimento para a biblioteca GTK 3 (usado, por exemplo, por apps Flutter Linux desktop)"},
 	{Name: "GTK4 Dev Headers", ID: "gtk4dev", Description: "Arquivos de cabeçalho e desenvolvimento para a biblioteca GTK 4 — necessário para compilar a própria GUI do Perci (Wails v3)"},
 	{Name: "WebKitGTK 6.0 Dev Headers", ID: "webkitgtk6dev", Description: "Arquivos de cabeçalho e desenvolvimento do WebKitGTK 6.0 — necessário, junto com o GTK4, para compilar a própria GUI do Perci (Wails v3)"},
-	{Name: "Wails3 CLI", ID: "wails3", Description: "CLI do Wails v3, instalado via 'go install' — só é necessário para quem for contribuir com a GUI do Perci e precisar regenerar os bindings do frontend (make generate-bindings)"},
-	{Name: "Libsecret Tools", ID: "libsecret", Description: "Utilitário para acesso a chaves do sistema via Secret Service API"},
+	{Name: "Wails3 CLI", ID: "wails3", Description: "CLI do Wails v3, instalado via 'go install' — só é necessário para quem for contribuir com a GUI do Perci e precisar regenerar os bindings do frontend (make generate-bindings)",
+		Requires: []string{"go"}},
+	{Name: "Libsecret Tools", ID: "libsecret", Description: "Utilitário para acesso a chaves do sistema via Secret Service API (no Fedora, inclui o git-credential-libsecret, que guarda as senhas do Git no chaveiro)"},
 	{Name: "Librsvg Tools", ID: "librsvg", Description: "Utilitário rsvg-convert para converter imagens SVG em PNG/PDF (usado, por exemplo, na geração de ícones)"},
 	{Name: "GNOME Keyring", ID: "gnome-keyring", Description: "Serviço daemon para armazenamento seguro de senhas e chaves"},
-	{Name: "GitHub CLI (gh)", ID: "gh", Description: "Interface de linha de comando oficial para o GitHub"},
-	{Name: "Docker Engine", ID: "docker", Description: "Motor de contêineres Docker e utilitário Docker Compose"},
+	{Name: "GitHub CLI (gh)", ID: "gh", Description: "Interface de linha de comando oficial para o GitHub",
+		Requires: []string{"curl"}},
+	{Name: "Docker Engine", ID: "docker", Description: "Motor de contêineres Docker e utilitário Docker Compose. O usuário é adicionado ao grupo docker, que tem acesso equivalente ao de administrador (root) no computador."},
 	{Name: "Node.js", ID: "node", Description: "Ambiente de execução JavaScript (versão LTS instalada via nvm)",
-		RemoveWarning: "Remover o Node.js apaga a pasta ~/.nvm inteira: todas as versões do Node instaladas pelo nvm e todos os pacotes npm globais delas (inclusive o Codex CLI, se instalado por aqui). As linhas do nvm no arquivo de inicialização do shell precisam ser removidas manualmente."},
-	{Name: "Flatpak", ID: "flatpak", Description: "Gerenciador de pacotes e distribuição de aplicativos sandbox"},
-	{Name: "Flatpak Builder", ID: "flatpak-builder", Description: "Ferramenta para compilação de aplicativos no formato Flatpak"},
+		Requires:      []string{"curl"},
+		RemoveWarning: "Remover o Node.js apaga a pasta ~/.nvm inteira: todas as versões do Node instaladas pelo nvm e todos os pacotes npm globais delas (inclusive o Codex CLI, se instalado por aqui). As linhas do nvm no arquivo de inicialização do shell também são removidas."},
+	{Name: "Flatpak Builder", ID: "flatpak-builder", Description: "Ferramenta para compilação de aplicativos no formato Flatpak",
+		Requires: []string{"flatpak"}},
 	{Name: "AppStream", ID: "appstream", Description: "Utilitário para metadados de componentes AppStream, usado por Flatpak/AppImage"},
 	{Name: "Libfuse2", ID: "libfuse2", Description: "Biblioteca de compatibilidade FUSE2, necessária para executar AppImages"},
-	{Name: "AppImageTool", ID: "appimagetool", Description: "Utilitário de empacotamento e geração de arquivos AppImage"},
+	{Name: "AppImageTool", ID: "appimagetool", Description: "Utilitário de empacotamento e geração de arquivos AppImage",
+		Requires: []string{"curl"}},
 	{Name: "Mkcert", ID: "mkcert", Description: "Gera certificados TLS localmente confiáveis (usado pelo Contêiner Nginx da nova stack Docker por projeto)"},
 }
 
@@ -95,6 +113,36 @@ func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 	}
 	wg.Wait()
 	return result
+}
+
+// MissingRequirements returns the labels of p's requirements that aren't
+// installed. installed is InstalledMap's result (keyed by Name).
+func MissingRequirements(ctx context.Context, exe *executor.Executor, p Prereq, installed map[string]bool) []string {
+	var missing []string
+	for _, req := range p.Requires {
+		if label, ok := externalRequirements[req]; ok {
+			if !exe.CommandAvailable(ctx, req) {
+				missing = append(missing, label)
+			}
+			continue
+		}
+		for _, other := range Catalogue {
+			if other.ID == req && !installed[other.Name] {
+				missing = append(missing, other.Name)
+			}
+		}
+	}
+	return missing
+}
+
+// Installed reports whether the Catalogue item named name is installed.
+func Installed(ctx context.Context, exe *executor.Executor, name string) bool {
+	for _, p := range Catalogue {
+		if p.Name == name {
+			return isInstalled(ctx, exe, p.ID)
+		}
+	}
+	return false
 }
 
 func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
@@ -177,40 +225,8 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, p
 func installFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p Prereq, family string) error {
 	opts := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
 	switch p.ID {
-	case "git", "curl", "openssl", "lsof", "cmake", "clang", "gnome-keyring", "flatpak", "flatpak-builder", "appstream":
-		return distro.InstallPkgs(ctx, exe, stdout, family, p.ID)
-	case "ninja":
-		return distro.InstallPkgs(ctx, exe, stdout, family, "ninja-build")
-	case "gtk3dev":
-		pkg := "libgtk-3-dev"
-		if family == distro.Fedora {
-			pkg = "gtk3-devel"
-		}
-		return distro.InstallPkgs(ctx, exe, stdout, family, pkg)
-	case "gtk4dev":
-		pkg := "libgtk-4-dev"
-		if family == distro.Fedora {
-			pkg = "gtk4-devel"
-		}
-		return distro.InstallPkgs(ctx, exe, stdout, family, pkg)
-	case "webkitgtk6dev":
-		pkg := "libwebkitgtk-6.0-dev"
-		if family == distro.Fedora {
-			pkg = "webkitgtk6.0-devel"
-		}
-		return distro.InstallPkgs(ctx, exe, stdout, family, pkg)
 	case "wails3":
 		return installWails3(ctx, exe, stdout)
-	case "libsecret":
-		pkgs := []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
-		if family == distro.Fedora {
-			pkgs = []string{"libsecret", "libsecret-devel"}
-		}
-		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
-	case "librsvg":
-		return distro.InstallPkgs(ctx, exe, stdout, family, librsvgPkg(family))
-	case "libfuse2":
-		return distro.InstallPkgs(ctx, exe, stdout, family, libfuse2Pkg(family))
 	case "gh":
 		return installGH(ctx, exe, stdout, family, opts)
 	case "docker":
@@ -219,8 +235,9 @@ func installFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p
 		return installNode(ctx, exe, stdout)
 	case "appimagetool":
 		return installAppImageTool(ctx, exe, stdout, opts)
-	case "mkcert":
-		return distro.InstallPkgs(ctx, exe, stdout, family, mkcertPkgs(family)...)
+	}
+	if pkgs := packagesFor(p.ID, family); pkgs != nil {
+		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
 	}
 	return fmt.Errorf("instalador desconhecido para %s", p.Name)
 }
@@ -234,67 +251,112 @@ func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 func uninstallFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p Prereq, family string) error {
 	opts := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
 	switch p.ID {
-	case "git", "curl", "openssl", "lsof", "cmake", "clang", "gnome-keyring", "flatpak", "flatpak-builder", "appstream":
-		return removePkgs(ctx, exe, opts, family, p.ID)
-	case "ninja":
-		return removePkgs(ctx, exe, opts, family, "ninja-build")
-	case "gtk3dev":
-		pkg := "libgtk-3-dev"
-		if family == distro.Fedora {
-			pkg = "gtk3-devel"
-		}
-		return removePkgs(ctx, exe, opts, family, pkg)
-	case "gtk4dev":
-		pkg := "libgtk-4-dev"
-		if family == distro.Fedora {
-			pkg = "gtk4-devel"
-		}
-		return removePkgs(ctx, exe, opts, family, pkg)
-	case "webkitgtk6dev":
-		pkg := "libwebkitgtk-6.0-dev"
-		if family == distro.Fedora {
-			pkg = "webkitgtk6.0-devel"
-		}
-		return removePkgs(ctx, exe, opts, family, pkg)
 	case "wails3":
 		return uninstallWails3(ctx, exe)
-	case "libsecret":
-		pkgs := []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
-		if family == distro.Fedora {
-			pkgs = []string{"libsecret", "libsecret-devel"}
-		}
-		return removePkgs(ctx, exe, opts, family, pkgs...)
-	case "librsvg":
-		return removePkgs(ctx, exe, opts, family, librsvgPkg(family))
-	case "libfuse2":
-		return removePkgs(ctx, exe, opts, family, libfuse2Pkg(family))
 	case "gh":
 		return uninstallGH(ctx, exe, stdout, family, opts)
-	case "docker":
-		return removePkgs(ctx, exe, opts, family, dockerPkgs(family)...)
 	case "node":
 		return uninstallNode(stdout)
 	case "appimagetool":
-		_ = exe.Run(ctx, opts, "rm", "-f", "--", appImageToolDest)
-		return nil
-	case "mkcert":
-		return removePkgs(ctx, exe, opts, family, mkcertPkgs(family)...)
+		return exe.Run(ctx, opts, "rm", "-f", "--", appImageToolDest)
+	}
+	if pkgs := removalPackagesFor(p.ID, family); pkgs != nil {
+		return RemovePackages(ctx, exe, opts, family, pkgs...)
 	}
 	return fmt.Errorf("desinstalador desconhecido para %s", p.Name)
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// UpdateOne updates a single installed prerequisite: its packages through
+// the package manager, Node.js to the latest LTS, and the items pinned to
+// a version (Wails3 CLI, AppImageTool) by reinstalling that version.
+func UpdateOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, p Prereq) error {
+	return updateFor(ctx, exe, stdout, p, distro.Detect())
+}
 
-func removePkgs(ctx context.Context, exe *executor.Executor, opts executor.Options, family string, pkgs ...string) error {
+// updateFor is UpdateOne for an explicit distro family.
+func updateFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p Prereq, family string) error {
+	switch p.ID {
+	case "wails3":
+		return installWails3(ctx, exe, stdout)
+	case "node":
+		return updateNode(ctx, exe, stdout)
+	case "appimagetool":
+		return installAppImageTool(ctx, exe, stdout, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout})
+	}
+	if pkgs := packagesFor(p.ID, family); pkgs != nil {
+		return upgradePkgs(ctx, exe, stdout, family, pkgs...)
+	}
+	return fmt.Errorf("atualizador desconhecido para %s", p.Name)
+}
+
+// packagesFor returns the distro packages of item id on family, or nil for
+// the items not made of distro packages (Wails3 CLI, Node.js,
+// AppImageTool).
+func packagesFor(id, family string) []string {
+	fedora := family == distro.Fedora
+	pick := func(debian, fedoraPkg string) []string {
+		if fedora {
+			return []string{fedoraPkg}
+		}
+		return []string{debian}
+	}
+	switch id {
+	case "git", "curl", "openssl", "lsof", "cmake", "clang", "gnome-keyring", "flatpak", "flatpak-builder", "appstream", "gh":
+		return []string{id}
+	case "ninja":
+		return []string{"ninja-build"}
+	case "gtk3dev":
+		return pick("libgtk-3-dev", "gtk3-devel")
+	case "gtk4dev":
+		return pick("libgtk-4-dev", "gtk4-devel")
+	case "webkitgtk6dev":
+		return pick("libwebkitgtk-6.0-dev", "webkitgtk6.0-devel")
+	case "libsecret":
+		if fedora {
+			return []string{"libsecret", "libsecret-devel", "git-credential-libsecret"}
+		}
+		return []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
+	case "librsvg":
+		return []string{librsvgPkg(family)}
+	case "libfuse2":
+		return []string{libfuse2Pkg(family)}
+	case "mkcert":
+		return mkcertPkgs(family)
+	case "docker":
+		return dockerPkgs(family)
+	}
+	return nil
+}
+
+// removalPackagesFor returns the packages removed with item id on family:
+// packagesFor without the shared runtime library that other software on
+// the system depends on.
+func removalPackagesFor(id, family string) []string {
+	pkgs := packagesFor(id, family)
+	if id == "libsecret" && family != distro.Fedora {
+		return slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "libsecret-1-0" })
+	}
+	return pkgs
+}
+
+// upgradePkgs upgrades pkgs to their latest available version without
+// installing anything new — on Debian the package index is refreshed in
+// the same privileged batch (one password prompt).
+func upgradePkgs(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string, pkgs ...string) error {
 	switch family {
-	case distro.Fedora:
-		return exe.Run(ctx, opts, "dnf", append([]string{"remove", "-y", "--"}, pkgs...)...)
 	case distro.Debian:
-		return exe.Run(ctx, opts, "apt-get", append([]string{"purge", "-y", "--"}, pkgs...)...)
+		return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{
+			{Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs("update", "-q")},
+			{Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs(append([]string{"install", "--only-upgrade", "-y", "--"}, pkgs...)...)},
+		})
+	case distro.Fedora:
+		return exe.Run(ctx, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}, "dnf", append([]string{"upgrade", "-y", "--"}, pkgs...)...)
 	default:
-		return fmt.Errorf("unsupported distro family: %s", family)
+		return distro.UnsupportedFamilyError(family)
 	}
 }
+
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 func librsvgPkg(family string) string {
 	if family == distro.Fedora {
@@ -330,6 +392,15 @@ func dockerPkgs(family string) []string {
 	}
 }
 
+// aptShell renders an unattended apt-get command line for a bash script.
+func aptShell(args ...string) string {
+	words := []string{"apt-get"}
+	for _, a := range distro.AptArgs(args...) {
+		words = append(words, executor.ShellQuote(a))
+	}
+	return strings.Join(words, " ")
+}
+
 // ── GitHub CLI ────────────────────────────────────────────────────────────────
 
 func installGH(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string, opts executor.Options) error {
@@ -337,11 +408,12 @@ func installGH(ctx context.Context, exe *executor.Executor, stdout io.Writer, fa
 	switch family {
 	case distro.Debian:
 		script := `set -Eeuo pipefail
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+curl -fsSL ` + nettimeout.CurlShellFlags + ` https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
-apt-get update -q
-apt-get install -y -- gh`
+` + aptShell("update", "-q") + `
+` + aptShell("install", "-y", "--", "gh")
+		opts.Env = append(slices.Clone(opts.Env), distro.AptEnv...)
 		return exe.Run(ctx, opts, "bash", "-c", script)
 	case distro.Fedora:
 		// gh is in Fedora's own repositories, so no extra repo is added.
@@ -355,13 +427,17 @@ func uninstallGH(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 	_ = stdout
 	switch family {
 	case distro.Debian:
+		if err := CheckRemoval(ctx, exe, family, "gh"); err != nil {
+			return err
+		}
 		script := `set -Eeuo pipefail
-apt-get purge -y -- gh
+` + aptShell("purge", "-y", "--", "gh") + `
 rm -f /etc/apt/sources.list.d/github-cli.list /usr/share/keyrings/githubcli-archive-keyring.gpg
-apt-get update -q`
+` + aptShell("update", "-q")
+		opts.Env = append(slices.Clone(opts.Env), distro.AptEnv...)
 		return exe.Run(ctx, opts, "bash", "-c", script)
 	case distro.Fedora:
-		return exe.Run(ctx, opts, "dnf", "remove", "-y", "--", "gh")
+		return RemovePackages(ctx, exe, opts, family, "gh")
 	default:
 		return fmt.Errorf("unsupported distro family for GitHub CLI: %s", family)
 	}
@@ -378,8 +454,8 @@ func installDocker(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	switch family {
 	case distro.Debian:
 		steps = []executor.PrivilegedStep{
-			{Name: "apt-get", Args: []string{"update", "-q"}},
-			{Name: "apt-get", Args: append([]string{"install", "-y", "--"}, dockerPkgs(family)...)},
+			{Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs("update", "-q")},
+			{Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs(append([]string{"install", "-y", "--"}, dockerPkgs(family)...)...)},
 		}
 	case distro.Fedora:
 		steps = []executor.PrivilegedStep{{Name: "dnf", Args: append([]string{"install", "-y", "--"}, dockerPkgs(family)...)}}
@@ -420,6 +496,30 @@ func installDocker(ctx context.Context, exe *executor.Executor, stdout io.Writer
 
 // ── Node.js ───────────────────────────────────────────────────────────────────
 
+// nvmVersion is the nvm release tag whose installer is downloaded.
+const nvmVersion = "v0.40.8"
+
+// nvmRCLines are the lines nvm's installer appends to a shell rc file.
+var nvmRCLines = []string{
+	`export NVM_DIR="$HOME/.nvm"`,
+	`[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm`,
+	`[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion`,
+}
+
+// nodeInstallScript installs nvm (when missing) at the pinned release and
+// the latest Node.js LTS through it. -u (nounset) is not set, because
+// nvm.sh references variables that may be unset.
+const nodeInstallScript = `set -Eeo pipefail
+export NVM_DIR="$HOME/.nvm"
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+    curl -fsSL ` + nettimeout.CurlShellFlags + ` https://raw.githubusercontent.com/nvm-sh/nvm/` + nvmVersion + `/install.sh | bash
+    export NVM_DIR="$HOME/.nvm"
+fi
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm install --lts
+nvm use --lts
+`
+
 func installNode(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	checkScript := `export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; command -v node && command -v npm`
 	if _, e := exe.Output(ctx, executor.Options{}, "bash", "-c", checkScript); e == nil {
@@ -434,20 +534,10 @@ func installNode(ctx context.Context, exe *executor.Executor, stdout io.Writer) 
 	_, statErr := os.Stat(filepath.Join(home, ".nvm", "nvm.sh"))
 	freshNVM := statErr != nil
 
-	// -u (nounset) is not set, because nvm.sh references variables that
-	// may be unset.
-	script := `set -Eeo pipefail
-export NVM_DIR="$HOME/.nvm"
-if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/HEAD/install.sh | bash
-    export NVM_DIR="$HOME/.nvm"
-fi
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm install --lts
-nvm use --lts
-`
 	ui.Info(stdout, "Instalando Node.js LTS via nvm...")
-	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", script); err != nil {
+	ctx, cancel := nettimeout.Context(ctx)
+	defer cancel()
+	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", nodeInstallScript); err != nil {
 		return fmt.Errorf("instalar Node.js: %w", err)
 	}
 
@@ -467,7 +557,50 @@ func uninstallNode(stdout io.Writer) error {
 	if err := os.RemoveAll(filepath.Join(home, ".nvm")); err != nil {
 		return fmt.Errorf("remover ~/.nvm: %w", err)
 	}
-	ui.Warning(stdout, "Node.js removido. Remova manualmente as linhas NVM_DIR do ~/.bashrc.")
+	candidates := shellrc.Dedup([]string{
+		filepath.Join(home, ".bashrc"), filepath.Join(home, ".bash_profile"), filepath.Join(home, ".profile"),
+		filepath.Join(home, ".zshrc"), shellrc.File(home),
+	})
+	for _, line := range nvmRCLines {
+		for _, res := range shellrc.RemoveEntry(candidates, "", line) {
+			if res.Err != nil {
+				ui.Warning(stdout, "Não foi possível atualizar "+res.Path+": "+res.Err.Error())
+				continue
+			}
+			ui.Info(stdout, "Linha do nvm removida de "+res.Path)
+		}
+	}
+	ui.Success(stdout, "Node.js removido.")
+	return nil
+}
+
+// nodeUpdateScript installs the latest Node.js LTS through nvm, carrying
+// over the global npm packages of nvm's default version (the one in use
+// when there is no default), and makes the LTS the default for new shells.
+// Nothing is installed when that version already is the latest LTS.
+const nodeUpdateScript = `set -Eeo pipefail
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+current="$(nvm version default)"
+if [ "$current" = "N/A" ]; then
+    current="$(nvm current)"
+fi
+latest="$(nvm version-remote --lts)"
+if [ "$current" = "$latest" ]; then
+    echo "Node.js já está na versão LTS mais recente ($current)."
+    exit 0
+fi
+nvm install --lts --reinstall-packages-from="$current"
+nvm alias default 'lts/*'
+`
+
+func updateNode(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
+	ui.Info(stdout, "Atualizando Node.js para a última LTS via nvm...")
+	ctx, cancel := nettimeout.Context(ctx)
+	defer cancel()
+	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", nodeUpdateScript); err != nil {
+		return fmt.Errorf("atualizar Node.js: %w", err)
+	}
 	return nil
 }
 
@@ -577,7 +710,7 @@ func installAppImageTool(ctx context.Context, exe *executor.Executor, stdout io.
 // ── Wails3 CLI ────────────────────────────────────────────────────────────────
 
 // wails3Version is the Wails CLI version installed by `go install`.
-const wails3Version = "v3.0.0-beta.22"
+const wails3Version = "v3.0.0-beta.28"
 
 // goBinDir resolves where `go install` puts binaries: $GOBIN if set,
 // otherwise $GOPATH/bin. Returns "" when neither can be determined.
@@ -603,6 +736,8 @@ func installWails3(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	}
 	ui.Info(stdout, "Instalando wails3 "+wails3Version+" via go install...")
 	pkg := "github.com/wailsapp/wails/v3/cmd/wails3@" + wails3Version
+	ctx, cancel := nettimeout.Context(ctx)
+	defer cancel()
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "go", "install", pkg); err != nil {
 		return fmt.Errorf("instalar wails3: %w", err)
 	}

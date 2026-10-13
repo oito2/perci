@@ -405,10 +405,10 @@ func TestNginxRunArgs(t *testing.T) {
 		"--network", NetworkName,
 		"-p", "127.0.0.1:80:80",
 		"-p", "127.0.0.1:443:443",
-		"/home/u/.perci/appstack/nginx/default.conf:/etc/nginx/conf.d/default.conf",
-		"/home/u/.perci/appstack/certs:/etc/nginx/certs:ro",
-		"/home/u/workspace/localhost/html:" + appHTMLMount + ":ro",
-		"/home/u/workspace/localhost/logs/nginx:/var/log/nginx",
+		"--mount type=bind,source=/home/u/.perci/appstack/nginx/default.conf,target=/etc/nginx/conf.d/default.conf",
+		"--mount type=bind,source=/home/u/.perci/appstack/certs,target=/etc/nginx/certs,readonly",
+		"--mount type=bind,source=/home/u/workspace/localhost/html,target=" + appHTMLMount + ",readonly",
+		"--mount type=bind,source=/home/u/workspace/localhost/logs/nginx,target=/var/log/nginx",
 		NginxImage,
 	}
 	joined := strings.Join(got, " ")

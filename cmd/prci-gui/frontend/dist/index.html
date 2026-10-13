@@ -15,7 +15,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <!doctype html>
-<html>
+<html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
 <title>Perci</title>
@@ -391,27 +391,43 @@
             </div>
           </div>
 
-          <!-- Checklist-with-dependency mode: screens whose actions vary by
-               detected OS (e.g. "Pós-instalação") — item.actionId ===
-               "postinstall" triggers this mode instead of the simple one above. -->
+          <!-- Post-install mode: the items of the detected OS, each with its own
+               "Aplicar" button — item.actionId === "postinstall" triggers this
+               mode instead of the simple one above. -->
           <div id="postinstall-container" class="hidden">
             <div id="postinstall-unsupported" class="hidden">
               <p class="opacity-80">Seu Sistema Operacional não é suportado pelo Perci</p>
             </div>
             <div id="postinstall-supported" class="hidden">
               <p id="postinstall-title" class="font-semibold mb-1">Pós instalação do —</p>
-              <p class="opacity-80 mb-4">Selecione abaixo o que deseja executar na pós instalação</p>
-              <ul id="postinstall-actions" class="space-y-2 mb-4"></ul>
-              <button id="btn-executar-postinstall" class="btn btn-primary">
-                Executar pós instalação
-              </button>
+              <p class="opacity-80 mb-4">Aplique abaixo cada item da pós instalação</p>
+              <ul id="postinstall-actions" class="space-y-4 mb-4"></ul>
+            </div>
+          </div>
+
+          <!-- Item table mode ("Desenvolvimento :: Pré-requisitos" and
+               "Linguagens e SDKs"): one table row per item, with its own
+               Instalar/Atualizar/Desinstalar buttons. Triggered via the
+               ITEM_TABLE_SCREENS registry, one entry per actionId. -->
+          <div id="itemtable-container" class="hidden">
+            <p id="itemtable-intro" class="opacity-80 mb-4" style="white-space: pre-line;"></p>
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th id="itemtable-header"></th>
+                    <th class="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="itemtable-rows"></tbody>
+              </table>
             </div>
           </div>
 
           <!-- Simple checklist mode (installed ⇄ unchecked): "toggle install
                state via multi-select" screens with no dependency between items —
-               the same pattern reused across fonts, templates, Flatpak,
-               prerequisites. Triggered via the MULTISELECT_SCREENS registry, one
+               the same pattern reused across fonts, templates, Flatpak, AI
+               apps and terminals. Triggered via the MULTISELECT_SCREENS registry, one
                entry per actionId. -->
           <div id="multiselect-container" class="hidden">
             <p id="multiselect-intro" class="opacity-80 mb-4" style="white-space: pre-line;"></p>
@@ -432,7 +448,7 @@
                no checklist — two buttons, Instalar (always enabled) and
                Desinstalar (enabled only if already installed). Triggered
                via the SINGLE_APP_SCREENS registry below, one entry per
-               actionId (e.g. "Aplicativos - Linux Toys"). -->
+               actionId (e.g. "megasync"). -->
           <div id="singleapp-container" class="hidden">
             <p id="singleapp-desc" class="opacity-80 mb-6" style="white-space: pre-line;"></p>
             <div class="flex gap-2">
@@ -506,6 +522,7 @@
                  #edit-fields) via display:contents, without duplicating
                  HTML/JS or affecting that modal (the rule is scoped to
                  #dockercreate-container). -->
+            <div id="dc-mkcert-alert" role="alert" class="alert alert-warning alert-soft mb-6 text-sm items-start max-w-2xl hidden"></div>
             <div class="dc-form-grid max-w-2xl">
               <label class="form-control">
                 <div class="label"><span class="label-text">Tipo de contêiner</span></div>
@@ -763,7 +780,7 @@
           <span class="mr-1">▶</span> Execução
         </label>
         <div id="panel-terminal" class="tab-content bg-base-100 border-base-300 p-6 flex flex-col">
-          <div id="term-title" class="text-sm opacity-70 mb-2 flex-none">Executando: —</div>
+          <div id="term-title" role="status" aria-live="polite" class="text-sm opacity-70 mb-2 flex-none">Executando: —</div>
           <progress id="term-progress" class="progress w-full mb-3 flex-none" value="0" max="100"></progress>
           <div id="terminal" class="flex-1 min-h-0"></div>
         </div>
@@ -857,5 +874,6 @@
 <script defer src="./js/screens/agent-skills.js"></script>
 <script defer src="./js/screens/ai-context.js"></script>
 <script defer src="./js/screens/mcp.js"></script>
+<script defer src="./js/screens/item-table.js"></script>
 </body>
 </html>

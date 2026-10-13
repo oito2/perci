@@ -21,6 +21,11 @@
 
 // --- generic modals (confirm / message / logs) --------------------------
 
+// showDialog opens dialog modally unless it is already open.
+function showDialog(dialog) {
+  if (!dialog.open) dialog.showModal();
+}
+
 let __confirmCallback = null;
 btnConfirmOk.addEventListener("click", function () {
   confirmModal.close();
@@ -32,7 +37,7 @@ function openConfirm(title, message, onConfirm) {
   confirmModalTitle.textContent = title;
   confirmModalMessage.textContent = message;
   __confirmCallback = onConfirm;
-  confirmModal.showModal();
+  showDialog(confirmModal);
 }
 
 // error-modal doubles as a generic message modal (title and color class
@@ -43,7 +48,7 @@ function openMessage(title, message, isError) {
   errorModalTitleEl.textContent = title;
   errorModalTitleEl.className = "font-bold text-lg mb-2" + (isError ? " text-error" : "");
   errorModalMessage.textContent = message;
-  errorModal.showModal();
+  showDialog(errorModal);
 }
 function openError(message) { openMessage("Erro", String(message), true); }
 
@@ -69,7 +74,7 @@ function refreshLogs() {
 function openLogs(folder, title) {
   __logsFolder = folder;
   logsModalTitle.textContent = "Logs — " + title;
-  logsModal.showModal();
+  showDialog(logsModal);
   refreshLogs();
 }
 btnLogsRefresh.addEventListener("click", refreshLogs);
@@ -113,6 +118,12 @@ function latestOnly(key, fn) {
   };
 }
 
+// invalidate drops every pending response of key's latestOnly requests —
+// for a render that returns early without starting a new request.
+function invalidate(key) {
+  renderTokens[key] = (renderTokens[key] || 0) + 1;
+}
+
 function startExecution(label, buttonsToDisable, maxSteps, announceText) {
   running = true;
   const buttons = (buttonsToDisable || []).filter(Boolean);
@@ -129,6 +140,25 @@ function startExecution(label, buttonsToDisable, maxSteps, announceText) {
   termProgress.value = 0;
   termProgress.max = maxSteps || 1;
   selectTab("terminal");
+}
+
+// beginRun starts a run unless one is active (this window's or, through
+// running, any other): startExecution with opts.buttons, opts.maxSteps and
+// opts.announce, then call() — which returns the App promise — with a
+// refusal or failure handled by failRun. Returns false when it did not start.
+function beginRun(label, call, opts) {
+  opts = opts || {};
+  if (running || activeRun) return false;
+  startExecution(label, opts.buttons, opts.maxSteps, opts.announce);
+  let result;
+  try {
+    result = call();
+  } catch (err) {
+    failRun(err);
+    return true;
+  }
+  Promise.resolve(result).catch(failRun);
+  return true;
 }
 
 // --- status → daisyUI "Status with ping animation" ---
@@ -194,14 +224,14 @@ function escAttr(s) {
 function textFieldHTML(id, label, opts) {
   opts = opts || {};
   const input =
-    '<input id="' + id + '" type="' + (opts.secret ? "password" : (opts.type || "text")) + '" class="input input-bordered' + (opts.secret ? " join-item flex-1" : "") + '" ' +
+    '<input id="' + escAttr(id) + '" type="' + escAttr(opts.secret ? "password" : (opts.type || "text")) + '" class="input input-bordered' + (opts.secret ? " join-item flex-1" : "") + '" ' +
     (opts.placeholder ? 'placeholder="' + escAttr(opts.placeholder) + '" ' : "") +
     (opts.value !== undefined && opts.value !== null ? 'value="' + escAttr(opts.value) + '" ' : "") +
     (opts.secret ? 'autocomplete="off" ' : "") +
     "/>";
   return (
     '<label class="form-control">' +
-    '<div class="label"><span class="label-text">' + label + "</span></div>" +
+    '<div class="label"><span class="label-text">' + escHTML(label) + "</span></div>" +
     (opts.secret
       ? '<div class="join w-full">' + input +
         '<button type="button" class="btn join-item" data-reveal="' + escAttr(id) + '" aria-pressed="false">Mostrar</button></div>'
@@ -226,15 +256,15 @@ function selectFieldHTML(id, label, options, selected) {
   }).join("");
   return (
     '<label class="form-control">' +
-    '<div class="label"><span class="label-text">' + label + "</span></div>" +
-    '<select id="' + id + '" class="select select-bordered">' + opts + "</select></label>"
+    '<div class="label"><span class="label-text">' + escHTML(label) + "</span></div>" +
+    '<select id="' + escAttr(id) + '" class="select select-bordered">' + opts + "</select></label>"
   );
 }
 function checkboxFieldHTML(id, label, checked, disabled, hint) {
   return (
     '<label class="label cursor-pointer justify-start gap-3">' +
-    '<input id="' + id + '" type="checkbox" class="checkbox"' + (checked ? " checked" : "") + (disabled ? " disabled" : "") + " />" +
-    '<span class="label-text">' + label + (hint ? '<br><span class="text-xs opacity-60">' + hint + "</span>" : "") + "</span>" +
+    '<input id="' + escAttr(id) + '" type="checkbox" class="checkbox"' + (checked ? " checked" : "") + (disabled ? " disabled" : "") + " />" +
+    '<span class="label-text">' + escHTML(label) + (hint ? '<br><span class="text-xs opacity-60">' + escHTML(hint) + "</span>" : "") + "</span>" +
     "</label>"
   );
 }
@@ -293,23 +323,7 @@ function buildContainerFieldsHTML(prefix, kind, catalog, values) {
   values = values || {};
   const p = prefix;
   if (kind === "nginx") {
-    let html = '<p class="opacity-70 text-sm">O contêiner Nginx não tem parâmetros — ele roteia todos os *.localhost já configurados.</p>';
-    // Warning only the first time (catalog.mkcertReady=false): creating
-    // Nginx now will call "mkcert -install" to generate the *.localhost
-    // certificate — that command can prompt for an admin password on its
-    // own (outside Perci's pkexec), and the GUI has no way to answer that
-    // prompt. After the first time the certificate already exists and
-    // this warning disappears.
-    if (catalog && !catalog.mkcertReady) {
-      html +=
-        '<div role="alert" class="alert alert-warning alert-soft mt-3 text-sm items-start">' +
-        LUCIDE.svg("triangleAlert", { size: 18 }) +
-        '<span>Primeira criação: o Perci vai gerar um certificado local via <code>mkcert</code>. ' +
-        "Se isso pedir uma senha de administrador e travar, abra um terminal fora do Perci e rode " +
-        "<code>mkcert -install</code> manualmente uma vez antes de clicar em Criar.</span>" +
-        "</div>";
-    }
-    return html;
+    return '<p class="opacity-70 text-sm">O contêiner Nginx não tem parâmetros — ele roteia todos os *.localhost já configurados.</p>';
   }
   if (kind === "mariadb") {
     return (
@@ -361,9 +375,9 @@ function wireMoodlePHPFilter(prefix) {
   function refresh() {
     const current = document.getElementById(prefix + "-phpVersion");
     const currentVal = current ? current.value : "";
-    App.GetPHPVersionsForMoodleVersion(moodleSel.value).then(function (versions) {
+    App.GetPHPVersionsForMoodleVersion(moodleSel.value).then(latestOnly("php-versions-" + prefix, function (versions) {
       phpWrap.innerHTML = selectFieldHTML(prefix + "-phpVersion", "Versão PHP", versions, versions.indexOf(currentVal) >= 0 ? currentVal : versions[0]);
-    });
+    }));
   }
   moodleSel.addEventListener("change", refresh);
   refresh();
@@ -450,6 +464,7 @@ function createScopedTable(cfg) {
 
   function render() {
     if (!isReady()) {
+      invalidate(cfg.latestKey);
       els.rows.innerHTML = "";
       return;
     }

@@ -6,7 +6,7 @@
 
 Este é um projeto bem pessoal. É o resultado de vários scripts `.sh` que o autor já tinha por aí, reunidos num único binário Go.
 
-O objetivo é simples: chegar numa máquina nova e ter tudo o necessário configurado em minutos. Por isso ele só cobre as distros realmente usadas no dia a dia — Linux Mint 22.3 (Cinnamon e XFCE), Ubuntu 26.04, Fedora 44 e Zorin OS 18.1 (Core e Lite) — em vez de tentar ser uma ferramenta de setup genérica e universal.
+O objetivo é simples: chegar numa máquina nova e ter tudo o necessário configurado em minutos. Por isso ele só cobre as distros realmente usadas no dia a dia — Linux Mint 22.3 (Cinnamon e XFCE), Ubuntu 24.04 e 26.04 (GNOME e Budgie), Fedora 44 (GNOME, KDE Plasma e Budgie), Zorin OS 18.1 (Core e Lite) e Pop!_OS 24.04 (COSMIC) — em vez de tentar ser uma ferramenta de setup genérica e universal.
 
 ## O Problema
 

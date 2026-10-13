@@ -39,13 +39,12 @@ func GetCurrentLocalIdentity(ctx context.Context, exe *executor.Executor, dir st
 	return strings.TrimSpace(name), strings.TrimSpace(email)
 }
 
-// ApplyLocalIdentityAt applies local user.name, user.email and credential.helper in dir.
+// ApplyLocalIdentityAt applies local user.name and user.email in dir, and
+// credential.helper when no helper is configured for it yet.
 func ApplyLocalIdentityAt(ctx context.Context, exe *executor.Executor, stdout io.Writer, name, email, dir string) error {
 	if name == "" || email == "" {
 		return fmt.Errorf("nome e e-mail não podem ser vazios")
 	}
-
-	cred := resolveCredHelper(ctx, exe)
 
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	for _, args := range [][]string{
@@ -53,11 +52,10 @@ func ApplyLocalIdentityAt(ctx context.Context, exe *executor.Executor, stdout io
 		// an option.
 		{"config", "--local", "--", "user.name", name},
 		{"config", "--local", "--", "user.email", email},
-		{"config", "--local", "--", "credential.helper", cred},
 	} {
 		if err := exe.Run(ctx, opts, "git", gitDirArgs(dir, args...)...); err != nil {
 			return fmt.Errorf("git %v: %w", args, err)
 		}
 	}
-	return nil
+	return setCredentialHelper(ctx, exe, stdout, "--local", dir)
 }

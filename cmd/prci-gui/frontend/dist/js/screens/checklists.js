@@ -37,14 +37,6 @@ const MULTISELECT_SCREENS = {
     fetch: function () { return App.GetFlatpakAppsInfo(); },
     run: function (ids) { return App.RunFlatpakApps(ids); },
   },
-  prereqs: {
-    fetch: function () { return App.GetPrereqsInfo(); },
-    run: function (ids) { return App.RunPrereqs(ids); },
-  },
-  sdks: {
-    fetch: function () { return App.GetSDKsInfo(); },
-    run: function (ids) { return App.RunSDKs(ids); },
-  },
   "ai-apps": {
     fetch: function () { return App.GetAIAppsInfo(); },
     run: function (ids) { return App.RunAIApps(ids); },
@@ -71,17 +63,15 @@ const MULTISELECT_SCREENS = {
 };
 
 // buildChecklistItemLI builds the <li> (checkbox + label [+ description])
-// shared by the 3 "checklist simples" variants below (multiselect/
-// postinstall/aicontext), instead of each one hand-rolling the same DOM
-// construction. Returns {li, checkbox} — callers keep the checkbox
-// reference from creation time instead of re-querying it later by id
-// (avoids repeating getElementById("prefix-" + id) in loops/filters for
-// an element created a few lines earlier in the very same pass).
-//   idPrefix     — e.g. "ms-check-"/"pi-check-"/"aic-check-"
+// shared by the "checklist simples" variants (multiselect/aicontext),
+// instead of each one hand-rolling the same DOM construction. Returns
+// {li, checkbox} — callers keep the checkbox reference from creation time
+// instead of re-querying it later by id (avoids repeating
+// getElementById("prefix-" + id) in loops/filters for an element created
+// a few lines earlier in the very same pass).
+//   idPrefix     — e.g. "ms-check-"/"aic-check-"
 //   item         — { id, label, description?, installed? }
-//   opts.checked        — overrides item.installed when set
 //   opts.withDescription — wraps label (+ description, when present) in a <div>
-//   opts.onChange        — extra "change" listener on the checkbox
 function buildChecklistItemLI(idPrefix, item, opts) {
   opts = opts || {};
   const li = document.createElement("li");
@@ -91,8 +81,7 @@ function buildChecklistItemLI(idPrefix, item, opts) {
   cb.type = "checkbox";
   cb.className = "checkbox checkbox-sm mt-1";
   cb.id = idPrefix + item.id;
-  cb.checked = opts.checked !== undefined ? opts.checked : !!item.installed;
-  if (opts.onChange) cb.addEventListener("change", opts.onChange);
+  cb.checked = !!item.installed;
 
   const label = document.createElement("label");
   label.setAttribute("for", cb.id);
@@ -136,8 +125,7 @@ function renderMultiselectScreen(item) {
     btn.onclick = function () {
       if (running) return;
       const run = function () {
-        startExecution(extra.label, multiselectButtons());
-        extra.run().catch(failRun);
+        beginRun(extra.label, extra.run, { buttons: multiselectButtons() });
       };
       if (extra.confirm) {
         openConfirm(extra.label, extra.confirm, run);
@@ -149,6 +137,10 @@ function renderMultiselectScreen(item) {
     return btn;
   });
 
+  // The previous screen's handler must not stay armed while this screen's
+  // items load.
+  btnExecutarMultiselect.disabled = true;
+  btnExecutarMultiselect.onclick = null;
   cfg.fetch().then(latestOnly("multiselect", function (items) {
     items = items || [];
     const checkboxes = {}; // it.id -> checkbox, captured at creation time
@@ -158,14 +150,14 @@ function renderMultiselectScreen(item) {
       multiselectItemsList.appendChild(built.li);
     });
 
+    btnExecutarMultiselect.disabled = running;
     btnExecutarMultiselect.onclick = function () {
       if (running) return;
       const selected = items
         .filter(function (it) { return checkboxes[it.id].checked; })
         .map(function (it) { return it.id; });
       const run = function () {
-        startExecution(item.title, multiselectButtons());
-        cfg.run(selected).catch(failRun);
+        beginRun(item.title, function () { return cfg.run(selected); }, { buttons: multiselectButtons() });
       };
 
       // Items whose removal takes more than the item itself (e.g. Node.js
@@ -189,11 +181,6 @@ function renderMultiselectScreen(item) {
 // and uninstall() trigger the action. Each new screen of this type only
 // needs one entry here. ----------------------------------------------
 const SINGLE_APP_SCREENS = {
-  linuxtoys: {
-    fetch: function () { return App.GetLinuxToysInfo(); },
-    install: function () { return App.InstallLinuxToys(); },
-    uninstall: function () { return App.UninstallLinuxToys(); },
-  },
   megasync: {
     fetch: function () { return App.GetMegaSyncInfo(); },
     install: function () { return App.InstallMegaSync(); },
@@ -207,10 +194,10 @@ function renderSingleAppScreen(item) {
   btnSingleappInstall.disabled = true;
   btnSingleappUninstall.disabled = true;
 
-  cfg.fetch().then(function (info) {
+  cfg.fetch().then(latestOnly("singleapp", function (info) {
     btnSingleappInstall.disabled = info.installed;
     btnSingleappUninstall.disabled = !info.installed;
-  });
+  }));
 
   const buttons = [btnSingleappInstall, btnSingleappUninstall];
   btnSingleappInstall.onclick = function () { runScreenAction(item, "instalar", buttons, cfg.install); };
@@ -221,9 +208,11 @@ function renderSingleAppScreen(item) {
 // actions: nothing while another runs, then the Execução lifecycle with
 // the screen's buttons disabled, and fn()'s refusal handled by failRun.
 function runScreenAction(item, label, buttons, fn) {
-  if (running) return;
-  startExecution(item.title, buttons, 1, "Iniciando " + item.title + " (" + label + ")...");
-  fn().catch(failRun);
+  beginRun(item.title, fn, {
+    buttons: buttons,
+    maxSteps: 1,
+    announce: "Iniciando " + item.title + " (" + label + ")...",
+  });
 }
 
 // --- "IDE install/atualizar/desinstalar" screens: three buttons —
@@ -244,11 +233,11 @@ function renderIDEScreen(item) {
   btnIdeUpdate.disabled = true;
   btnIdeUninstall.disabled = true;
 
-  App.GetIDEInfo(cfg.cmd).then(function (info) {
+  App.GetIDEInfo(cfg.cmd).then(latestOnly("ide", function (info) {
     btnIdeInstall.disabled = false;
     btnIdeUpdate.disabled = !info.installed;
     btnIdeUninstall.disabled = !info.installed;
-  });
+  }));
 
   const buttons = [btnIdeInstall, btnIdeUpdate, btnIdeUninstall];
   btnIdeInstall.onclick = function () { runScreenAction(item, "instalar", buttons, function () { return App.InstallIDE(cfg.cmd); }); };
@@ -327,9 +316,9 @@ function renderFileAppScreen(item) {
     btnFileappUpdate.classList.add("hidden");
   }
 
-  cfg.fetch().then(function (info) {
+  cfg.fetch().then(latestOnly("fileapp", function (info) {
     btnFileappUninstall.disabled = !info.installed;
-  });
+  }));
 
   btnFileappPick.onclick = function () {
     cfg.pick().then(function (path) {
@@ -383,7 +372,6 @@ btnExecutar.addEventListener("click", function () {
     return;
   }
 
-  startExecution(item.title);
+  beginRun(item.title, fn);
   updateExecutarButton();
-  fn().catch(failRun);
 });

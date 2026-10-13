@@ -235,7 +235,9 @@ func (h *HomeService) SetAppIcon(name string) error {
 	name = oneOf(name, config.AppIcons(), config.DefaultAppIcon)
 
 	if selfupdate.MenuIconsInstalled() {
-		if err := selfupdate.InstallMenuIcons(context.Background(), h.exe, io.Discard, name); err != nil {
+		if err := runExclusive(func() error {
+			return selfupdate.InstallMenuIcons(context.Background(), h.exe, io.Discard, name)
+		}); err != nil {
 			return fmt.Errorf("instalar ícone do menu de aplicativos: %w", err)
 		}
 	}
@@ -268,8 +270,8 @@ func (h *HomeService) PickUninstallBackupPath() (string, error) {
 //
 //   - backupPath != "": exports cfg.Docker to that path first (appstack.
 //     ExportConfig) — reimportable later via "Importar configurações". A
-//     failure here (e.g. nothing registered yet) is logged as a warning
-//     but doesn't abort the uninstall itself.
+//     failed backup aborts the uninstall before anything is removed; only
+//     "nothing to export" (appstack.ErrNothingToExport) is a warning.
 //   - removeDocker: removes every registered container (apps, then
 //     MariaDB, then Nginx — apps first so nothing routes through infra
 //     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
@@ -311,6 +313,7 @@ func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPa
 		h.emitDone(err)
 		if quit {
 			time.Sleep(uninstallQuitDelay)
+			quitAllowed.Store(true)
 			h.wailsApp.Quit()
 		}
 	}()
@@ -321,6 +324,10 @@ func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPa
 // panel before the window closes.
 const uninstallQuitDelay = 1500 * time.Millisecond
 
+// uninstallPerci removes the binary (and optionally ~/.perci) — a variable
+// so tests never remove the test binary.
+var uninstallPerci = selfupdate.Uninstall
+
 // selfUninstall is RunSelfUninstall's body: optional backup, optional
 // Docker cleanup, then selfupdate.Uninstall (whose ErrUninstalled means
 // success). The tray's autostart entry is removed only once the uninstall
@@ -330,7 +337,10 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 
 	if backupPath != "" {
 		if err := appstack.ExportConfig(backupPath); err != nil {
-			ui.Warning(w, "Falha ao fazer backup das configurações: "+err.Error())
+			if !errors.Is(err, appstack.ErrNothingToExport) {
+				return fmt.Errorf("o backup das configurações falhou, nada foi removido: %w", err)
+			}
+			ui.Warning(w, "Nada para exportar no backup: "+err.Error())
 		} else {
 			ui.Success(w, "Backup salvo em "+backupPath+".")
 		}
@@ -354,7 +364,7 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 		}
 	}
 
-	err := selfupdate.Uninstall(ctx, h.exe, w, removeConfig)
+	err := uninstallPerci(ctx, h.exe, w, removeConfig)
 	if errors.Is(err, selfupdate.ErrUninstalled) {
 		// Tray autostart (~/.config/autostart/perci.desktop) — removed regardless
 		// of TrayEnabled: with the binary gone, it would be a "ghost" autostart

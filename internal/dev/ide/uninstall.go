@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/oito2/perci/internal/dev/prereqs"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 )
@@ -28,7 +29,7 @@ import (
 func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, e IDE, family string) error {
 	switch e.Cmd {
 	case "zed":
-		script := `rm -rf "$HOME/.local/zed.app" "$HOME/.local/bin/zed" 2>/dev/null; true`
+		script := `rm -rf "$HOME/.local/zed.app" "$HOME/.local/bin/zed" "$HOME/.local/share/applications/dev.zed.Zed.desktop" 2>/dev/null; true`
 		return exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", script)
 	case "code":
 		opts := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
@@ -41,12 +42,8 @@ func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 }
 
 func aptDnfRemove(ctx context.Context, exe *executor.Executor, pkg, family string, opts executor.Options) error {
-	switch family {
-	case distro.Fedora:
-		return exe.Run(ctx, opts, "dnf", "remove", "-y", "--", pkg)
-	case distro.Debian:
-		return exe.Run(ctx, opts, "apt-get", "purge", "-y", "--", pkg)
-	default:
+	if family != distro.Fedora && family != distro.Debian {
 		return fmt.Errorf("unsupported distro family for package removal: %s", family)
 	}
+	return prereqs.RemovePackages(ctx, exe, opts, family, pkg)
 }

@@ -19,42 +19,70 @@
 // scripts under js/.
 "use strict";
 
-// --- "Linux :: Pós-instalação" — checklist with dependencies between
-// actions. Different mode from the simple one above: several
-// independent actions, some only unlockable to check after another is
-// already checked, everything checked by default, unchecking a
-// prerequisite cascades to uncheck whatever depends on it. --------------
+// --- "Linux :: Pós-instalação" — one row per item of the detected
+// profile, each with its own "Aplicar" button. An applied item shows a
+// disabled "Aplicado" button; an item whose dependsOn isn't applied yet
+// has its button disabled with a "Requer: <item>" hint. ------------------
 
-// applyPostinstallDependencies disables/unchecks in cascade any
-// checkbox whose prerequisite (dependsOn) isn't checked — repeats until
-// it stabilizes, to cover chains (A depends on B, which depends on C).
-// checkboxes (act.id -> checkbox element) is captured once at render
-// time by the caller, instead of two getElementById lookups per action
-// on every pass of the while loop.
-function applyPostinstallDependencies(actions, checkboxes) {
-  let changed = true;
-  while (changed) {
-    changed = false;
-    actions.forEach(function (act) {
-      if (!act.dependsOn) return;
-      const cb = checkboxes[act.id];
-      const depCb = checkboxes[act.dependsOn];
-      const depOk = !!(depCb && depCb.checked);
-      cb.disabled = !depOk;
-      if (!depOk && cb.checked) {
-        cb.checked = false;
-        changed = true;
-      }
+// postinstallButtons holds the "Aplicar" buttons of the rows on screen —
+// all of them are disabled while one item runs.
+let postinstallButtons = [];
+
+// buildPostinstallRow builds the <li> of act: label, description and,
+// when blocked by its dependency, the "Requer" hint, plus the button.
+// applied maps action ID -> applied; labels maps action ID -> label.
+function buildPostinstallRow(act, applied, labels) {
+  const li = document.createElement("li");
+  li.className = "flex items-start justify-between gap-4";
+
+  const textWrap = document.createElement("div");
+  const label = document.createElement("p");
+  label.className = "font-medium";
+  label.textContent = act.label;
+  textWrap.appendChild(label);
+  if (act.description) {
+    const desc = document.createElement("p");
+    desc.className = "text-sm opacity-70";
+    desc.textContent = act.description;
+    textWrap.appendChild(desc);
+  }
+
+  const btn = document.createElement("button");
+  btn.className = "btn btn-sm btn-primary shrink-0";
+  btn.id = "pi-apply-" + act.id;
+  const blocked = !!act.dependsOn && !applied[act.dependsOn];
+  if (applied[act.id]) {
+    btn.textContent = "Aplicado";
+    btn.disabled = true;
+  } else {
+    btn.textContent = "Aplicar";
+    btn.disabled = blocked;
+    if (blocked) {
+      const hint = document.createElement("p");
+      hint.className = "text-sm text-warning";
+      hint.textContent = "Requer: " + (labels[act.dependsOn] || act.dependsOn);
+      textWrap.appendChild(hint);
+    }
+    btn.addEventListener("click", function () {
+      beginRun(act.label, function () { return App.RunPostinstallAction(act.id); }, { buttons: postinstallButtons, maxSteps: 1 });
     });
   }
+
+  li.appendChild(textWrap);
+  li.appendChild(btn);
+  return { li: li, button: btn, enabled: !btn.disabled };
 }
 
 function renderPostinstallScreen() {
   postinstallUnsupported.classList.add("hidden");
   postinstallSupported.classList.add("hidden");
   postinstallActionsList.innerHTML = "";
+  postinstallButtons = [];
 
-  getPostinstallProfile().then(latestOnly("postinstall", function (profile) {
+  const status = App.GetPostinstallStatus().catch(function () { return {}; });
+  Promise.all([getPostinstallProfile(), status]).then(latestOnly("postinstall", function (results) {
+    const profile = results[0];
+    const applied = results[1] || {};
     if (!profile || !profile.supported) {
       postinstallUnsupported.classList.remove("hidden");
       return;
@@ -63,30 +91,15 @@ function renderPostinstallScreen() {
     postinstallTitle.textContent = "Pós instalação do " + profile.label;
 
     const actions = profile.actions || [];
-    const checkboxes = {}; // act.id -> checkbox, captured at creation time
+    const labels = {};
+    actions.forEach(function (act) { labels[act.id] = act.label; });
+    postinstallActionsList.innerHTML = "";
     actions.forEach(function (act) {
-      // All checked by default.
-      const built = buildChecklistItemLI("pi-check-", act, {
-        checked: true,
-        withDescription: true,
-        onChange: function () { applyPostinstallDependencies(actions, checkboxes); },
-      });
-      checkboxes[act.id] = built.checkbox;
-      postinstallActionsList.appendChild(built.li);
+      const row = buildPostinstallRow(act, applied, labels);
+      // Only the buttons that can run are re-enabled when a run ends.
+      if (row.enabled) postinstallButtons.push(row.button);
+      postinstallActionsList.appendChild(row.li);
     });
-
-    applyPostinstallDependencies(actions, checkboxes);
-
-    btnExecutarPostinstall.onclick = function () {
-      if (running) return;
-      const selected = actions
-        .filter(function (act) { return checkboxes[act.id].checked; })
-        .map(function (act) { return act.id; });
-      if (selected.length === 0) return;
-
-      startExecution("pós-instalação", [btnExecutarPostinstall], selected.length);
-      App.RunPostinstall(selected).catch(failRun);
-    };
   }));
 }
 

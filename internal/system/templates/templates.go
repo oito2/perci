@@ -17,8 +17,10 @@ package templates
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,35 +54,26 @@ var Catalogue = []Template{
 	{Label: "Shell (.sh)", Filename: "Shell.sh"},
 }
 
-// Dir returns the user templates directory, creating it when needed.
+// Dir returns the user templates directory: the one xdg-user-dir reports
+// (its fallback to $HOME itself, when user-dirs.dirs isn't configured, is
+// rejected), else ~/Modelos when it exists, else ~/Templates. The directory
+// may not exist yet; Apply creates it when it has templates to write.
 func Dir() (string, error) {
 	home, herr := os.UserHomeDir()
 	if herr != nil {
 		return "", herr
 	}
 
-	// xdg-user-dir falls back to $HOME itself when user-dirs.dirs isn't
-	// configured; that fallback is rejected rather than used as the
-	// templates dir.
 	out, err := exec.Command("xdg-user-dir", "TEMPLATES").Output()
-	resolved := strings.TrimSpace(string(out))
-	if err == nil && resolved != "" && resolved != home {
-		if _, serr := os.Stat(resolved); serr == nil {
-			return resolved, nil
-		}
+	if resolved := strings.TrimSpace(string(out)); err == nil && resolved != "" && resolved != home {
+		return resolved, nil
 	}
 
 	modelos := filepath.Join(home, "Modelos")
 	if _, serr := os.Stat(modelos); serr == nil {
 		return modelos, nil
 	}
-
-	templatesDir := filepath.Join(home, "Templates")
-	if _, serr := os.Stat(templatesDir); serr == nil {
-		return templatesDir, nil
-	}
-
-	return templatesDir, nil
+	return filepath.Join(home, "Templates"), nil
 }
 
 // PresentNames returns a set of template filenames that already exist in dir.
@@ -96,7 +89,9 @@ func PresentNames(dir string) map[string]bool {
 
 // Apply creates templates in toCreate and removes those in toRemove.
 // toRemove may contain filenames not in the Catalogue (e.g. external
-// templates). Reports one ui.Step per template processed.
+// templates). Reports one ui.Step per template processed. A template that
+// already exists is left untouched; any other failure is warned inline and
+// counted in the returned error.
 func Apply(stdout io.Writer, dir string, toCreate, toRemove []string) error {
 	if len(toCreate) > 0 {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -107,6 +102,7 @@ func Apply(stdout io.Writer, dir string, toCreate, toRemove []string) error {
 	total := len(toCreate) + len(toRemove)
 	step := 0
 
+	var failed []string
 	createSet := sets.Of(toCreate)
 	for _, t := range Catalogue {
 		if !createSet[t.Filename] {
@@ -115,8 +111,11 @@ func Apply(stdout io.Writer, dir string, toCreate, toRemove []string) error {
 		step++
 		ui.Step(stdout, step, total, "Criando "+t.Filename+"...")
 		dest := filepath.Join(dir, t.Filename)
-		if err := create(dest, t); err != nil {
+		if err := create(dest, t); errors.Is(err, fs.ErrExist) {
+			ui.Info(stdout, t.Filename+" já existe, mantido.")
+		} else if err != nil {
 			ui.Warning(stdout, fmt.Sprintf("Falha ao criar %s: %v", t.Filename, err))
+			failed = append(failed, t.Filename)
 		}
 	}
 	for _, filename := range toRemove {
@@ -126,12 +125,17 @@ func Apply(stdout io.Writer, dir string, toCreate, toRemove []string) error {
 		// dir is accepted, never a path that leaves it.
 		if filename == "" || filename == "." || filename == ".." || filepath.Base(filename) != filename {
 			ui.Warning(stdout, "Nome de modelo inválido, ignorado: "+filename)
+			failed = append(failed, filename)
 			continue
 		}
 		dest := filepath.Join(dir, filename)
 		if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
 			ui.Warning(stdout, fmt.Sprintf("Falha ao remover %s: %v", filename, err))
+			failed = append(failed, filename)
 		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("%d modelo(s) com falha: %s", len(failed), strings.Join(failed, ", "))
 	}
 	return nil
 }

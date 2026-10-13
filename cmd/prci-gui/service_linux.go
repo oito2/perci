@@ -19,10 +19,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"slices"
+	"strings"
 
+	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/system/apps"
 	"github.com/oito2/perci/internal/system/fonts"
-	"github.com/oito2/perci/internal/system/linuxtoys"
 	"github.com/oito2/perci/internal/system/megasync"
 	"github.com/oito2/perci/internal/system/postinstall"
 	"github.com/oito2/perci/internal/system/templates"
@@ -31,7 +34,7 @@ import (
 )
 
 // LinuxService binds the "Linux" category: Atualizar Sistema,
-// Pós-instalação, Fontes, Templates, Flatpak Apps, Linux Toys, MegaSync.
+// Pós-instalação, Fontes, Templates, Flatpak Apps, MegaSync.
 type LinuxService struct {
 	serviceBase
 }
@@ -48,9 +51,9 @@ func (l *LinuxService) RunSystemUpdate(cleanJournal, autoremove bool) error {
 	})
 }
 
-// PostinstallActionInfo is one checklist item, without the unexported
-// Run func (internal/system/postinstall.Action isn't JSON-safe as-is —
-// Run is a func value).
+// PostinstallActionInfo is one item of "Linux :: Pós-instalação", without
+// the Run and Applied funcs of internal/system/postinstall.Action (func
+// values aren't JSON-safe).
 type PostinstallActionInfo struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
@@ -59,7 +62,7 @@ type PostinstallActionInfo struct {
 }
 
 // PostinstallProfileInfo is what the frontend needs to render "Linux ::
-// Pós-instalação" — either Supported (with the checklist) or not (shows
+// Pós-instalação" — either Supported (with the item list) or not (shows
 // "Seu Sistema Operacional não é suportado pelo Perci").
 type PostinstallProfileInfo struct {
 	Supported bool                    `json:"supported"`
@@ -67,11 +70,15 @@ type PostinstallProfileInfo struct {
 	Actions   []PostinstallActionInfo `json:"actions,omitempty"`
 }
 
+// detectPostinstallProfile returns the post-install profile of this
+// machine, or nil when it isn't supported. Replaced in tests.
+var detectPostinstallProfile = postinstall.DetectProfile
+
 // GetPostinstallProfile detects which of the supported OS/DE/version
-// combinations Perci is running on, and returns its checklist — or
+// combinations Perci is running on, and returns its items — or
 // Supported:false if the machine isn't one of them.
 func (l *LinuxService) GetPostinstallProfile() PostinstallProfileInfo {
-	profile := postinstall.DetectProfile()
+	profile := detectPostinstallProfile()
 	if profile == nil {
 		return PostinstallProfileInfo{Supported: false}
 	}
@@ -84,36 +91,91 @@ func (l *LinuxService) GetPostinstallProfile() PostinstallProfileInfo {
 	return PostinstallProfileInfo{Supported: true, Label: profile.Label, Actions: actions}
 }
 
-// RunPostinstall runs the selected actionIDs from the detected Profile, in
-// the Profile's own declared order (always dependency-safe — see
-// Action.DependsOn in internal/system/postinstall), one ui.Step per
-// selected action. Like RunSystemUpdate it executes with
-// context.Background(): a partly-run post-install shouldn't be aborted
-// just because the window closed.
-func (l *LinuxService) RunPostinstall(actionIDs []string) error {
+// postinstallMachineID returns this machine's /etc/machine-id, or "" when it
+// can't be read. Replaced in tests.
+var postinstallMachineID = func() string {
+	data, err := os.ReadFile("/etc/machine-id")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// postinstallStatus returns, for every action of profile, whether it
+// counts as applied: detected on the system, or recorded in config.yaml
+// for the actions without a detectable state. Records only count when they
+// were made on this machine (same /etc/machine-id).
+func (l *LinuxService) postinstallStatus(profile *postinstall.Profile) map[string]bool {
+	var recorded []string
+	if cfg, err := config.Load(); err == nil {
+		if id := postinstallMachineID(); id != "" && cfg.PostinstallMachineID == id {
+			recorded = cfg.PostinstallApplied[profile.ID]
+		}
+	}
+	return profile.Status(postinstall.NewProbe(context.Background(), l.exe), recorded)
+}
+
+// GetPostinstallStatus returns, per action ID of the detected profile,
+// whether that action counts as applied — empty when the machine isn't
+// supported.
+func (l *LinuxService) GetPostinstallStatus() map[string]bool {
+	profile := detectPostinstallProfile()
+	if profile == nil {
+		return map[string]bool{}
+	}
+	return l.postinstallStatus(profile)
+}
+
+// RunPostinstallAction applies the action actionID of the detected
+// profile. It refuses an action that already counts as applied or whose
+// DependsOn doesn't. After a successful run of an action without a
+// detectable state, its ID is recorded in config.yaml. Like
+// RunSystemUpdate it executes with context.Background(): a partly-run
+// post-install step isn't aborted just because the window closed.
+func (l *LinuxService) RunPostinstallAction(actionID string) error {
 	return l.runAction(func(stdout io.Writer) error {
-		profile := postinstall.DetectProfile()
+		profile := detectPostinstallProfile()
 		if profile == nil {
 			return fmt.Errorf("sistema operacional não suportado")
 		}
-		selected := make(map[string]bool, len(actionIDs))
-		for _, id := range actionIDs {
-			selected[id] = true
+		act, ok := profile.Action(actionID)
+		if !ok {
+			return fmt.Errorf("item de pós-instalação desconhecido: %q", actionID)
 		}
-		var toRun []postinstall.Action
-		for _, act := range profile.Actions {
-			if selected[act.ID] {
-				toRun = append(toRun, act)
+		status := l.postinstallStatus(profile)
+		if status[act.ID] {
+			return fmt.Errorf("%s: já aplicado", act.Label)
+		}
+		if act.DependsOn != "" && !status[act.DependsOn] {
+			dep, _ := profile.Action(act.DependsOn)
+			return fmt.Errorf("%s: aplique antes %q", act.Label, dep.Label)
+		}
+		ui.Step(stdout, 1, 1, act.Label)
+		if err := act.Run(context.Background(), l.exe, stdout); err != nil {
+			return fmt.Errorf("%s: %w", act.Label, err)
+		}
+		if act.Applied != nil {
+			return nil
+		}
+		machineID := postinstallMachineID()
+		if machineID == "" {
+			return nil // without a machine ID the record could never count
+		}
+		return config.Update(func(cfg *config.Config) error {
+			if cfg.PostinstallMachineID != machineID {
+				// Records made on another machine ID are replaced.
+				cfg.PostinstallApplied = nil
+				cfg.PostinstallMachineID = machineID
 			}
-		}
-		total := len(toRun)
-		for i, act := range toRun {
-			ui.Step(stdout, i+1, total, act.Label)
-			if err := act.Run(context.Background(), l.exe, stdout); err != nil {
-				return fmt.Errorf("%s: %w", act.Label, err)
+			if slices.Contains(cfg.PostinstallApplied[profile.ID], act.ID) {
+				return nil
 			}
-		}
-		return nil
+			if cfg.PostinstallApplied == nil {
+				cfg.PostinstallApplied = make(map[string][]string)
+			}
+			cfg.PostinstallApplied[profile.ID] = append(cfg.PostinstallApplied[profile.ID], act.ID)
+			return nil
+		})
 	})
 }
 
@@ -199,7 +261,7 @@ func (l *LinuxService) GetTemplatesInfo() []MultiSelectItemInfo {
 // RunTemplates creates newly checked templates and removes newly unchecked
 // ones — same diff (internal/sets.Diff) RunFonts uses. Recalculates the
 // present state on the spot rather than trusting what the frontend cached
-// — same reasoning as RunFonts/RunPostinstall.
+// — same reasoning as RunFonts.
 func (l *LinuxService) RunTemplates(selectedFilenames []string) error {
 	c, err := l.templatesChecklist()
 	if err != nil {
@@ -239,44 +301,22 @@ func (l *LinuxService) RunFlatpakApps(selectedFlatIDs []string) error {
 }
 
 // SingleAppInfo is what the frontend needs for the "app único
-// install/desinstalar" screen pattern (e.g. Linux :: Aplicativos - Linux
-// Toys/MegaSync) — two buttons instead of a checklist: "Instalar" (always
+// install/desinstalar" screen pattern (e.g. Linux :: Aplicativos -
+// MegaSync) — two buttons instead of a checklist: "Instalar" (always
 // enabled) and "Desinstalar" (enabled only when Installed is true).
 type SingleAppInfo struct {
 	Installed bool `json:"installed"`
 }
 
-// GetLinuxToysInfo reports whether Linux Toys is currently installed.
-func (l *LinuxService) GetLinuxToysInfo() SingleAppInfo {
-	return SingleAppInfo{Installed: linuxtoys.Installed(context.Background(), l.exe)}
-}
-
-// InstallLinuxToys runs the official installer (internal/system/
-// linuxtoys.Install) — the GUI's "Instalar" button click is itself the
-// confirmation, no extra prompt.
-func (l *LinuxService) InstallLinuxToys() error {
-	return l.runAction(func(stdout io.Writer) error {
-		return linuxtoys.Install(context.Background(), l.exe, stdout)
-	})
-}
-
-// UninstallLinuxToys removes Linux Toys via the distro's native package
-// manager (internal/system/linuxtoys.Uninstall).
-func (l *LinuxService) UninstallLinuxToys() error {
-	return l.runAction(func(stdout io.Writer) error {
-		return linuxtoys.Uninstall(context.Background(), l.exe, stdout)
-	})
-}
-
 // GetMegaSyncInfo reports whether MegaSync is currently installed — same
-// "app único install/desinstalar" screen shape as Linux Toys.
+// "app único install/desinstalar" screen shape.
 func (l *LinuxService) GetMegaSyncInfo() SingleAppInfo {
 	return SingleAppInfo{Installed: megasync.Installed(context.Background(), l.exe)}
 }
 
 // InstallMegaSync runs the official install flow (internal/system/
-// megasync.Install) — same reasoning as InstallLinuxToys: the GUI's
-// "Instalar" button click is itself the confirmation.
+// megasync.Install) — the GUI's "Instalar" button click is itself the
+// confirmation.
 func (l *LinuxService) InstallMegaSync() error {
 	return l.runAction(func(stdout io.Writer) error {
 		return megasync.Install(context.Background(), l.exe, stdout)

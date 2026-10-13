@@ -53,10 +53,27 @@ function dcKindChanged() {
 dcKind.addEventListener("change", dcKindChanged);
 dcAppType.addEventListener("change", renderDcFields);
 
+// renderMkcertAlert shows the warning at the top of the screen while the
+// Nginx container, whose creation runs "mkcert -install" for the first
+// time (catalog.mkcertReady=false), is still to be created. That command
+// can prompt for an admin password on its own, outside Perci's pkexec,
+// and the GUI has no way to answer that prompt.
+function renderMkcertAlert(catalog) {
+  const show = !catalog.mkcertReady && !catalog.nginxExists;
+  dcMkcertAlert.classList.toggle("hidden", !show);
+  dcMkcertAlert.innerHTML = show
+    ? LUCIDE.svg("triangleAlert", { size: 18 }) +
+      "<span>Primeira criação: o Perci vai gerar um certificado local via <code>mkcert</code>. " +
+      "Se isso pedir uma senha de administrador e travar, abra um terminal fora do Perci e rode " +
+      "<code>mkcert -install</code> manualmente uma vez antes de clicar em Criar.</span>"
+    : "";
+}
+
 function renderDockerCreateScreen() {
   dcHint.textContent = "";
   App.GetDockerCreateCatalog().then(function (catalog) {
     __dcCatalog = catalog;
+    renderMkcertAlert(catalog);
     dcKind.querySelector('option[value="nginx"]').disabled = catalog.nginxExists;
     dcKind.querySelector('option[value="mariadb"]').disabled = catalog.mariadbExists;
     if (dcKind.selectedOptions[0] && dcKind.selectedOptions[0].disabled) {
@@ -250,17 +267,28 @@ btnDockerExport.addEventListener("click", function () {
   }).catch(function (err) { openError("Falha ao exportar: " + err); });
 });
 
+// importPreviewMessage is the text of the import confirmation: the summary
+// of the file, the commands its apps will run inside their containers, and
+// the warning that everything is replaced and recreated.
+function importPreviewMessage(preview) {
+  const commands = preview.commands || [];
+  let msg = "Workspace: " + (preview.workspacePath || "(nenhum)") + "\n" +
+    "Nginx: " + (preview.hasNginx ? "sim" : "não") + " | MariaDB: " + (preview.hasMariaDb ? "sim" : "não") +
+    " | Apps: " + preview.appsCount + "\n\n";
+  if (commands.length > 0) {
+    msg += "Comandos que serão executados dentro dos contêineres:\n" +
+      commands.map(function (c) { return "• " + c; }).join("\n") + "\n\n";
+  }
+  return msg + "Isso substitui a configuração atual do Docker e recria tudo (Nginx → MariaDB → cada Aplicativo). Continuar?";
+}
+
 btnDockerImport.innerHTML = LUCIDE.svg("upload", { size: 16 }) + " Importar configurações";
 btnDockerImport.addEventListener("click", function () {
   if (running) return;
   App.PickImportConfigPath().then(function (path) {
     if (!path) return;
     return App.PreviewImportConfig(path).then(function (preview) {
-      const msg = "Workspace: " + (preview.workspacePath || "(nenhum)") + "\n" +
-        "Nginx: " + (preview.hasNginx ? "sim" : "não") + " | MariaDB: " + (preview.hasMariaDb ? "sim" : "não") +
-        " | Apps: " + preview.appsCount + "\n\n" +
-        "Isso substitui a configuração atual do Docker e recria tudo (Nginx → MariaDB → cada Aplicativo). Continuar?";
-      openConfirm("Importar configurações", msg, function () {
+      openConfirm("Importar configurações", importPreviewMessage(preview), function () {
         if (running) return; // re-checked: the dialogs are async
         startExecution("Importar configurações");
         App.ImportDockerContainerConfig(path).catch(failRun);

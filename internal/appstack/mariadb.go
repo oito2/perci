@@ -51,7 +51,9 @@ func GenPassword() string {
 	// returning a shorter password.
 	for {
 		b := make([]byte, 16)
-		_, _ = rand.Read(b)
+		if _, err := rand.Read(b); err != nil {
+			panic(err) // crypto/rand failing is unrecoverable
+		}
 		s := strings.Map(func(r rune) rune {
 			if r == '=' || r == '+' || r == '/' || r == '-' || r == '_' {
 				return -1
@@ -62,6 +64,23 @@ func GenPassword() string {
 			return s[:16]
 		}
 	}
+}
+
+// validateDBPassword refuses a database password that is empty or holds a
+// line break: it travels in KEY=VALUE environment files and assignments.
+func validateDBPassword(pass string) error {
+	if pass == "" || strings.ContainsAny(pass, "\r\n") {
+		return fmt.Errorf("senha do banco inválida: não pode ser vazia nem conter quebra de linha")
+	}
+	return nil
+}
+
+// validateDBCredentials checks the format of a MariaDB user and password.
+func validateDBCredentials(dbUser, dbPass string) error {
+	if !ValidDBIdentifier.MatchString(dbUser) {
+		return fmt.Errorf("usuário do banco inválido: use apenas letras, números e underscore (1-32 caracteres)")
+	}
+	return validateDBPassword(dbPass)
 }
 
 // MariaDBExists reports whether a container named MariaDBContainerName
@@ -124,9 +143,9 @@ func mariadbRunArgs(dataDir, initDir string, env []string) []string {
 		"--network", NetworkName,
 		"--restart", "unless-stopped",
 		"-p", "127.0.0.1:3306:3306",
-		"-v", dataDir + ":/var/lib/mysql",
-		"-v", initDir + ":/docker-entrypoint-initdb.d",
 	}
+	args = append(args, bindMount(dataDir, "/var/lib/mysql", false)...)
+	args = append(args, bindMount(initDir, "/docker-entrypoint-initdb.d", false)...)
 	args = append(args, envNames(env)...) // values go through the client env, see envNames
 	return append(args, "-e", "MYSQL_DATABASE=dev_db", "--", MariaDBImage)
 }
@@ -153,8 +172,8 @@ func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	if !isDockerInstalled(ctx, exe) {
 		return fmt.Errorf("docker não instalado")
 	}
-	if !ValidDBIdentifier.MatchString(dbUser) {
-		return fmt.Errorf("usuário do banco inválido: use apenas letras, números e underscore (1-32 caracteres)")
+	if err := validateDBCredentials(dbUser, dbPass); err != nil {
+		return err
 	}
 
 	cfg, err := config.Load()
@@ -183,6 +202,16 @@ func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 		dbRootPass = GenPassword()
 	}
 
+	// The root secret is saved before the container can initialize the data
+	// directory with it: a failure after docker run would otherwise leave a
+	// database whose root password nobody knows.
+	if err := config.Update(func(c *config.Config) error {
+		c.Docker.MariaDB.DBRootPass = dbRootPass
+		return nil
+	}); err != nil {
+		return fmt.Errorf("salvar a senha root do MariaDB: %w", err)
+	}
+
 	dataDir := MariaDBDataDir(workspace)
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return fmt.Errorf("criar diretório de dados: %w", err)
@@ -190,6 +219,9 @@ func CreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 
 	initDir, err := writeGrantSQL(dbUser)
 	if err != nil {
+		return err
+	}
+	if err := mountableError(dataDir, initDir); err != nil {
 		return err
 	}
 
@@ -225,6 +257,11 @@ func RecreateMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writ
 	}
 	if cfg.Docker.MariaDB.DBUser == "" {
 		return fmt.Errorf("nenhum Contêiner MariaDB configurado ainda")
+	}
+	// Checked before anything is removed: a refusal must leave the running
+	// database untouched.
+	if err := CheckMariaDBCredentials(stdout, cfg.Docker.MariaDB.DBUser, cfg.Docker.MariaDB.DBPass); err != nil {
+		return err
 	}
 	if MariaDBExists(ctx, exe) {
 		if err := RemoveMariaDB(ctx, exe, stdout); err != nil {
@@ -262,10 +299,14 @@ func DeleteMariaDB(ctx context.Context, exe *executor.Executor, stdout io.Writer
 	return nil
 }
 
-// CheckMariaDBCredentials is checkMariaDBCredentials for callers about to
-// remove the running container first: it checks before anything is
-// removed, so a refusal leaves the database running.
+// CheckMariaDBCredentials validates the format of dbUser/dbPass and then
+// runs checkMariaDBCredentials, for callers about to remove the running
+// container first: it checks before anything is removed, so a refusal
+// leaves the database running.
 func CheckMariaDBCredentials(stdout io.Writer, dbUser, dbPass string) error {
+	if err := validateDBCredentials(dbUser, dbPass); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("carregar config: %w", err)
@@ -310,9 +351,18 @@ func mariadbDataInitialized(dataDir string) bool {
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
-// resolveWorkspace is cfg's workspace folder, ~/workspace when unset.
+// resolveWorkspace is cfg's workspace folder, ~/workspace when unset. A
+// path holding a comma or a double quote is refused: the folder is
+// bind-mounted through `--mount`, whose value those characters would split.
 func resolveWorkspace(cfg *config.Config) (string, error) {
-	return cfg.Workspace()
+	ws, err := cfg.Workspace()
+	if err != nil {
+		return "", err
+	}
+	if strings.ContainsAny(ws, ",\"") {
+		return "", fmt.Errorf("o caminho do workspace não pode conter vírgula nem aspas: %s", ws)
+	}
+	return ws, nil
 }
 
 func firstNonEmpty(values ...string) string {

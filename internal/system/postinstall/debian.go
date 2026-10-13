@@ -19,6 +19,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/ui"
 )
@@ -29,11 +30,6 @@ import (
 // descriptions are what the GUI's checklist shows and what DependsOn
 // refers to.
 
-// aptBaseOpts are the options every apt-get call here runs with: no
-// progress bars or colors, no interactive prompt, and --force-confold to
-// keep the user's own config files.
-var aptBaseOpts = []string{"-o", "Dpkg::Use-Pty=0", "-o", "Dpkg::Progress-Fancy=0", "-o", "APT::Color=0", "-o", "Dpkg::Options::=--force-confold"}
-
 // aptStep runs one privileged, non-interactive apt-get command.
 func aptStep(ctx context.Context, exe *executor.Executor, stdout io.Writer, msg string, args ...string) error {
 	ui.Info(stdout, msg)
@@ -41,8 +37,8 @@ func aptStep(ctx context.Context, exe *executor.Executor, stdout io.Writer, msg 
 		RequiresSudo: true,
 		Stdout:       stdout,
 		Stderr:       stdout,
-		Env:          []string{"DEBIAN_FRONTEND=noninteractive"},
-	}, "apt-get", append(append([]string{}, aptBaseOpts...), args...)...)
+		Env:          distro.AptEnv,
+	}, "apt-get", distro.AptArgs(args...)...)
 }
 
 // enableUbuntuComponents enables universe and multiverse (whichever is
@@ -50,8 +46,9 @@ func aptStep(ctx context.Context, exe *executor.Executor, stdout io.Writer, msg 
 // component.
 func enableUbuntuComponents(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	var steps []executor.PrivilegedStep
+	enabled := aptComponents()
 	for _, component := range []string{"universe", "multiverse"} {
-		if aptComponentEnabled(ctx, exe, component) {
+		if enabled[component] {
 			continue
 		}
 		steps = append(steps, executor.PrivilegedStep{
@@ -69,6 +66,7 @@ func enableUbuntuComponents(ctx context.Context, exe *executor.Executor, stdout 
 func actEnableUbuntuComponents() Action {
 	return Action{ID: "enable-repos", Label: "Habilitar repositórios universe e multiverse",
 		Description: "Adiciona os componentes universe e multiverse do Ubuntu, necessários para a maioria dos pacotes abaixo.",
+		Applied:     (*Probe).ubuntuComponentsEnabled,
 		Run:         enableUbuntuComponents}
 }
 
@@ -94,6 +92,7 @@ func actAptUpgrade(dependsOn string) Action {
 // fonts license first, for lists that include (or pull in) it.
 func actAptInstall(id, label, description, dependsOn string, acceptMSFontsEULA bool, pkgs ...string) Action {
 	return Action{ID: id, Label: label, Description: description, DependsOn: dependsOn,
+		Applied: func(p *Probe) bool { return p.debInstalled(pkgs...) },
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 			if acceptMSFontsEULA {
 				return acceptEulaAndAptInstall(ctx, exe, stdout, pkgs...)
@@ -105,21 +104,23 @@ func actAptInstall(id, label, description, dependsOn string, acceptMSFontsEULA b
 func actSysctl() Action {
 	return Action{ID: "apply-sysctl", Label: "Aplicar ajustes de kernel",
 		Description: "Reduz a troca de memória (swappiness) e aumenta o limite de observadores de arquivo (inotify).",
+		Applied:     (*Probe).sysctlConfigured,
 		Run:         configureSysctl}
 }
 
 func actSwap() Action {
 	return Action{ID: "setup-swap", Label: "Configurar swapfile",
 		Description: "Cria e ativa um swapfile de 4 GB, se o sistema ainda não tiver nenhum swap ativo.",
+		Applied:     (*Probe).swapActive,
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
-			setupSwapfile(ctx, exe, stdout)
-			return nil
+			return setupSwapfile(ctx, exe, stdout)
 		}}
 }
 
 func actTRIM() Action {
 	return Action{ID: "enable-trim", Label: "Ativar TRIM para SSDs",
 		Description: "Habilita o serviço fstrim.timer, que mantém discos SSD saudáveis a longo prazo.",
+		Applied:     (*Probe).trimEnabled,
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 			return step(ctx, exe, stdout, "Ativando TRIM para SSDs...", "systemctl", "enable", "--now", "fstrim.timer")
 		}}
@@ -129,6 +130,7 @@ func actAptVAAPIIntel(dependsOn string) Action {
 	return Action{ID: "vaapi-intel", Label: "Driver de vídeo Intel (VA-API)",
 		Description: "Instala a aceleração de vídeo por hardware para GPUs Intel. Marque só se sua GPU for Intel.",
 		DependsOn:   dependsOn,
+		Applied:     func(p *Probe) bool { return p.debInstalled("intel-media-va-driver") },
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 			ui.Info(stdout, "Instalando drivers VA-API para Intel...")
 			return aptInstall(ctx, exe, stdout, "intel-media-va-driver")
@@ -142,18 +144,32 @@ func actAptVAAPIAMD(dependsOn string) Action {
 	return Action{ID: "vaapi-amd", Label: "Driver de vídeo AMD (VA-API)",
 		Description: "Instala a aceleração de vídeo por hardware para GPUs AMD. Marque só se sua GPU for AMD.",
 		DependsOn:   dependsOn,
+		Applied:     func(p *Probe) bool { return p.debInstalled("mesa-va-drivers") },
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 			ui.Info(stdout, "Instalando drivers VA-API para AMD...")
 			return aptInstall(ctx, exe, stdout, "mesa-va-drivers")
 		}}
 }
 
+// flatpakEssentialApps are the Flathub apps actFlatpakEssentials installs.
+var flatpakEssentialApps = []string{"org.videolan.VLC", "net.codelogistics.webapps"}
+
+// flatpakWebAppsOnly is the Flathub app list for systems that already ship
+// VLC as a distro package.
+var flatpakWebAppsOnly = []string{"net.codelogistics.webapps"}
+
 // actFlatpakEssentials ensures Flatpak + Flathub and installs VLC and a
 // web-app shortcut manager.
 func actFlatpakEssentials(label, description string) Action {
+	return actFlatpakApps(label, description, flatpakEssentialApps...)
+}
+
+// actFlatpakApps ensures Flatpak + Flathub and installs appIDs.
+func actFlatpakApps(label, description string, appIDs ...string) Action {
 	return Action{ID: "setup-flatpak", Label: label, Description: description,
+		Applied: func(p *Probe) bool { return p.flatpakAppsInstalled(appIDs...) },
 		Run: func(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
-			return flatpakSetupAndInstall(ctx, exe, stdout, "org.videolan.VLC", "net.codelogistics.webapps")
+			return flatpakSetupAndInstall(ctx, exe, stdout, appIDs...)
 		}}
 }
 
@@ -167,3 +183,6 @@ func actUbuntuDrivers(dependsOn string) Action {
 }
 
 const flatpakSetupDescription = "Garante o Flatpak instalado, adiciona o repositório Flathub e instala VLC e um app de atalhos web."
+
+// flatpakWebAppsDescription describes actFlatpakApps with flatpakWebAppsOnly.
+const flatpakWebAppsDescription = "Garante o Flatpak instalado, adiciona o repositório Flathub e instala um app de atalhos web."

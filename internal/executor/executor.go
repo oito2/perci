@@ -23,8 +23,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // Options configures a single command invocation.
@@ -102,6 +105,9 @@ func (e *Executor) Run(ctx context.Context, opts Options, name string, args ...s
 	if len(opts.Env) > 0 {
 		cmd.Env = append(os.Environ(), opts.Env...)
 	}
+	if !opts.RequiresSudo {
+		killGroupOnCancel(cmd)
+	}
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", cmdName, err)
@@ -147,7 +153,14 @@ type PrivilegedStep struct {
 // Steps are joined into one `sh -c "..."` script — every part (Announce,
 // WarnMessage, Name, each arg, each Env entry) goes through ShellQuote, so
 // nothing here is ever interpolated as a raw shell string.
+//
+// The batch is always privileged: opts.RequiresSudo is implied and need not
+// be set. opts.Env is not supported (it would be silently dropped); use
+// PrivilegedStep.Env for per-step variables.
 func (e *Executor) RunSudoSequence(ctx context.Context, opts Options, steps []PrivilegedStep) error {
+	if len(opts.Env) > 0 {
+		return errors.New("RunSudoSequence: opts.Env não é suportado, use PrivilegedStep.Env")
+	}
 	if len(steps) == 0 {
 		return nil
 	}
@@ -267,6 +280,9 @@ func (e *Executor) Output(ctx context.Context, opts Options, name string, args .
 	if len(opts.Env) > 0 {
 		cmd.Env = append(os.Environ(), opts.Env...)
 	}
+	if !opts.RequiresSudo {
+		killGroupOnCancel(cmd)
+	}
 
 	// Capped at maxOutputBytes instead of an unbounded buffer, so a
 	// misbehaving command cannot inflate this process's memory. The
@@ -323,13 +339,46 @@ func (e *Executor) Which(name string) (string, bool) {
 // sudoPath and pkexecPath pin the absolute path of the privilege-escalation
 // binary — the single such point of the whole project — so a poisoned
 // $PATH (e.g. a writable directory listed before /usr/bin) cannot
-// substitute a forged binary in its place. Once invoked, the real
-// sudo/pkexec resolves the escalated command (apt-get, dnf, ...) via its
-// own safe environment, not the caller's $PATH.
+// substitute a forged binary in its place.
 const (
 	sudoPath   = "/usr/bin/sudo"
 	pkexecPath = "/usr/bin/pkexec"
 )
+
+// killGroupOnCancel makes an unprivileged command run in its own process
+// group and, when its context is canceled, kills the whole group (so
+// children of a shell pipeline stop too) and stops waiting for its output
+// pipes a few seconds later.
+func killGroupOnCancel(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+	cmd.WaitDelay = 5 * time.Second
+}
+
+// trustedBinDirs are the only directories searched for the program handed
+// to sudo/pkexec. pkexec resolves a relative program name with the
+// caller's $PATH, which here includes ~/.local/bin; every name is therefore
+// resolved to an absolute path in root-owned directories first.
+var trustedBinDirs = []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"}
+
+// trustedPath returns the absolute path of name in trustedBinDirs. A name
+// containing a slash is returned as is; a name found in none of them
+// resolves to /usr/bin/<name>, which then fails to run instead of being
+// looked up in $PATH.
+func trustedPath(name string) string {
+	if strings.Contains(name, "/") {
+		return name
+	}
+	for _, dir := range trustedBinDirs {
+		p := filepath.Join(dir, name)
+		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			return p
+		}
+	}
+	return filepath.Join("/usr/bin", name)
+}
 
 // buildCmd assembles the command to execute. When sudo is required, env is
 // propagated via `sudo|pkexec env KEY=VALUE ... name args...` instead of
@@ -346,10 +395,14 @@ func (e *Executor) buildCmd(sudo bool, env []string, name string, args []string)
 	}
 	cmdArgs := make([]string, 0, len(env)+len(args)+2)
 	if len(env) > 0 {
-		cmdArgs = append(cmdArgs, "env")
+		// env itself runs as root with sudo/pkexec's sanitized environment,
+		// so it resolves name through the system's secure PATH.
+		cmdArgs = append(cmdArgs, trustedPath("env"))
 		cmdArgs = append(cmdArgs, env...)
+		cmdArgs = append(cmdArgs, name)
+	} else {
+		cmdArgs = append(cmdArgs, trustedPath(name))
 	}
-	cmdArgs = append(cmdArgs, name)
 	cmdArgs = append(cmdArgs, args...)
 	return elevate, cmdArgs
 }

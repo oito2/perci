@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -107,15 +108,6 @@ func requireFolder(p string) error {
 	return nil
 }
 
-// requireFolderUnlessGlobal is requireFolder for actions with a Global/Local
-// scope — the folder only matters for Local.
-func requireFolderUnlessGlobal(global bool, p string) error {
-	if global {
-		return nil
-	}
-	return requireFolder(p)
-}
-
 // pickFolder opens the native "choose a folder" dialog with the options
 // every Pick*Folder screen-specific method wants — CanCreateDirectories so
 // the user can create a brand-new empty folder from inside the dialog (the
@@ -130,40 +122,88 @@ func (b *serviceBase) pickFolder(title string) (string, error) {
 	}).PromptForSingleSelection())
 }
 
+// Output batching limits: a "log-line" event is emitted at most once per
+// logBatchInterval, or at once when the pending bytes reach logBatchMax.
+const (
+	logBatchInterval = 30 * time.Millisecond
+	logBatchMax      = 16 << 10
+)
+
 // eventWriter connects the io.Writer convention every domain function
 // already uses (ui.Info/Warning/Success/Step, real command output via
-// internal/executor) to the Execução tab's terminal panel: every Write()
-// becomes a "log-line" event. Safe for concurrent use (a command's stdout
-// and stderr are copied from different goroutines), and an incomplete
-// UTF-8 sequence at the end of a Write is held back until the next one —
+// internal/executor) to the Execução tab's terminal panel: the output
+// becomes "log-line" events. Writes are batched — apt or docker build emit
+// thousands of small writes — so an event goes out at most every interval
+// (the first write after a quiet period goes out immediately; a timer
+// emits whatever accumulated otherwise) or as soon as logBatchMax bytes are
+// pending. Safe for concurrent use (a command's stdout and stderr are
+// copied from different goroutines), and an incomplete UTF-8 sequence at
+// the end of the pending bytes is held back until the rest arrives —
 // emitted on its own it would show as "�" in the terminal. Flush emits
 // whatever is left once the action ends.
 type eventWriter struct {
 	emit func(string)
-	mu   sync.Mutex
-	buf  []byte
+	// interval overrides logBatchInterval when non-zero.
+	interval time.Duration
+	mu       sync.Mutex
+	buf      []byte
+	last     time.Time
+	timer    *time.Timer
 }
 
 func (b *serviceBase) newEventWriter() *eventWriter {
 	return &eventWriter{emit: func(s string) { b.emit("log-line", s) }}
 }
 
+func (w *eventWriter) batchInterval() time.Duration {
+	if w.interval > 0 {
+		return w.interval
+	}
+	return logBatchInterval
+}
+
 func (w *eventWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.buf = append(w.buf, p...)
-	n := completeUTF8Prefix(w.buf)
-	if n > 0 {
-		w.emit(string(w.buf[:n]))
-		w.buf = append(w.buf[:0], w.buf[n:]...)
+	if len(w.buf) >= logBatchMax || time.Since(w.last) >= w.batchInterval() {
+		w.emitComplete()
+	} else if w.timer == nil {
+		w.timer = time.AfterFunc(w.batchInterval(), w.onTimer)
 	}
 	return len(p), nil
 }
 
-// Flush emits any held-back bytes, even an invalid trailing sequence.
+// onTimer emits the output accumulated since the last emission.
+func (w *eventWriter) onTimer() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.timer = nil
+	w.emitComplete()
+}
+
+// emitComplete emits the pending bytes up to the last complete UTF-8 rune
+// and keeps the rest. The caller holds w.mu.
+func (w *eventWriter) emitComplete() {
+	n := completeUTF8Prefix(w.buf)
+	if n == 0 {
+		return
+	}
+	w.emit(string(w.buf[:n]))
+	w.buf = append(w.buf[:0], w.buf[n:]...)
+	w.last = time.Now()
+}
+
+// Flush emits any pending bytes, even an invalid trailing sequence, and
+// stops the batching timer.
 func (w *eventWriter) Flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.timer != nil {
+		w.timer.Stop()
+		w.timer = nil
+	}
+	w.emitComplete()
 	if len(w.buf) > 0 {
 		w.emit(string(w.buf))
 		w.buf = w.buf[:0]
@@ -205,23 +245,38 @@ var errActionRunning = errors.New("outra ação já está em execução — agua
 // Only one action runs at a time (runMu); a panic inside fn is turned into
 // a failed action instead of taking the whole process down — possibly in
 // the middle of a privileged package-manager run — and "action-done" is
-// always emitted.
+// always emitted, after runMu is released, so an action started as soon as
+// it arrives is not refused.
 func (b *serviceBase) runAction(fn func(stdout io.Writer) error) error {
 	if !runMu.TryLock() {
 		return errActionRunning
 	}
 	go func() {
-		defer runMu.Unlock()
-		w := b.newEventWriter()
-		err := runRecovered(func() error { return fn(w) })
-		w.Flush()
-		// The action may have installed a tool into ~/.local/bin or through
-		// nvm: refreshed before action-done, whose handlers re-check what's
-		// installed.
-		localbin.RefreshPath(context.Background(), b.exe)
+		err := func() error {
+			defer runMu.Unlock()
+			w := b.newEventWriter()
+			err := runRecovered(func() error { return fn(w) })
+			w.Flush()
+			// The action may have installed a tool into ~/.local/bin or
+			// through nvm: refreshed before action-done, whose handlers
+			// re-check what's installed.
+			localbin.RefreshPath(context.Background(), b.exe)
+			return err
+		}()
 		b.emitDone(err)
 	}()
 	return nil
+}
+
+// runExclusive runs fn synchronously while holding the action lock (runMu)
+// — for quick bound methods that change state without the Execução tab. It
+// returns errActionRunning when another action holds the lock.
+func runExclusive(fn func() error) error {
+	if !runMu.TryLock() {
+		return errActionRunning
+	}
+	defer runMu.Unlock()
+	return runRecovered(fn)
 }
 
 // runRecovered calls fn, converting a panic into an error.

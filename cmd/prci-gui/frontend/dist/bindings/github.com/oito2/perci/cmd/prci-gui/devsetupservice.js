@@ -73,24 +73,24 @@ export function GetIDEInfo(cmd) {
 }
 
 /**
- * GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs)
- * with its current installed state.
- * @returns {$CancellablePromise<$models.MultiSelectItemInfo[]>}
+ * GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs),
+ * in its order, with each item's installed state and missing requirements.
+ * @returns {$CancellablePromise<$models.ManagedItemInfo[]>}
  */
 export function GetPrereqsInfo() {
     return $Call.ByName("main.DevSetupService.GetPrereqsInfo").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType4($result);
     }));
 }
 
 /**
  * GetSDKsInfo lists the SDK catalogue (internal/dev/sdks: Go + Flutter)
- * with its current installed state.
- * @returns {$CancellablePromise<$models.MultiSelectItemInfo[]>}
+ * with each item's installed state and missing requirements.
+ * @returns {$CancellablePromise<$models.ManagedItemInfo[]>}
  */
 export function GetSDKsInfo() {
     return $Call.ByName("main.DevSetupService.GetSDKsInfo").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType4($result);
     }));
 }
 
@@ -173,22 +173,25 @@ export function RunAIApps(selectedNames) {
 }
 
 /**
- * RunPrereqs installs newly checked prerequisites and removes newly
- * unchecked ones — same diff (internal/sets.Diff) RunFonts uses.
- * @param {string[]} selectedNames
+ * RunPrereqAction runs op ("install", "update" or "uninstall") on the
+ * prerequisite named name.
+ * @param {string} name
+ * @param {string} op
  * @returns {$CancellablePromise<void>}
  */
-export function RunPrereqs(selectedNames) {
-    return $Call.ByName("main.DevSetupService.RunPrereqs", selectedNames);
+export function RunPrereqAction(name, op) {
+    return $Call.ByName("main.DevSetupService.RunPrereqAction", name, op);
 }
 
 /**
- * RunSDKs installs newly checked SDKs and removes newly unchecked ones.
- * @param {string[]} selectedNames
+ * RunSDKAction runs op ("install", "update" or "uninstall") on the SDK
+ * named name.
+ * @param {string} name
+ * @param {string} op
  * @returns {$CancellablePromise<void>}
  */
-export function RunSDKs(selectedNames) {
-    return $Call.ByName("main.DevSetupService.RunSDKs", selectedNames);
+export function RunSDKAction(name, op) {
+    return $Call.ByName("main.DevSetupService.RunSDKAction", name, op);
 }
 
 /**
@@ -250,3 +253,5 @@ export function UpdateIDE(cmd) {
 const $$createType0 = $models.MultiSelectItemInfo.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $models.SingleAppInfo.createFrom;
+const $$createType3 = $models.ManagedItemInfo.createFrom;
+const $$createType4 = $Create.Array($$createType3);

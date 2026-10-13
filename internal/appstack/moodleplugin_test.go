@@ -228,7 +228,7 @@ func TestAddAndRemoveMoodlePlugin_OnePasswordEach(t *testing.T) {
 		t.Errorf("add: %d escalations, want 1\n%s", n, out)
 	}
 	unit := mountUnitName(dest)
-	for _, want := range []string{"'" + filepath.Join(systemdUnitDir, unit) + "'", "'daemon-reload'", "'enable' '--now' '--' '" + unit + "'"} {
+	for _, want := range []string{"'" + filepath.Join(systemdUnitDir, unit) + "'", "'daemon-reload'", `systemctl enable --now -- "$1"`, "'" + unit + "'"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("add output lacks %s\n%s", want, out)
 		}
@@ -255,7 +255,7 @@ func TestAddAndRemoveMoodlePlugin_OnePasswordEach(t *testing.T) {
 	if n := strings.Count(out, "pkexec"); n != 1 {
 		t.Errorf("remove: %d escalations, want 1\n%s", n, out)
 	}
-	for _, want := range []string{"'disable' '--now' '--' '" + unit + "'", "'rm' '-f' '--' '" + filepath.Join(systemdUnitDir, unit) + "'"} {
+	for _, want := range []string{"'disable' '--now' '--' '" + unit + "'", `rm -f -- "$2"`, "'" + filepath.Join(systemdUnitDir, unit) + "'"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("remove output lacks %s\n%s", want, out)
 		}
@@ -286,7 +286,7 @@ func fakeStatDocker(t *testing.T, status, appID, nginxID string) {
 	script := `#!/bin/sh
 case "$1" in
 inspect) [ -n '` + status + `' ] || exit 1; printf '%s\n' '` + status + `' ;;
-exec) case "$2" in nginx) printf '%s\n' '` + nginxID + `' ;; *) printf '%s\n' '` + appID + `' ;; esac ;;
+exec) c="$2"; shift 6; for p in "$@"; do case "$c" in nginx) printf '%s %s\n' "$p" '` + nginxID + `' ;; *) printf '%s %s\n' "$p" '` + appID + `' ;; esac; done ;;
 esac
 `
 	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {

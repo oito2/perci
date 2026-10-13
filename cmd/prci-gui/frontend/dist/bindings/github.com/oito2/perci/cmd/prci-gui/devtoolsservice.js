@@ -31,8 +31,9 @@ export function AddMoodlePlugin(dev, folder, ptype, name) {
 }
 
 /**
- * AddRepoFolder appends path to the remembered repo folder list — a no-op
- * (not an error) if it's already there. Always reloads the config first,
+ * AddRepoFolder appends path — which must have been picked in a native
+ * dialog this session — to the remembered repo folder list; a no-op (not an
+ * error) if it's already there. Always reloads the config first,
  * same reasoning as SetTheme/SetWorkspacePath: don't clobber other fields
  * another process may have changed while the GUI was open.
  * @param {string} path
@@ -59,8 +60,8 @@ export function ApplyAIContext(folder, selectedNames) {
 }
 
 /**
- * ApplyGlobalGitIdentity sets the global git user.name/user.email/
- * credential.helper (managerrepo.ConfigureGlobal) — shows the Execução tab
+ * ApplyGlobalGitIdentity sets the global git user.name/user.email and, when
+ * none is configured yet, credential.helper (managerrepo.ConfigureGlobal) — shows the Execução tab
  * like every other mutating action in this screen.
  * @param {string} name
  * @param {string} email
@@ -71,8 +72,8 @@ export function ApplyGlobalGitIdentity(name, email) {
 }
 
 /**
- * ApplyLocalGitIdentityAt sets folder's local user.name/user.email/
- * credential.helper.
+ * ApplyLocalGitIdentityAt sets folder's local user.name/user.email and,
+ * when no helper is configured for it, credential.helper.
  * @param {string} folder
  * @param {string} name
  * @param {string} email
@@ -256,8 +257,8 @@ export function InspectMoodlePlugin(dev, folder, ptype, name) {
 }
 
 /**
- * InstallAgentSkill runs `npx skills add` for slug and records it in
- * config.yaml on success.
+ * InstallAgentSkill runs `npx skills add` for slug and records it, with the
+ * agents that accepted it, in config.yaml on success.
  * @param {string} slug
  * @param {boolean} global
  * @param {string} folder
@@ -269,7 +270,7 @@ export function InstallAgentSkill(slug, global, folder) {
 
 /**
  * InstallMCPServer registers slug with every supported agent and records
- * it in config.yaml on success.
+ * it, with the agents that accepted it, in config.yaml on success.
  * @param {string} slug
  * @param {boolean} global
  * @param {string} folder
@@ -388,8 +389,8 @@ export function RemoveRepoFolder(path) {
 }
 
 /**
- * UpdateAgentSkill runs `npx skills update` for slug — doesn't touch
- * config.yaml (an update never changes whether it's installed).
+ * UpdateAgentSkill reinstalls slug at its pinned commit for the same agents
+ * as the install and refreshes the agents recorded for it.
  * @param {string} slug
  * @param {boolean} global
  * @param {string} folder
@@ -401,7 +402,8 @@ export function UpdateAgentSkill(slug, global, folder) {
 
 /**
  * UpdateMCPServer refreshes slug's registration and keeps config.yaml's
- * stored Param in sync (in case the user changed it before updating).
+ * stored Param and agents in sync (in case the user changed the parameter
+ * before updating).
  * @param {string} slug
  * @param {boolean} global
  * @param {string} folder

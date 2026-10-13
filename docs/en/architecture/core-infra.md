@@ -12,15 +12,17 @@ Cross-cutting packages every other layer depends on.
 
 ## `internal/distro`
 
-`Detect()` (Debian/Fedora family) and `DetectDE()` (desktop environment) are the **only** sanctioned way to branch on distro anywhere in the codebase — domain packages never implement their own detection. Arch is not a supported family.
+`Detect()` (Debian/Fedora family) and `DetectDE()` (desktop environment) are the **only** sanctioned way to branch on distro anywhere in the codebase — domain packages never implement their own detection. Arch is not a supported family. Detection reads `/etc/os-release` (single-quoted values included) and `XDG_CURRENT_DESKTOP`.
+
+Every unattended `apt-get` call goes through `AptNonInteractiveOpts`/`AptEnv`/`AptArgs`: `--force-confold` plus `DEBIAN_FRONTEND=noninteractive`, so a config file edited by the user never stops `dpkg` on a prompt.
 
 ## `internal/executor`
 
-The single point through which every privileged command is escalated. `sudo` is resolved from the fixed path `/usr/bin/sudo` (not `$PATH`-resolved), and environment variables are propagated through it via `sudo env KEY=VALUE ...` rather than relying on `sudo`'s own (inconsistent, distro-dependent) env-passthrough configuration.
+The single point through which every privileged command is escalated. `sudo` is resolved from the fixed path `/usr/bin/sudo` (not `$PATH`-resolved), and so is every program run through `pkexec`/`sudo`: `trustedPath` turns the name into an absolute path inside the system directories (`/usr/local/sbin`, `/usr/local/bin`, `/usr/sbin`, `/usr/bin`, `/sbin`, `/bin`), never through the user's `$PATH`. An unprivileged command runs in its own process group: when its context is canceled (a network time limit), the whole group is killed, so the children of a shell pipeline stop too. Environment variables are propagated through it via `sudo env KEY=VALUE ...` rather than relying on `sudo`'s own (inconsistent, distro-dependent) env-passthrough configuration.
 
-`PrivilegedInstall`/`PrivilegedInstallSteps` install a file the unprivileged user downloaded (and verified) into a root-owned location without trusting it after the password prompt: root copies it into a `0600` staged file it owns, re-verifies the SHA-256 on that copy, then sets the final mode and renames it over the destination as `root:root` — one batch, one prompt. Used by the self-update and the appimagetool install; `install.sh` does the same in shell.
+`PrivilegedInstall`/`PrivilegedInstallSteps` install a file the unprivileged user downloaded (and verified) into a root-owned location without trusting it after the password prompt: root copies it into a `0600` staged file it owns (`<dest>.perci-new`), re-verifies the SHA-256 on that copy, then sets the final mode and renames it over the destination as `root:root` — one batch, one prompt. `PrivilegedInstallSteps` returns three steps (`install`, a verifying `sh`, a finalizing `sh`); the last one removes the staged file when the `chmod` or the `mv` fails, so no `.perci-new` is left behind. Used by the self-update and the appimagetool install; `install.sh` does the same in shell.
 
-In a `RunSudoSequence` batch, a `Soft` step that fails prints its warning and the batch goes on (unchanged). Adding `SoftReport` keeps that, but makes the batch end with `ErrCompletedWithWarnings` when any such step failed — used by the Flatpak apps and font batches, which are made only of soft steps and used to report success even when every item failed.
+`RunSudoSequence` refuses `Options.Env` (it would be silently dropped): per-step variables go in `PrivilegedStep.Env`. In a batch, a `Soft` step that fails prints its warning and the batch goes on (unchanged). Adding `SoftReport` keeps that, but makes the batch end with `ErrCompletedWithWarnings` when any such step failed — used by the Flatpak apps and font batches, which are made only of soft steps and used to report success even when every item failed.
 
 `CommandAvailable`/`Which` resolve a command on `$PATH` in-process (`exec.LookPath`), never through the external `which` binary; tests replace `Executor.LookPath` to fake what's installed. `RunConcurrent(ctx, items, limit, fn)` stops starting items once `ctx` is done and turns a panic in `fn` into a returned error.
 
@@ -28,11 +30,15 @@ In a `RunSudoSequence` batch, a `Soft` step that fails prints its warning and th
 
 `WriteFileAtomic(path, data, mode)`: temp file in the same directory, `chmod` to `mode`, `fsync`, rename — the final mode always applies, even over an existing file (`os.WriteFile` only applies it on creation). Used for `config.yaml`, the Docker stack export, the exported container logs and generated `.gitignore` files.
 
+`WriteGenerated(path, data, mode)` is the writer for generated project files (AI context files, `.claude/settings.json`, the repository code-of-conduct file, the Flutter wrapper, file-manager context-menu entries): it writes through a symlink at `path` (the link's target is written and the link kept), atomically, and when a *different* version already exists it first saves it as `<path>.perci-bak`.
+
+`WriteThroughLink(path, data, mode)` writes the same way (through a symlink, atomically) without any backup copy — used for MCP configuration files, which may hold tokens.
+
 `VerifyFile(path, hash, want)`: the one checksum check for downloaded artifacts (self-update, Go, Flutter's Android tools, appimagetool) — hex, case-insensitive.
 
 ## `internal/selfupdate`
 
-Self-update (`Run`) checks GitHub Releases, downloads, verifies, and replaces the running binary. When the binary's directory is user-writable, the swap is an atomic same-directory rename; otherwise it goes through `executor.PrivilegedInstall`. Every redirect of an asset download is re-validated against the trusted hosts, the binary download is bounded by `Run`'s 5-minute context rather than a per-request timeout, and it's `fsync`ed before the swap. Self-uninstall (`Uninstall`) removes the binary, the `perci` alias, the application menu entry (`.desktop` + hicolor icon set, in one privileged `rm`) and, optionally, `~/.perci`. `InstallMenuIcons` reinstalls the hicolor icon set (embedded by the `packaging` package) in the color chosen in **Home → Configurações → Ícone do Aplicativo**, in one privileged batch — the PNGs reach root as an in-memory tar archive on stdin, never as files in a user-writable temp directory.
+Self-update (`Run`) checks GitHub Releases, downloads, verifies, and replaces the running binary. A development build (`version.Version == "dev"`) refuses to update itself. The update check (`LatestRelease`) only lists the release; `checksums.txt` is downloaded when the update is applied, and a release without it is shown but the update is refused. When the binary's directory is user-writable, the swap is an atomic same-directory rename; otherwise it goes through `executor.PrivilegedInstall`. Every redirect of an asset download is re-validated against the trusted hosts, the binary download is bounded by `Run`'s 5-minute context rather than a per-request timeout, and it's `fsync`ed before the swap. Self-uninstall (`Uninstall`) removes the binary, the `perci` alias (only when it is a symlink to the binary — an unrelated file or directory named `perci` is left alone), the application menu entry (`.desktop` + hicolor icon set, in one privileged `rm`) and, optionally, `~/.perci`, all in one batch with one password prompt. `InstallMenuIcons` reinstalls the hicolor icon set (embedded by the `packaging` package) in the color chosen in **Home → Configurações → Ícone do Aplicativo**, in one privileged batch — the PNGs reach root as an in-memory tar archive on stdin, never as files in a user-writable temp directory.
 
 ## `internal/shellrc`
 

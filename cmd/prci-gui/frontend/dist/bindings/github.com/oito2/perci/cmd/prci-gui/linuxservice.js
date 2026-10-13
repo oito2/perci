@@ -4,7 +4,7 @@
 
 /**
  * LinuxService binds the "Linux" category: Atualizar Sistema,
- * Pós-instalação, Fontes, Templates, Flatpak Apps, Linux Toys, MegaSync.
+ * Pós-instalação, Fontes, Templates, Flatpak Apps, MegaSync.
  * @module
  */
 
@@ -41,18 +41,8 @@ export function GetFontsInfo() {
 }
 
 /**
- * GetLinuxToysInfo reports whether Linux Toys is currently installed.
- * @returns {$CancellablePromise<$models.SingleAppInfo>}
- */
-export function GetLinuxToysInfo() {
-    return $Call.ByName("main.LinuxService.GetLinuxToysInfo").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
-    }));
-}
-
-/**
  * GetMegaSyncInfo reports whether MegaSync is currently installed — same
- * "app único install/desinstalar" screen shape as Linux Toys.
+ * "app único install/desinstalar" screen shape.
  * @returns {$CancellablePromise<$models.SingleAppInfo>}
  */
 export function GetMegaSyncInfo() {
@@ -63,13 +53,25 @@ export function GetMegaSyncInfo() {
 
 /**
  * GetPostinstallProfile detects which of the supported OS/DE/version
- * combinations Perci is running on, and returns its checklist — or
+ * combinations Perci is running on, and returns its items — or
  * Supported:false if the machine isn't one of them.
  * @returns {$CancellablePromise<$models.PostinstallProfileInfo>}
  */
 export function GetPostinstallProfile() {
     return $Call.ByName("main.LinuxService.GetPostinstallProfile").then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
+    }));
+}
+
+/**
+ * GetPostinstallStatus returns, per action ID of the detected profile,
+ * whether that action counts as applied — empty when the machine isn't
+ * supported.
+ * @returns {$CancellablePromise<{ [_ in string]?: boolean }>}
+ */
+export function GetPostinstallStatus() {
+    return $Call.ByName("main.LinuxService.GetPostinstallStatus").then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
     }));
 }
 
@@ -87,19 +89,9 @@ export function GetTemplatesInfo() {
 }
 
 /**
- * InstallLinuxToys runs the official installer (internal/system/
- * linuxtoys.Install) — the GUI's "Instalar" button click is itself the
- * confirmation, no extra prompt.
- * @returns {$CancellablePromise<void>}
- */
-export function InstallLinuxToys() {
-    return $Call.ByName("main.LinuxService.InstallLinuxToys");
-}
-
-/**
  * InstallMegaSync runs the official install flow (internal/system/
- * megasync.Install) — same reasoning as InstallLinuxToys: the GUI's
- * "Instalar" button click is itself the confirmation.
+ * megasync.Install) — the GUI's "Instalar" button click is itself the
+ * confirmation.
  * @returns {$CancellablePromise<void>}
  */
 export function InstallMegaSync() {
@@ -131,17 +123,17 @@ export function RunFonts(selectedNames) {
 }
 
 /**
- * RunPostinstall runs the selected actionIDs from the detected Profile, in
- * the Profile's own declared order (always dependency-safe — see
- * Action.DependsOn in internal/system/postinstall), one ui.Step per
- * selected action. Like RunSystemUpdate it executes with
- * context.Background(): a partly-run post-install shouldn't be aborted
- * just because the window closed.
- * @param {string[]} actionIDs
+ * RunPostinstallAction applies the action actionID of the detected
+ * profile. It refuses an action that already counts as applied or whose
+ * DependsOn doesn't. After a successful run of an action without a
+ * detectable state, its ID is recorded in config.yaml. Like
+ * RunSystemUpdate it executes with context.Background(): a partly-run
+ * post-install step isn't aborted just because the window closed.
+ * @param {string} actionID
  * @returns {$CancellablePromise<void>}
  */
-export function RunPostinstall(actionIDs) {
-    return $Call.ByName("main.LinuxService.RunPostinstall", actionIDs);
+export function RunPostinstallAction(actionID) {
+    return $Call.ByName("main.LinuxService.RunPostinstallAction", actionID);
 }
 
 /**
@@ -163,21 +155,12 @@ export function RunSystemUpdate(cleanJournal, autoremove) {
  * RunTemplates creates newly checked templates and removes newly unchecked
  * ones — same diff (internal/sets.Diff) RunFonts uses. Recalculates the
  * present state on the spot rather than trusting what the frontend cached
- * — same reasoning as RunFonts/RunPostinstall.
+ * — same reasoning as RunFonts.
  * @param {string[]} selectedFilenames
  * @returns {$CancellablePromise<void>}
  */
 export function RunTemplates(selectedFilenames) {
     return $Call.ByName("main.LinuxService.RunTemplates", selectedFilenames);
-}
-
-/**
- * UninstallLinuxToys removes Linux Toys via the distro's native package
- * manager (internal/system/linuxtoys.Uninstall).
- * @returns {$CancellablePromise<void>}
- */
-export function UninstallLinuxToys() {
-    return $Call.ByName("main.LinuxService.UninstallLinuxToys");
 }
 
 /**
@@ -194,3 +177,4 @@ const $$createType0 = $models.MultiSelectItemInfo.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $models.SingleAppInfo.createFrom;
 const $$createType3 = $models.PostinstallProfileInfo.createFrom;
+const $$createType4 = $Create.Map($Create.Any, $Create.Any);

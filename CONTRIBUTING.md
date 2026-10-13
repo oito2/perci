@@ -60,7 +60,7 @@ make lint
 - GUI actions are tested in DryRun through `newTestBase` with `isolateActions` (temporary `HOME`, empty `PATH`) — see `cmd/prci-gui/actions_test.go`. Under DryRun, shell-based "is it installed?" checks always answer yes, and downloads done by Go itself (not through the executor) still hit the network: leave those out.
 - The frontend suite (`cmd/prci-gui/frontend/test`) loads the classic scripts into a Node `vm` context with a minimal DOM (`harness.mjs`); call the scripts' functions from the returned context, and use `evalIn` for their top-level `let` bindings.
 
-CI (`.github/workflows/ci.yml`) runs gofmt, go vet, golangci-lint, `go test -race` and `make test-frontend` on every push to `main` and every pull request.
+CI (`.github/workflows/ci.yml`) runs gofmt, go vet, golangci-lint, `go test -race`, ShellCheck on `install.sh` and `make test-frontend` on every push to `main` and every pull request; the release workflow runs the same workflow as its gate before building.
 
 ---
 

@@ -29,8 +29,8 @@ import (
 
 // Apply drives the install/remove pass over catalogue: every item named in
 // toInstall gets install(item) called (removed items get remove(item)),
-// with one ui.Step per item processed — total comes from the selection
-// itself. A failure is
+// with one ui.Step per item processed — total counts only the selected
+// names that exist in catalogue. A failure is
 // warned inline and does not stop the rest of the batch; Apply then returns
 // every failure joined, so the caller (and the GUI) don't report success.
 func Apply[T any](
@@ -43,7 +43,12 @@ func Apply[T any](
 	installSet := sets.Of(toInstall)
 	removeSet := sets.Of(toRemove)
 
-	total := len(toInstall) + len(toRemove)
+	total := 0
+	for _, item := range catalogue {
+		if name := nameOf(item); installSet[name] || removeSet[name] {
+			total++
+		}
+	}
 	step := 0
 	var errs []error
 

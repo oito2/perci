@@ -211,3 +211,14 @@ test("Moodle version select keeps a saved value that is no longer offered", () =
   assert.doesNotMatch(current, /value="4\.x"/);
 });
 
+
+test("Criar Container: the mkcert warning sits above the form only until Nginx exists", () => {
+  const alert = ctx.document.getElementById("dc-mkcert-alert");
+  ctx.renderMkcertAlert({ mkcertReady: false, nginxExists: false });
+  assert.match(alert.innerHTML, /mkcert -install/);
+  ctx.renderMkcertAlert({ mkcertReady: true, nginxExists: false });
+  assert.equal(alert.innerHTML, "");
+  ctx.renderMkcertAlert({ mkcertReady: false, nginxExists: true });
+  assert.equal(alert.innerHTML, "");
+  assert.doesNotMatch(ctx.buildContainerFieldsHTML("dc", "nginx", { mkcertReady: false }), /mkcert/);
+});

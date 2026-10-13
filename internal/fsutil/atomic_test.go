@@ -50,3 +50,64 @@ func TestWriteFileAtomic_MissingDir(t *testing.T) {
 		t.Fatal("expected an error for a missing directory")
 	}
 }
+
+// WriteGenerated writes through a symlink and keeps the previous different
+// content as .perci-bak; identical content leaves no backup.
+func TestWriteGenerated(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "AGENTS.md")
+	link := filepath.Join(dir, "CLAUDE.md")
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("AGENTS.md", link); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteGenerated(link, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the symlink was replaced: %v", err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "new" {
+		t.Errorf("target = %q", got)
+	}
+	if got, _ := os.ReadFile(target + ".perci-bak"); string(got) != "old" {
+		t.Errorf("backup = %q", got)
+	}
+	if err := os.Remove(target + ".perci-bak"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteGenerated(target, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(target + ".perci-bak"); !os.IsNotExist(err) {
+		t.Error("identical content must not create a backup")
+	}
+}
+
+// WriteThroughLink writes the link's target, keeps the link and leaves no
+// backup.
+func TestWriteThroughLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "mcp_config.json")
+	link := filepath.Join(dir, "link.json")
+	if err := os.WriteFile(target, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteThroughLink(link, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the symlink was replaced: %v", err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "new" {
+		t.Errorf("target = %q", got)
+	}
+	if _, err := os.Stat(target + ".perci-bak"); !os.IsNotExist(err) {
+		t.Error("WriteThroughLink must not leave a backup")
+	}
+}

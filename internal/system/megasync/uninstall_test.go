@@ -39,6 +39,9 @@ func TestUninstall_Debian(t *testing.T) {
 	if !strings.Contains(buf.String(), pkgName) {
 		t.Errorf("expected package name %q in dry-run output, got: %s", pkgName, buf.String())
 	}
+	if !strings.Contains(buf.String(), "force-confold") {
+		t.Errorf("apt-get must run unattended, got: %s", buf.String())
+	}
 	// Repository and key go too, in the same single privileged call.
 	for _, path := range []string{aptSourceList, aptKeyring} {
 		if !strings.Contains(buf.String(), path) {
@@ -59,6 +62,9 @@ func TestUninstall_Fedora(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "dnf") || !strings.Contains(buf.String(), "remove") {
 		t.Errorf("expected dnf remove in dry-run output, got: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), rpmKeyFile) {
+		t.Errorf("expected %s to be removed, got: %s", rpmKeyFile, buf.String())
 	}
 	if !strings.Contains(buf.String(), dnfRepoFile) {
 		t.Errorf("expected %s to be removed, got: %s", dnfRepoFile, buf.String())

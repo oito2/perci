@@ -41,7 +41,7 @@ func ComboImageName(phpVersion, nodeVersion string) string {
 // [program:php-fpm] has no user=: php-fpm's master process starts as root
 // and its pool config drops the worker processes to www-data.
 // [program:dev-server] sets user=www-data, whose UID matches the host user
-// (see phpDockerfile).
+// (see phpDockerfileBody).
 //
 // command=%(ENV_DEV_COMMAND)s is not run through a shell: supervisord
 // splits it into argv respecting quotes, but never interprets shell
@@ -98,18 +98,30 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 `
 
-// comboDockerfile extends phpImageDockerfile (PHP + php.ini) with Node
-// (via the NodeSource apt setup script) and supervisor (Debian's
-// `supervisor` package), plus the baked-in supervisord.conf above. CMD is
-// overridden to launch supervisord, which starts php-fpm as one of its two
-// managed programs. The base image's ENTRYPOINT (docker-php-entrypoint) is
-// untouched and execs the given CMD verbatim.
-const comboDockerfile = phpImageDockerfile + `
+// comboDockerfile extends phpImageBody (PHP + php.ini) with Node
+// (copied from the official node image of the requested major version,
+// first stage) and supervisor (Debian's `supervisor` package), plus the
+// baked-in supervisord.conf above. CMD is overridden to launch supervisord,
+// which starts php-fpm as one of its two managed programs. The base image's
+// ENTRYPOINT (docker-php-entrypoint) is untouched and execs the given CMD
+// verbatim.
+//
+// Only the node binary and the global node_modules tree (npm, and corepack
+// on the versions that still ship it) are taken from the node image; the
+// npm, npx and corepack commands are links into that tree, as in the node
+// image itself.
+const comboDockerfile = `ARG PHP_VERSION=8.1
 ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-bookworm-slim AS node-src
 
-RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+` + phpImageBody + `
+COPY --from=node-src /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-src /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && if [ -e /usr/local/lib/node_modules/corepack/dist/corepack.js ]; then ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack; fi \
  && apt-get update \
- && apt-get install -y --no-install-recommends nodejs supervisor \
+ && apt-get install -y --no-install-recommends supervisor \
  && rm -rf /var/lib/apt/lists/*
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf

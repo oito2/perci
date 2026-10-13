@@ -13,10 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package sdks provides a selection-driven install/remove wrapper around
-// the golang and flutter packages for exactly those two SDKs, with no
-// extra update confirmation step. A checked item that is already installed
-// is a no-op.
+// Package sdks installs, updates and removes the two SDKs managed by
+// perci.gnl — Go and Flutter — one at a time, wrapping the golang and
+// flutter packages.
 package sdks
 
 import (
@@ -26,26 +25,40 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/oito2/perci/internal/checklist"
 	"github.com/oito2/perci/internal/dev/flutter"
 	"github.com/oito2/perci/internal/dev/golang"
+	"github.com/oito2/perci/internal/dev/nettimeout"
+	"github.com/oito2/perci/internal/dev/prereqs"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/ui"
 )
 
 // SDK describes a language/SDK toolchain managed by perci.gnl.
 type SDK struct {
-	Name string
-	ID   string // "go" or "flutter"
+	Name        string
+	ID          string // "go" or "flutter"
+	Description string
+	// Requires lists the Names of the prereqs.Catalogue items its installer
+	// needs.
+	Requires []string
+	// RemoveWarning is shown in the uninstall confirmation.
+	RemoveWarning string
 }
 
 // Catalogue lists all SDKs managed by perci.gnl.
 var Catalogue = []SDK{
-	{Name: "Go SDK", ID: "go"},
-	{Name: "Flutter + Dart SDK", ID: "flutter"},
+	{Name: "Go SDK", ID: "go",
+		Description:   "Linguagem Go, na versão estável mais recente, instalada em /usr/local/go",
+		Requires:      []string{"Curl"},
+		RemoveWarning: "Remove /usr/local/go e a linha do Go no PATH do arquivo de inicialização do shell."},
+	{Name: "Flutter + Dart SDK", ID: "flutter",
+		Description:   "Flutter (canal stable) com o Dart, em ~/development/flutter, mais o Android cmdline-tools e o wrapper do Chrome. A instalação aceita as licenças do Android SDK em seu nome; os termos estão em " + flutter.AndroidTermsURL + ".",
+		Requires:      []string{"Git"},
+		RemoveWarning: "Remove ~/development/flutter e a linha do Flutter no PATH do arquivo de inicialização do shell. O Android SDK (~/Android/Sdk) e o wrapper do Chrome continuam instalados."},
 }
 
-// paths resolves the fixed locations used by both InstalledMap and Apply.
+// paths resolves the fixed locations used by InstalledMap and the
+// install, update and remove operations.
 func paths() (home, flutterDir, flutterBin string, err error) {
 	home, err = os.UserHomeDir()
 	if err != nil {
@@ -69,18 +82,44 @@ func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 	return result
 }
 
-// Apply installs SDKs listed in toInstall and removes those in toRemove,
-// one ui.Step per processed SDK (via checklist.Apply).
-func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
+// MissingRequirements returns the labels of s's requirements that aren't
+// installed.
+func MissingRequirements(ctx context.Context, exe *executor.Executor, s SDK) []string {
+	var missing []string
+	for _, req := range s.Requires {
+		if !prereqs.Installed(ctx, exe, req) {
+			missing = append(missing, req+" (Pré-requisitos)")
+		}
+	}
+	return missing
+}
+
+// InstallOne installs s.
+func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, s SDK) error {
 	home, flutterDir, flutterBin, err := paths()
 	if err != nil {
 		return err
 	}
+	return install(ctx, exe, stdout, s.ID, home, flutterDir, flutterBin)
+}
 
-	return checklist.Apply(stdout, Catalogue, func(s SDK) string { return s.Name }, toInstall, toRemove,
-		func(s SDK) error { return install(ctx, exe, stdout, s.ID, home, flutterDir, flutterBin) },
-		func(s SDK) error { return remove(ctx, exe, stdout, s.ID, home, flutterDir) },
-	)
+// UpdateOne updates an installed s: Go to the latest stable release (no-op
+// when it already is), Flutter through "flutter upgrade".
+func UpdateOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, s SDK) error {
+	_, _, flutterBin, err := paths()
+	if err != nil {
+		return err
+	}
+	return update(ctx, exe, stdout, s.ID, flutterBin)
+}
+
+// UninstallOne removes s.
+func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, s SDK) error {
+	home, flutterDir, _, err := paths()
+	if err != nil {
+		return err
+	}
+	return remove(ctx, exe, stdout, s.ID, home, flutterDir)
 }
 
 // install installs an SDK that isn't installed yet.
@@ -117,6 +156,35 @@ func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, 
 		return nil
 	}
 	return fmt.Errorf("instalador desconhecido para %s", id)
+}
+
+// latestGoRelease and installedGoVersion look up the Go versions update
+// compares. Replaced in tests.
+var (
+	latestGoRelease    = golang.LatestRelease
+	installedGoVersion = golang.InstalledVersion
+)
+
+// update updates an installed SDK.
+func update(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, flutterBin string) error {
+	switch id {
+	case "go":
+		latest, checksum, err := latestGoRelease(ctx)
+		if err != nil {
+			return fmt.Errorf("obter a versão mais recente do Go: %w", err)
+		}
+		if _, current := installedGoVersion(ctx, exe); current == latest {
+			ui.Info(stdout, "Go já está na versão mais recente ("+current+").")
+			return nil
+		}
+		return golang.Install(ctx, exe, stdout, latest, checksum)
+	case "flutter":
+		ui.Info(stdout, "Atualizando Flutter (flutter upgrade)...")
+		ctx, cancel := nettimeout.Context(ctx)
+		defer cancel()
+		return exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, flutterBin, "upgrade")
+	}
+	return fmt.Errorf("atualizador desconhecido para %s", id)
 }
 
 func remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, home, flutterDir string) error {

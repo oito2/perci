@@ -85,8 +85,41 @@ func TestLatestRelease_Success(t *testing.T) {
 	if rel.DownloadURL != srv.URL+"/"+assetName {
 		t.Errorf("DownloadURL = %q, want %q", rel.DownloadURL, srv.URL+"/"+assetName)
 	}
+	if rel.ChecksumsURL != srv.URL+"/checksums.txt" {
+		t.Errorf("ChecksumsURL = %q", rel.ChecksumsURL)
+	}
+	if rel.ChecksumSHA256 != "" {
+		t.Errorf("LatestRelease must not resolve the checksum, got %q", rel.ChecksumSHA256)
+	}
+	if err := resolveChecksum(context.Background(), rel); err != nil {
+		t.Fatalf("resolveChecksum: %v", err)
+	}
 	if rel.ChecksumSHA256 != wantChecksum {
 		t.Errorf("ChecksumSHA256 = %q, want %q", rel.ChecksumSHA256, wantChecksum)
+	}
+}
+
+// A plain version check never requests checksums.txt.
+func TestLatestRelease_DoesNotDownloadChecksums(t *testing.T) {
+	assetName := fmt.Sprintf("prci-linux-%s", runtime.GOARCH)
+	var srv *httptest.Server
+	checksumHits := 0
+	srv = withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/oito2/perci/releases/latest":
+			fmt.Fprintf(w, `{"tag_name":"v1.2.3","assets":[
+				{"name":%q,"browser_download_url":%q},
+				{"name":"checksums.txt","browser_download_url":%q}
+			]}`, assetName, srv.URL+"/"+assetName, srv.URL+"/checksums.txt")
+		case "/checksums.txt":
+			checksumHits++
+		}
+	})
+	if _, err := LatestRelease(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if checksumHits != 0 {
+		t.Errorf("checksums.txt requested %d times, want 0", checksumHits)
 	}
 }
 
@@ -100,7 +133,9 @@ func TestLatestRelease_MissingAsset(t *testing.T) {
 	}
 }
 
-func TestLatestRelease_MissingChecksumsFile(t *testing.T) {
+// A release without checksums.txt is still reported (the version check
+// works); only applying it is refused.
+func TestLatestRelease_MissingChecksumsFileStillReported(t *testing.T) {
 	assetName := fmt.Sprintf("prci-linux-%s", runtime.GOARCH)
 	var srv *httptest.Server
 	srv = withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -108,29 +143,26 @@ func TestLatestRelease_MissingChecksumsFile(t *testing.T) {
 			assetName, srv.URL+"/"+assetName)
 	})
 
-	_, err := LatestRelease(context.Background())
-	if err == nil {
-		t.Fatal("esperava erro por checksums.txt ausente na release, mas passou")
+	rel, err := LatestRelease(context.Background())
+	if err != nil {
+		t.Fatalf("LatestRelease: %v", err)
 	}
-	t.Logf("erro esperado: %v", err)
+	if rel.Version != "v1.2.3" || rel.ChecksumsURL != "" {
+		t.Errorf("rel = %+v", rel)
+	}
+	if err := resolveChecksum(context.Background(), rel); err == nil {
+		t.Fatal("resolving the checksum of a release without checksums.txt must fail")
+	}
 }
 
-func TestLatestRelease_ChecksumNotFoundForAsset(t *testing.T) {
-	assetName := fmt.Sprintf("prci-linux-%s", runtime.GOARCH)
-	var srv *httptest.Server
-	srv = withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/oito2/perci/releases/latest":
-			fmt.Fprintf(w, `{"tag_name":"v1.2.3","assets":[
-				{"name":%q,"browser_download_url":%q},
-				{"name":"checksums.txt","browser_download_url":%q}
-			]}`, assetName, srv.URL+"/"+assetName, srv.URL+"/checksums.txt")
-		case "/checksums.txt":
+func TestResolveChecksum_NotListedForAsset(t *testing.T) {
+	srv := withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/checksums.txt" {
 			fmt.Fprint(w, "deadbeef  algum-outro-arquivo\n")
 		}
 	})
-
-	if _, err := LatestRelease(context.Background()); err == nil {
+	rel := &Release{Version: "v1.2.3", ChecksumsURL: srv.URL + "/checksums.txt"}
+	if err := resolveChecksum(context.Background(), rel); err == nil {
 		t.Error("esperava erro por checksum do asset não estar listado em checksums.txt, mas passou")
 	}
 }

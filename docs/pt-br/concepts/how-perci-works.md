@@ -17,7 +17,7 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 | # | Categoria | Cobre |
 |---|---|---|
 | 1 | **Home** | Visão geral/dashboard (com auto-atualização e desinstalação), configurações. |
-| 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, Linux Toys, MegaSync, WebApps. |
+| 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, MegaSync, WebApps. |
 | 3 | **Desenvolvimento** | Construir um ambiente de dev: pré-requisitos, SDKs Go/Flutter, IDEs, CLIs de LLM/MCP, terminais. |
 | 4 | **Docker** | A stack Docker de aplicativos por projeto: criação e gerenciamento de containers Nginx/MariaDB/PHP/Node, exportar/importar. |
 | 5 | **Dev Tools** | Trabalhar dentro de um projeto já configurado: pastas de desenvolvimento de plugins montadas nos contêineres Moodle, controle de repositório Git, geração de Contexto IA, skills de IA, registro de servidores MCP. |
@@ -29,6 +29,7 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 ![Linux → Atualizar Sistema](../../img/screenshots/linux-window.png)
 
 ![Desenvolvimento → Pré-requisitos](../../img/screenshots/dev-window.png)
+<!-- TODO: recapture dev-window.png with the Pré-requisitos table (Instalar/Atualizar/Desinstalar per row) -->
 
 ![Docker → Criar Contêiner](../../img/screenshots/docker-window.png)
 
@@ -60,6 +61,12 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 </table>
 
 ![Menu da bandeja do sistema — Abrir Aplicativo mostra a janela principal; Contêineres, Repositórios e Atualizar Sistema abrem a janela compacta](../../img/screenshots/tray-window.png)
+
+Só uma instância do Perci roda por sessão: abri-lo de novo pelo menu da distribuição (ou rodando `prci`) traz a janela em execução para a frente em vez de iniciar uma segunda cópia com seu próprio ícone na bandeja.
+
+## Fechar Durante uma Ação
+
+Só uma ação roda por vez, e o Perci não encerra no meio dela: com a bandeja desligada, fechar a janela principal — ou escolher **Sair** no menu da bandeja — enquanto uma ação roda é recusado. A janela principal vem para a frente na aba **Execução** com um aviso, e sair volta a funcionar quando a ação termina. O terminal da aba Execução agrupa a saída (a cada cerca de 30 ms), então saídas longas não travam a janela.
 
 ## Sensível à Distro, Não Agnóstico
 

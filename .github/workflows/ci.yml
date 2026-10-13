@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Reused by the release workflow as its gate.
+  workflow_call:
 
 # Nothing by default: the job only reads the repository.
 permissions: {}
@@ -22,12 +24,12 @@ jobs:
     steps:
       # Pinned by commit SHA; Dependabot keeps them current.
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -49,6 +51,9 @@ jobs:
 
       - name: Run tests
         run: go test -race ./...
+
+      - name: ShellCheck
+        run: shellcheck --severity=warning --shell=bash --exclude=SC1091 install.sh
 
       # The runner's preinstalled Node — the suite needs nothing else.
       - name: Frontend smoke test

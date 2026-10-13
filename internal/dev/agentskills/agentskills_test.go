@@ -21,6 +21,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,8 +30,10 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// fakeNPX puts an npx on PATH that appends "<cwd>|<args>" to a log and,
-// for `skills list`, prints listJSON (or exits listExit when non-zero).
+// fakeNPX puts an npx on PATH that appends "<cwd>|<args>" to a log, records
+// DISABLE_TELEMETRY (see telemetry) and, for `skills list`, prints listJSON
+// (or exits listExit when non-zero). A call whose arguments contain
+// $NPX_FAIL_MATCH exits 1.
 func fakeNPX(t *testing.T, listJSON string, listExit int) (logPath string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -40,6 +44,8 @@ func fakeNPX(t *testing.T, listJSON string, listExit int) (logPath string) {
 	}
 	script := `#!/bin/sh
 printf '%s|%s\n' "$PWD" "$*" >> "` + logPath + `"
+printf '%s\n' "${DISABLE_TELEMETRY:-unset}" >> "` + logPath + `.env"
+[ -n "${NPX_FAIL_MATCH:-}" ] && case "$*" in *"$NPX_FAIL_MATCH"*) exit 1;; esac
 if [ "$3" = "list" ]; then
   [ ` + strconv.Itoa(listExit) + ` -ne 0 ] && exit ` + strconv.Itoa(listExit) + `
   cat "` + jsonPath + `"
@@ -50,6 +56,16 @@ fi
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return logPath
+}
+
+// telemetry returns the DISABLE_TELEMETRY value of every logged call.
+func telemetry(t *testing.T, logPath string) []string {
+	t.Helper()
+	b, err := os.ReadFile(logPath + ".env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(b)), "\n")
 }
 
 // calls returns the logged npx invocations as "<cwd>|<args>" lines.
@@ -76,11 +92,16 @@ func mustSkill(t *testing.T, slug string) Skill {
 	return sk
 }
 
+var fullSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 func TestCatalogue(t *testing.T) {
 	seen := map[string]bool{}
 	for _, sk := range Catalogue {
 		if sk.Slug == "" || sk.Name == "" || sk.Repo == "" || sk.Arg == "" {
 			t.Errorf("incomplete entry: %+v", sk)
+		}
+		if !strings.HasPrefix(sk.Repo, "https://github.com/") || !fullSHA.MatchString(sk.Ref) {
+			t.Errorf("%s must be pinned to a full commit of a GitHub URL: repo %q ref %q", sk.Slug, sk.Repo, sk.Ref)
 		}
 		if seen[sk.Slug] {
 			t.Errorf("duplicate slug %q", sk.Slug)
@@ -98,19 +119,82 @@ func TestInstall(t *testing.T) {
 	sk := mustSkill(t, "frontend-design")
 	exe := &executor.Executor{}
 
-	if err := Install(context.Background(), exe, io.Discard, sk, false, folder); err != nil {
+	agents, err := Install(context.Background(), exe, io.Discard, sk, false, folder)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Install(context.Background(), exe, io.Discard, sk, true, folder); err != nil {
+	if !slices.Equal(agents, TargetAgents()) {
+		t.Errorf("accepted agents = %v, want every target", agents)
+	}
+	if _, err := Install(context.Background(), exe, io.Discard, sk, true, folder); err != nil {
 		t.Fatal(err)
 	}
 	got := calls(t, logPath)
-	want := "-y " + skillsCLI + " add https://github.com/anthropics/skills --skill frontend-design " + agentArgs + " --yes"
+	want := "-y " + skillsCLI + " add https://github.com/anthropics/skills#" + sk.Ref + " --skill frontend-design " + agentArgs + " --yes"
 	if len(got) != 2 || got[0] != folder+"|"+want {
 		t.Errorf("local call = %q, want %q", got, folder+"|"+want)
 	}
 	if len(got) == 2 && (!strings.HasSuffix(got[1], want+" --global") || strings.HasPrefix(got[1], folder+"|")) {
 		t.Errorf("global call = %q (must add --global and not run in the folder)", got[1])
+	}
+}
+
+// The CLI's telemetry is off in every run it makes: add, list and remove.
+func TestEveryRunDisablesTelemetry(t *testing.T) {
+	logPath := fakeNPX(t, `[{"name":"daisyui","source":"saadeghi/daisyui"}]`, 0)
+	exe := &executor.Executor{}
+	folder := t.TempDir()
+	if _, err := Install(context.Background(), exe, io.Discard, mustSkill(t, "code-review"), false, folder); err != nil {
+		t.Fatal(err)
+	}
+	if err := Remove(context.Background(), exe, io.Discard, mustSkill(t, "daisyui"), true, ""); err != nil { // list + remove
+		t.Fatal(err)
+	}
+	if _, err := Update(context.Background(), exe, io.Discard, mustSkill(t, "code-review"), false, folder); err != nil {
+		t.Fatal(err)
+	}
+	vals := telemetry(t, logPath)
+	if len(vals) != 4 {
+		t.Fatalf("telemetry values = %v", vals)
+	}
+	for i, v := range vals {
+		if v != "1" {
+			t.Errorf("call %d ran without DISABLE_TELEMETRY=1 (%q)", i, v)
+		}
+	}
+}
+
+// When the run for all agents fails, each agent is retried alone and the
+// ones that accepted the skill are returned.
+func TestInstall_PerAgentFallback(t *testing.T) {
+	logPath := fakeNPX(t, "[]", 0)
+	t.Setenv("NPX_FAIL_MATCH", "--agent opencode")
+	folder := t.TempDir()
+	agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, mustSkill(t, "code-review"), false, folder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"claude-code", "antigravity", "codex"}; !slices.Equal(agents, want) {
+		t.Errorf("accepted = %v, want %v", agents, want)
+	}
+	if got := calls(t, logPath); len(got) != 5 || !strings.HasSuffix(got[1], "--agent claude-code --yes") || !strings.HasSuffix(got[2], "--agent opencode --yes") {
+		t.Errorf("calls = %q", got)
+	}
+
+	t.Setenv("NPX_FAIL_MATCH", "add")
+	if agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, mustSkill(t, "code-review"), false, folder); err == nil || len(agents) != 0 {
+		t.Errorf("nobody accepted: agents = %v, err = %v", agents, err)
+	}
+}
+
+func TestAgentLabels(t *testing.T) {
+	for _, id := range TargetAgents() {
+		if AgentLabel(id) == id && id != "codex" {
+			t.Errorf("no label for %s", id)
+		}
+	}
+	if AgentLabel("claude-code") != "Claude" {
+		t.Error("claude label")
 	}
 }
 
@@ -198,21 +282,32 @@ func TestRemove_WildcardEntryListFailureRefuses(t *testing.T) {
 	}
 }
 
+// An update reinstalls at the pinned commit with the same agents as the
+// install; `skills update`, which takes no agent list, is never run.
 func TestUpdate(t *testing.T) {
 	logPath := fakeNPX(t, "[]", 0)
 	folder := t.TempDir()
 	sk := mustSkill(t, "godot-master")
 	exe := &executor.Executor{}
-	if err := Update(context.Background(), exe, io.Discard, sk, false, folder); err != nil {
+	agents, err := Update(context.Background(), exe, io.Discard, sk, false, folder)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Update(context.Background(), exe, io.Discard, sk, true, folder); err != nil {
+	if !slices.Equal(agents, TargetAgents()) {
+		t.Errorf("agents = %v", agents)
+	}
+	if _, err := Update(context.Background(), exe, io.Discard, sk, true, folder); err != nil {
 		t.Fatal(err)
 	}
 	got := calls(t, logPath)
-	base := "-y " + skillsCLI + " update godot-master --yes"
-	if len(got) != 2 || got[0] != folder+"|"+base+" --project" || !strings.HasSuffix(got[1], base+" --global") {
+	base := "-y " + skillsCLI + " add " + sk.Source() + " --skill godot-master " + agentArgs + " --yes"
+	if len(got) != 2 || got[0] != folder+"|"+base || !strings.HasSuffix(got[1], base+" --global") {
 		t.Errorf("calls = %q", got)
+	}
+	for _, c := range got {
+		if strings.Contains(c, " update ") {
+			t.Errorf("skills update must not run: %q", c)
+		}
 	}
 }
 
@@ -230,41 +325,17 @@ func TestRepoKey(t *testing.T) {
 	}
 }
 
-// Wildcard entries update by the installed skill names, not by "*".
-func TestUpdate_WildcardEntryUpdatesItsRepoSkills(t *testing.T) {
-	list := `[{"name": "dart-a", "source": "dart-lang/skills"}, {"name": "dart-b", "source": "dart-lang/skills"}, {"name": "x", "source": "o/r"}]`
-	logPath := fakeNPX(t, list, 0)
+// A wildcard entry is reinstalled from its pinned repository.
+func TestUpdate_WildcardEntry(t *testing.T) {
+	logPath := fakeNPX(t, "[]", 0)
 	folder := t.TempDir()
-	if err := Update(context.Background(), &executor.Executor{}, io.Discard, mustSkill(t, "dart-official"), false, folder); err != nil {
+	sk := mustSkill(t, "dart-official")
+	if _, err := Update(context.Background(), &executor.Executor{}, io.Discard, sk, false, folder); err != nil {
 		t.Fatal(err)
 	}
 	got := calls(t, logPath)
-	want := folder + "|-y " + skillsCLI + " update dart-a dart-b --yes --project"
-	if len(got) != 2 || got[1] != want {
-		t.Errorf("calls = %q, want second %q", got, want)
+	want := folder + "|-y " + skillsCLI + " add https://github.com/dart-lang/skills#" + sk.Ref + " --skill * " + agentArgs + " --yes"
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("calls = %q, want [%q]", got, want)
 	}
-}
-
-func TestUpdate_WildcardEntryNothingInstalledOrListFails(t *testing.T) {
-	t.Run("nothing installed", func(t *testing.T) {
-		logPath := fakeNPX(t, "[]", 0)
-		var out bytes.Buffer
-		if err := Update(context.Background(), &executor.Executor{}, &out, mustSkill(t, "daisyui"), true, ""); err != nil {
-			t.Fatal(err)
-		}
-		if got := calls(t, logPath); len(got) != 1 || !strings.Contains(out.String(), "nada a atualizar") {
-			t.Errorf("calls = %q, output = %q", got, out.String())
-		}
-	})
-	t.Run("list fails", func(t *testing.T) {
-		logPath := fakeNPX(t, "[]", 1)
-		if err := Update(context.Background(), &executor.Executor{}, io.Discard, mustSkill(t, "daisyui"), true, ""); err == nil {
-			t.Error("expected an error")
-		}
-		for _, c := range calls(t, logPath) {
-			if strings.Contains(c, " update ") {
-				t.Errorf("update must not run: %q", c)
-			}
-		}
-	})
 }

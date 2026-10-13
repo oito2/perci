@@ -74,6 +74,7 @@ App.GetCategories().then(function (cats) {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
+    checkbox.setAttribute("aria-label", cat.label);
     if (catIdx === 0) checkbox.checked = true;
     checkbox.addEventListener("change", function () {
       if (!checkbox.checked) return;
@@ -152,6 +153,7 @@ function screenFor(item) {
   const id = item.actionId;
   const fixed = screenTable()[id];
   if (fixed) return fixed;
+  if (ITEM_TABLE_SCREENS[id]) return { el: itemTableContainer, render: renderItemTableScreen };
   if (MULTISELECT_SCREENS[id]) return { el: multiselectContainer, render: renderMultiselectScreen };
   if (SINGLE_APP_SCREENS[id]) return { el: singleappContainer, render: renderSingleAppScreen };
   if (IDE_SCREENS[id]) return { el: ideContainer, render: renderIDEScreen };
@@ -171,7 +173,7 @@ function screenFor(item) {
 function screenContainers() {
   const table = screenTable();
   return Object.keys(table).map(function (k) { return table[k].el; }).concat([
-    simpleContainer, multiselectContainer, singleappContainer, ideContainer, fileappContainer, tabLabelReposList,
+    simpleContainer, itemTableContainer, multiselectContainer, singleappContainer, ideContainer, fileappContainer, tabLabelReposList,
   ]);
 }
 
@@ -201,5 +203,7 @@ function selectItem(cat, item, catIdx, itemIdx) {
   document.querySelectorAll("#accordion a[data-cat]").forEach(function (el) {
     const active = el.dataset.cat == String(catIdx) && el.dataset.item == String(itemIdx);
     el.classList.toggle("menu-active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   });
 }

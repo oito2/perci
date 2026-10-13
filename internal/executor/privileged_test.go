@@ -50,7 +50,7 @@ func TestPrivilegedInstallSteps_Shape(t *testing.T) {
 	for _, s := range steps {
 		names = append(names, s.Name)
 	}
-	if got := strings.Join(names, ","); got != "install,sh,chmod,mv" {
+	if got := strings.Join(names, ","); got != "install,sh,sh" {
 		t.Fatalf("steps = %s", got)
 	}
 	install := strings.Join(steps[0].Args, " ")
@@ -59,7 +59,7 @@ func TestPrivilegedInstallSteps_Shape(t *testing.T) {
 			t.Errorf("install step %q missing %q", install, want)
 		}
 	}
-	if last := steps[3].Args; last[len(last)-1] != "/usr/local/bin/x" {
+	if last := steps[2].Args; last[len(last)-1] != "/usr/local/bin/x" {
 		t.Errorf("last step must rename onto dest, got %v", last)
 	}
 }
@@ -113,5 +113,43 @@ func TestPrivilegedInstallSteps_VerifyStepRealShell(t *testing.T) {
 	}
 	if _, err := os.Stat(staged); !os.IsNotExist(err) {
 		t.Errorf("staged file should be deleted on mismatch, stat err = %v", err)
+	}
+}
+
+// When chmod or mv fails the staged file must be removed; on success it is
+// renamed onto dest.
+func TestPrivilegedInstallSteps_FinalizeCleansStagedOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	staged := filepath.Join(dir, "x.perci-new")
+	run := func(dest string) error {
+		if err := os.WriteFile(staged, []byte("bin"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		steps, err := executor.PrivilegedInstallSteps("/unused", dest, zeroSHA, "0755")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fin := steps[2]
+		return exec.Command(fin.Name, fin.Args...).Run()
+	}
+
+	if err := run(filepath.Join(dir, "x")); err != nil {
+		t.Fatalf("finalize should succeed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x")); err != nil {
+		t.Fatalf("dest missing: %v", err)
+	}
+
+	// Destination is a non-empty directory: mv fails and staged must go away.
+	blocked := filepath.Join(dir, "x")
+	_ = os.Remove(blocked)
+	if err := os.MkdirAll(filepath.Join(blocked, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(blocked); err == nil {
+		t.Fatal("finalize should fail when dest is a directory")
+	}
+	if _, err := os.Stat(staged); !os.IsNotExist(err) {
+		t.Errorf("staged file should be removed after a failed mv, stat err = %v", err)
 	}
 }

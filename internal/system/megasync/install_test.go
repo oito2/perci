@@ -19,7 +19,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -128,12 +130,14 @@ func TestInstallScripts(t *testing.T) {
 			t.Errorf("%s script must stop on the first failure", name)
 		}
 	}
-	for _, want := range []string{"gpg --batch --yes --dearmor", "signed-by=" + aptKeyring, "https://mega.nz/linux/repo/xUbuntu_24.04/"} {
+	for _, want := range []string{"gpg --batch --yes --dearmor", "signed-by=" + aptKeyring, "https://mega.nz/linux/repo/xUbuntu_24.04/",
+		"verify_mega_key \"$tmp\"", megaKeyFingerprint, "--force-confold", "DEBIAN_FRONTEND=noninteractive", "--max-time 600"} {
 		if !strings.Contains(apt, want) {
 			t.Errorf("apt script missing %q", want)
 		}
 	}
-	for _, want := range []string{"gpgcheck=1", "https://mega.nz/linux/repo/Fedora_44/", dnfRepoFile} {
+	for _, want := range []string{"gpgcheck=1", "https://mega.nz/linux/repo/Fedora_44/", dnfRepoFile,
+		"verify_mega_key \"$tmp\"", "rpm --import " + rpmKeyFile, "gpgkey=file://" + rpmKeyFile, "--max-time 600"} {
 		if !strings.Contains(dnf, want) {
 			t.Errorf("dnf script missing %q", want)
 		}
@@ -188,5 +192,45 @@ func TestInstallCore(t *testing.T) {
 		if strings.Contains(buf.String(), "pkexec") {
 			t.Errorf("installCore(%q, %q) must not ask for a password", c[0], c[1])
 		}
+	}
+}
+
+// The key is imported only after its fingerprint matched, in both scripts.
+func TestInstallScripts_VerifyKeyBeforeUse(t *testing.T) {
+	apt, dnf := aptInstallScript("xUbuntu_24.04"), dnfInstallScript("Fedora_44")
+	for name, c := range map[string][2]string{
+		"apt": {apt, "gpg --batch --yes --dearmor"},
+		"dnf": {dnf, "rpm --import"},
+	} {
+		if v, use := strings.Index(c[0], "verify_mega_key \"$tmp\""), strings.Index(c[0], c[1]); v < 0 || use < v {
+			t.Errorf("%s: the key must be verified before it is used (verify at %d, use at %d)", name, v, use)
+		}
+	}
+	if strings.Contains(dnf, "gpgkey=https") {
+		t.Error("the dnf repo must trust the verified local key, not a URL")
+	}
+}
+
+// verify_mega_key accepts only the pinned fingerprint.
+func TestKeyCheckScript(t *testing.T) {
+	run := func(fpr string) error {
+		bin := t.TempDir()
+		fake := "#!/bin/sh\nprintf 'pub:u:255:22:X:1:2::-:::scESC::::::23::0:\\nfpr:::::::::" + fpr + ":\\nfpr:::::::::48D4F37062092DA6664D42BECC657CA556002348:\\n'\n"
+		if err := os.WriteFile(filepath.Join(bin, "gpg"), []byte(fake), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("bash", "-c", "set -Eeuo pipefail\n"+keyCheckScript+"verify_mega_key /dev/null")
+		cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Logf("%s", out)
+		}
+		return err
+	}
+	if err := run(megaKeyFingerprint); err != nil {
+		t.Errorf("the pinned fingerprint was refused: %v", err)
+	}
+	if err := run("0000000000000000000000000000000000000000"); err == nil {
+		t.Error("an unexpected fingerprint was accepted")
 	}
 }

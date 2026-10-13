@@ -85,8 +85,8 @@ func TestDetectMoodleVars_RootVersionPHP(t *testing.T) {
 	if vars["MOODLE_FULLVERSION"] != "2026042001.04" {
 		t.Errorf("MOODLE_FULLVERSION = %q, want %q", vars["MOODLE_FULLVERSION"], "2026042001.04")
 	}
-	if vars["MOODLE_PATH"] != tmp {
-		t.Errorf("MOODLE_PATH = %q, want %q", vars["MOODLE_PATH"], tmp)
+	if vars["MOODLE_PATH"] != "." {
+		t.Errorf("MOODLE_PATH = %q, want the relative %q", vars["MOODLE_PATH"], ".")
 	}
 }
 
@@ -107,9 +107,9 @@ func TestDetectMoodleVars_PublicVersionPHP(t *testing.T) {
 	if vars["MOODLE_VERSION"] != "4.5" {
 		t.Errorf("MOODLE_VERSION = %q, want %q", vars["MOODLE_VERSION"], "4.5")
 	}
-	// MOODLE_PATH must be the directory the command ran in, not the public/ subdir.
-	if vars["MOODLE_PATH"] != tmp {
-		t.Errorf("MOODLE_PATH = %q, want %q (cwd, not public/)", vars["MOODLE_PATH"], tmp)
+	// MOODLE_PATH is relative to the project root, never the public/ subdir.
+	if vars["MOODLE_PATH"] != "." {
+		t.Errorf("MOODLE_PATH = %q, want %q", vars["MOODLE_PATH"], ".")
 	}
 }
 
@@ -126,12 +126,12 @@ func TestGenerateSharedFiles_CreatesExpectedFiles(t *testing.T) {
 			t.Errorf("expected %s to be created: %v", name, err)
 		}
 	}
-	for _, name := range []string{".aiexclude", ".claudeignore"} {
+	for _, name := range []string{".aiexclude", ".claude/settings.json"} {
 		if _, err := os.Stat(name); err != nil {
 			t.Errorf("expected %s to be created: %v", name, err)
 		}
 	}
-	for _, name := range []string{"GEMINI.md", ".windsurfrules", ".cursorrules", ".geminiignore"} {
+	for _, name := range []string{"GEMINI.md", ".windsurfrules", ".cursorrules", ".geminiignore", ".claudeignore"} {
 		if _, err := os.Stat(name); err == nil {
 			t.Errorf("expected %s not to be created — no longer a generation target", name)
 		}

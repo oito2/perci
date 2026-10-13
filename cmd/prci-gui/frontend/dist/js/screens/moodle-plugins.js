@@ -86,8 +86,10 @@ function setMpLocked(check) {
 // checkMpForm asks the backend whether the form can be created and
 // enables "Criar" only when it can.
 function checkMpForm() {
+  clearTimeout(mpCheckTimer);
   btnMpCreate.disabled = true;
   if (!mpDev) {
+    invalidate("moodleplugins-check");
     setMpLocked(null);
     setMpStatus("", "");
     return;
@@ -131,12 +133,21 @@ btnMpPickDev.addEventListener("click", function () {
 });
 mpApp.addEventListener("change", loadMpTypes);
 mpType.addEventListener("change", checkMpForm);
-mpName.addEventListener("input", checkMpForm);
+
+// Typing in "Nome" asks the backend only once the typing pauses.
+const MP_CHECK_DEBOUNCE_MS = 250;
+let mpCheckTimer = null;
+mpName.addEventListener("input", function () {
+  btnMpCreate.disabled = true;
+  clearTimeout(mpCheckTimer);
+  mpCheckTimer = setTimeout(checkMpForm, MP_CHECK_DEBOUNCE_MS);
+});
 
 btnMpCreate.addEventListener("click", function () {
   if (running || !mpDev) return;
-  startExecution("Montar plugin Moodle", [btnMpCreate]);
-  App.AddMoodlePlugin(mpDev, mpApp.value, mpType.value, mpName.value.trim()).catch(failRun);
+  beginRun("Montar plugin Moodle", function () {
+    return App.AddMoodlePlugin(mpDev, mpApp.value, mpType.value, mpName.value.trim());
+  }, { buttons: [btnMpCreate] });
 });
 
 // buildMpRow returns the table row for one mounted plugin.
@@ -179,9 +190,7 @@ function buildMpRow(row) {
 
   const btnRestart = iconButton("refreshCw", "Reiniciar contêiner");
   btnRestart.addEventListener("click", function () {
-    if (running) return;
-    startExecution("Reiniciar " + row.appLabel);
-    App.ApplyMoodlePlugins(row.app).catch(failRun);
+    beginRun("Reiniciar " + row.appLabel, function () { return App.ApplyMoodlePlugins(row.app); });
   });
   wrap.appendChild(btnRestart);
 
@@ -191,9 +200,7 @@ function buildMpRow(row) {
     openConfirm("Remover plugin montado",
       'Desmontar "' + row.component + '" do Moodle ' + row.appLabel + "? A pasta de desenvolvimento não é alterada, e os contêineres do Moodle e do Nginx serão reiniciados.",
       function () {
-        if (running) return; // re-checked: the confirm dialog is async
-        startExecution("Remover " + row.component);
-        App.RemoveMoodlePlugin(row.app, row.relPath).catch(failRun);
+        beginRun("Remover " + row.component, function () { return App.RemoveMoodlePlugin(row.app, row.relPath); });
       });
   });
   wrap.appendChild(btnRemove);
@@ -221,7 +228,7 @@ function renderMoodlePluginsScreen() {
   setMpLocked(null);
   setMpStatus("", "");
   btnMpCreate.disabled = true;
-  App.GetMoodlePlugins().then(latestOnly("moodleplugins-rows", function (screen) {
+  App.GetMoodlePlugins().then(latestOnly("moodleplugins-screen", function (screen) {
     const apps = (screen.apps || []).map(function (a) { return { value: a.folder, label: a.label }; });
     fillMpSelect(mpApp, apps, apps.length ? "" : "Nenhum contêiner Moodle — crie em Docker → Criar Contêiner");
     if (apps.length && !mpApp.value) mpApp.value = apps[0].value;

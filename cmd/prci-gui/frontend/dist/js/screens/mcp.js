@@ -35,7 +35,7 @@ const mcpTable = createScopedTable({
   // picked in it (currentParam) in its closure, which must not carry over
   // to another scope or project folder.
   sigOf: function (row, st) {
-    return [st.scope, st.folder, row.slug, row.name, row.installed, row.param, row.paramKind, row.paramLabel, row.manual, row.manualUrl, row.manualNote].join("|");
+    return [st.scope, st.folder, row.slug, row.name, row.installed, row.partial, (row.agents || []).join(","), row.param, row.paramKind, row.paramLabel, row.manual, row.manualUrl, row.manualNote].join("|");
   },
   buildRow: function (row) { return buildMCPServerRow(row); },
   onScope: function (st) { mcpCodexNote.classList.toggle("hidden", st.isGlobal()); },
@@ -46,6 +46,8 @@ function buildMCPServerRow(row) {
 
   const tdName = document.createElement("td");
   tdName.textContent = row.name;
+  const badge = partialBadge(row);
+  if (badge) tdName.appendChild(badge);
   tr.appendChild(tdName);
 
   const tdActions = document.createElement("td");

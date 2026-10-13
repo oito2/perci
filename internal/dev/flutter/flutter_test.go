@@ -75,6 +75,61 @@ func fakeBin(t *testing.T, scripts map[string]string) string {
 	return dir
 }
 
+// fakeJava puts a java on PATH that reports version like `java -version`
+// does, on stderr.
+func fakeJava(t *testing.T, version string) {
+	t.Helper()
+	fakeBin(t, map[string]string{"java": "echo 'openjdk version \"" + version + "\" 2024-07-16' >&2"})
+}
+
+func TestJavaMajor(t *testing.T) {
+	for out, want := range map[string]int{
+		`openjdk version "21.0.4" 2024-07-16`:      21,
+		`openjdk version "17" 2021-09-14`:          17,
+		`java version "1.8.0_392"`:                 8,
+		`openjdk version "11.0.22" 2024-01-16 LTS`: 11,
+		"command not found":                        0,
+		"":                                         0,
+	} {
+		if got := javaMajor(out); got != want {
+			t.Errorf("javaMajor(%q) = %d, want %d", out, got, want)
+		}
+	}
+}
+
+// Only a java of at least 17 counts as installed.
+func TestJavaUsable(t *testing.T) {
+	for version, want := range map[string]bool{"21.0.4": true, "17.0.9": true, "11.0.22": false, "1.8.0_392": false} {
+		fakeJava(t, version)
+		if got := javaUsable(context.Background(), executor.New(io.Discard, io.Discard)); got != want {
+			t.Errorf("java %s: usable = %v, want %v", version, got, want)
+		}
+	}
+	fakeBin(t, map[string]string{"java": "exit 1"})
+	if javaUsable(context.Background(), executor.New(io.Discard, io.Discard)) {
+		t.Error("a failing java must not count")
+	}
+}
+
+// The JDK joins the Flutter prerequisites in the same privileged batch
+// when it is needed, and is left out when it is not.
+func TestInstallPrereqs_JDKInTheSameBatch(t *testing.T) {
+	for family, jdk := range map[string]string{distro.Debian: "openjdk-21-jdk", distro.Fedora: "temurin-21-jdk"} {
+		for _, need := range []bool{true, false} {
+			var buf bytes.Buffer
+			if err := installPrereqsWith(context.Background(), dryRun(&buf), &buf, family, need); err != nil {
+				t.Fatal(err)
+			}
+			if n := strings.Count(buf.String(), "pkexec"); n != 1 {
+				t.Errorf("%s need=%v: %d prompts:\n%s", family, need, n, buf.String())
+			}
+			if got := strings.Contains(buf.String(), jdk); got != need {
+				t.Errorf("%s need=%v: jdk in output = %v:\n%s", family, need, got, buf.String())
+			}
+		}
+	}
+}
+
 // Flutter's native libraries install in one batch on both families.
 func TestInstallPrereqs_OnePrompt(t *testing.T) {
 	for family, want := range map[string]string{distro.Debian: "xz-utils", distro.Fedora: "mesa-libGLU"} {
@@ -109,7 +164,7 @@ func TestEnsureJava(t *testing.T) {
 		t.Error("an unknown family must fail")
 	}
 
-	fakeBin(t, map[string]string{"java": ""})
+	fakeJava(t, "21.0.4")
 	buf.Reset()
 	if err := ensureJava(context.Background(), executor.New(&buf, &buf), &buf, distro.Debian); err != nil || buf.Len() != 0 {
 		t.Errorf("java present: %v %q", err, buf.String())
@@ -167,7 +222,7 @@ func TestEnsureAndroidCmdlineTools_DownloadsVerifiesAndConfigures(t *testing.T) 
 	t.Setenv("HOME", home)
 	t.Setenv("SHELL", "/bin/bash")
 	androidTools(t, "")
-	fakeBin(t, map[string]string{"java": ""})
+	fakeJava(t, "21.0.4")
 	flutterBin := filepath.Join(t.TempDir(), "flutter")
 	if err := os.WriteFile(flutterBin, []byte("#!/bin/sh\necho \"flutter $*\" >> \"$HOME/sdk.log\"\n"), 0o755); err != nil {
 		t.Fatal(err)
@@ -180,6 +235,9 @@ func TestEnsureAndroidCmdlineTools_DownloadsVerifiesAndConfigures(t *testing.T) 
 	sdk := filepath.Join(home, "Android", "Sdk")
 	if _, err := os.Stat(filepath.Join(sdk, "cmdline-tools", "latest", "bin", "sdkmanager")); err != nil {
 		t.Fatalf("sdkmanager not installed: %v", err)
+	}
+	if !strings.Contains(buf.String(), AndroidTermsURL) {
+		t.Errorf("the license step does not point to the terms:\n%s", buf.String())
 	}
 	logb, _ := os.ReadFile(filepath.Join(home, "sdk.log"))
 	for _, want := range []string{"sdkmanager --licenses", "sdkmanager platform-tools", "flutter config --android-sdk " + sdk} {
@@ -215,7 +273,7 @@ func TestEnsureAndroidCmdlineTools_ChecksumMismatch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	androidTools(t, strings.Repeat("0", 40))
-	fakeBin(t, map[string]string{"java": ""})
+	fakeJava(t, "21.0.4")
 
 	var buf bytes.Buffer
 	err := EnsureAndroidCmdlineTools(context.Background(), executor.New(&buf, &buf), &buf, home, "/bin/true")
@@ -339,5 +397,19 @@ func TestCloneUninstallAndPath(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(rc); strings.Contains(string(b), pathEntry) {
 		t.Errorf("PATH entry left in .bashrc:\n%s", b)
+	}
+}
+
+// The clone of the full history is bounded by a minimum transfer speed,
+// not by a total time.
+func TestCloneFlutter_LowSpeedLimit(t *testing.T) {
+	home := t.TempDir()
+	var buf bytes.Buffer
+	exe := &executor.Executor{DryRun: true, Stdout: &buf, Stderr: &buf}
+	if err := CloneFlutter(context.Background(), exe, &buf, home, filepath.Join(home, "development", "flutter")); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "http.lowSpeedLimit=1000") || !strings.Contains(out, "http.lowSpeedTime=120") {
+		t.Errorf("clone command: %s", out)
 	}
 }

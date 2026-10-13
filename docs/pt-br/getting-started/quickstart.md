@@ -21,7 +21,7 @@ Uma barra lateral à esquerda com cinco categorias, e um painel principal à dir
 | Categoria | Cobre |
 |---|---|
 | **Home** | Dashboard ("Visão Geral"), configurações do app ("Configurações"). |
-| **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak/Linux Toys/MegaSync. |
+| **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak/MegaSync. |
 | **Desenvolvimento** | Pré-requisitos de build, SDKs de linguagens, aplicativos de IA/terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Criar e gerenciar a stack Docker de aplicativos por projeto. |
 | **Dev Tools** | Montagem de plugins Moodle, repositórios Git, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |
@@ -36,7 +36,7 @@ O Perci cria o `~/.perci/config.yaml` na primeira vez que você altera uma confi
 
 1. **Home :: Visão Geral** — confira o estado atual do seu sistema antes de mudar qualquer coisa.
 2. **Linux :: Atualizar Sistema** — rode uma primeira passada de atualização `apt`/`dnf` + Flatpak + Snap.
-3. **Linux :: Pós-instalação** — um checklist restrito à sua distro/DE detectada.
-4. **Desenvolvimento :: Pré-requisitos** — instale o toolchain de compilação, Git, curl, Docker Engine, mkcert e NPM.
+3. **Linux :: Pós-instalação** — os itens da sua distro/DE detectada, cada um com seu próprio botão **Aplicar** (que vira **Aplicado** quando o item já está aplicado).
+4. **Desenvolvimento :: Pré-requisitos** — instale o toolchain de compilação, Git, curl, Docker Engine, mkcert e NPM; cada linha tem seus próprios botões **Instalar**, **Atualizar** e **Desinstalar**, e um item que precisa de outro fica desabilitado ("Requer: …") até esse outro estar instalado.
 5. **Docker :: Criar Container** — crie os containers Nginx e MariaDB, depois seu primeiro container de aplicativo (veja o [guia da stack Docker de aplicativos](../guides/environments/docker.md) para o ciclo de vida completo).
 6. **Dev Tools :: IA: Contextos** — já dentro de um projeto real, gere `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.

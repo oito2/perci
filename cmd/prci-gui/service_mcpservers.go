@@ -49,12 +49,7 @@ func (t *DevToolsService) PickMCPServerParam(slug string) (string, error) {
 	}
 	switch sv.Param {
 	case mcpservers.ParamDirectory:
-		return approvePath(t.wailsApp.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
-			Title:                "Selecionar pasta permitida",
-			CanChooseDirectories: true,
-			CanChooseFiles:       false,
-			CanCreateDirectories: true,
-		}).PromptForSingleSelection())
+		return t.pickFolder("Selecionar pasta permitida")
 	case mcpservers.ParamFile:
 		return approvePath(t.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
 			Title:    "Selecionar/criar arquivo .sqlite",
@@ -65,17 +60,22 @@ func (t *DevToolsService) PickMCPServerParam(slug string) (string, error) {
 	return "", fmt.Errorf("%s não precisa de um parâmetro extra", slug)
 }
 
-// MCPServerRow is one row of "Dev Tools :: IA: MCPs".
+// MCPServerRow is one row of "Dev Tools :: IA: MCPs". Agents lists, by
+// name, the agents that accepted the registration (empty for a record
+// written before they were recorded); Partial is set when some agent that
+// applies to the scope is missing.
 type MCPServerRow struct {
-	Slug       string `json:"slug"`
-	Name       string `json:"name"`
-	Installed  bool   `json:"installed"`
-	Param      string `json:"param"`     // persisted value (if installed) — pre-fills "Update"
-	ParamKind  string `json:"paramKind"` // "" | "directory" | "file"
-	ParamLabel string `json:"paramLabel"`
-	Manual     bool   `json:"manual"` // true = Godot Studio: no Install/Update/Remove, just a link/instructions
-	ManualURL  string `json:"manualUrl"`
-	ManualNote string `json:"manualNote"`
+	Slug       string   `json:"slug"`
+	Name       string   `json:"name"`
+	Installed  bool     `json:"installed"`
+	Partial    bool     `json:"partial"`
+	Agents     []string `json:"agents"`
+	Param      string   `json:"param"`     // persisted value (if installed) — pre-fills "Update"
+	ParamKind  string   `json:"paramKind"` // "" | "directory" | "file"
+	ParamLabel string   `json:"paramLabel"`
+	Manual     bool     `json:"manual"` // true = Godot Studio: no Install/Update/Remove, just a link/instructions
+	ManualURL  string   `json:"manualUrl"`
+	ManualNote string   `json:"manualNote"`
 }
 
 // findMCPServerInstall is findAgentSkillInstall's counterpart for MCP
@@ -87,6 +87,9 @@ func findMCPServerInstall(installs []config.MCPServerInstall, slug string, globa
 // GetMCPServerRows lists the whole catalog with its registered state for
 // the given scope (global, or local at folder).
 func (t *DevToolsService) GetMCPServerRows(global bool, folder string) ([]MCPServerRow, error) {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
+		return nil, err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
@@ -94,26 +97,29 @@ func (t *DevToolsService) GetMCPServerRows(global bool, folder string) ([]MCPSer
 	rows := make([]MCPServerRow, len(mcpservers.Catalogue))
 	for i, sv := range mcpservers.Catalogue {
 		rows[i] = MCPServerRow{
-			Slug: sv.Slug, Name: sv.Name,
+			Slug: sv.Slug, Name: sv.Name, Agents: []string{},
 			ParamKind: string(sv.Param), ParamLabel: sv.ParamLabel,
 			Manual: sv.Manual, ManualURL: sv.ManualURL, ManualNote: sv.ManualNote,
 		}
 		if idx := findMCPServerInstall(cfg.MCPServers, sv.Slug, global, folder); idx >= 0 {
+			rec := cfg.MCPServers[idx]
 			rows[i].Installed = true
-			rows[i].Param = cfg.MCPServers[idx].Param
+			rows[i].Param = rec.Param
+			rows[i].Partial = isPartial(rec.Agents, mcpservers.ExpectedAgents(sv.Slug, global))
+			rows[i].Agents = agentLabels(rec.Agents, mcpservers.AgentLabel)
 		}
 	}
 	return rows, nil
 }
 
 // recordMCPServerInstall updates config.yaml's MCPServers to reflect
-// whether (slug, global, folder) is now registered — replacing any
-// existing record for that same key.
-func recordMCPServerInstall(slug string, global bool, folder, param string, installed bool) error {
+// whether (slug, global, folder) is now registered, and with which agents —
+// replacing any existing record for that same key.
+func recordMCPServerInstall(slug string, global bool, folder, param string, agents []string, installed bool) error {
 	return config.Update(func(cfg *config.Config) error {
 		filtered := withoutScoped(cfg.MCPServers, mcpServerKey, slug, global, folder)
 		if installed {
-			filtered = append(filtered, config.MCPServerInstall{Slug: slug, Global: global, Folder: folder, Param: param})
+			filtered = append(filtered, config.MCPServerInstall{Slug: slug, Global: global, Folder: folder, Param: param, Agents: agents})
 		}
 		cfg.MCPServers = filtered
 		return nil
@@ -121,50 +127,59 @@ func recordMCPServerInstall(slug string, global bool, folder, param string, inst
 }
 
 // InstallMCPServer registers slug with every supported agent and records
-// it in config.yaml on success.
+// it, with the agents that accepted it, in config.yaml on success.
 func (t *DevToolsService) InstallMCPServer(slug string, global bool, folder, param string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
+		return err
+	}
+	if err := requireMCPParam(slug, global, folder, param); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
-		if err := mcpservers.Install(context.Background(), t.exe, stdout, slug, global, folder, param); err != nil {
+		agents, err := mcpservers.Install(context.Background(), t.exe, stdout, slug, global, folder, param)
+		if err != nil {
 			return err
 		}
-		return recordMCPServerInstall(slug, global, folder, param, true)
+		return recordMCPServerInstall(slug, global, folder, param, agents, true)
 	})
 }
 
 // RemoveMCPServer unregisters slug from every supported agent and clears
 // its config.yaml record on success.
 func (t *DevToolsService) RemoveMCPServer(slug string, global bool, folder string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
 		if err := mcpservers.Remove(context.Background(), t.exe, stdout, slug, global, folder); err != nil {
 			return err
 		}
-		return recordMCPServerInstall(slug, global, folder, "", false)
+		return recordMCPServerInstall(slug, global, folder, "", nil, false)
 	})
 }
 
 // UpdateMCPServer refreshes slug's registration and keeps config.yaml's
-// stored Param in sync (in case the user changed it before updating).
+// stored Param and agents in sync (in case the user changed the parameter
+// before updating).
 func (t *DevToolsService) UpdateMCPServer(slug string, global bool, folder, param string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
+		return err
+	}
+	if err := requireMCPParam(slug, global, folder, param); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
-		if err := mcpservers.Update(context.Background(), t.exe, stdout, slug, global, folder, param); err != nil {
+		agents, err := mcpservers.Update(context.Background(), t.exe, stdout, slug, global, folder, param)
+		if err != nil {
 			if errors.Is(err, mcpservers.ErrNotReinstalled) {
 				// Removed everywhere, re-registered nowhere: the list must
 				// not keep showing it as installed.
-				if recErr := recordMCPServerInstall(slug, global, folder, "", false); recErr != nil {
+				if recErr := recordMCPServerInstall(slug, global, folder, "", nil, false); recErr != nil {
 					return errors.Join(err, recErr)
 				}
 			}
 			return err
 		}
-		return recordMCPServerInstall(slug, global, folder, param, true)
+		return recordMCPServerInstall(slug, global, folder, param, agents, true)
 	})
 }

@@ -22,6 +22,22 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
+// AptNonInteractiveOpts are the options every unattended apt-get call runs
+// with: no progress bars or colors, no pty, and --force-confold so a config
+// file edited by the user never stops dpkg on a prompt.
+var AptNonInteractiveOpts = []string{
+	"-o", "Dpkg::Use-Pty=0", "-o", "Dpkg::Progress-Fancy=0",
+	"-o", "APT::Color=0", "-o", "Dpkg::Options::=--force-confold",
+}
+
+// AptEnv is the environment every unattended apt-get call runs with.
+var AptEnv = []string{"DEBIAN_FRONTEND=noninteractive"}
+
+// AptArgs returns args prefixed with AptNonInteractiveOpts.
+func AptArgs(args ...string) []string {
+	return append(append([]string{}, AptNonInteractiveOpts...), args...)
+}
+
 // InstallPkgs installs pkgs using the distro-appropriate package manager.
 // For Debian families it runs apt-get update before installing — both in
 // one privileged batch, so the password is asked once.
@@ -30,8 +46,8 @@ func InstallPkgs(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 	switch family {
 	case Debian:
 		return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{
-			{Name: "apt-get", Args: []string{"update", "-q"}},
-			{Name: "apt-get", Args: append([]string{"install", "-y", "--"}, pkgs...)},
+			{Name: "apt-get", Env: AptEnv, Args: AptArgs("update", "-q")},
+			{Name: "apt-get", Env: AptEnv, Args: AptArgs(append([]string{"install", "-y", "--"}, pkgs...)...)},
 		})
 	case Fedora:
 		args := append([]string{"install", "-y", "--"}, pkgs...)

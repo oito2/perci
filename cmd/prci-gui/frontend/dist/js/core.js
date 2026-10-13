@@ -257,7 +257,6 @@ const postinstallUnsupported = document.getElementById("postinstall-unsupported"
 const postinstallSupported = document.getElementById("postinstall-supported");
 const postinstallTitle = document.getElementById("postinstall-title");
 const postinstallActionsList = document.getElementById("postinstall-actions");
-const btnExecutarPostinstall = document.getElementById("btn-executar-postinstall");
 const multiselectContainer = document.getElementById("multiselect-container");
 const multiselectIntro = document.getElementById("multiselect-intro");
 const multiselectItemsList = document.getElementById("multiselect-items");
@@ -288,6 +287,7 @@ const dcKind = document.getElementById("dc-kind");
 const dcAppTypeWrap = document.getElementById("dc-apptype-wrap");
 const dcAppType = document.getElementById("dc-apptype");
 const dcFields = document.getElementById("dc-fields");
+const dcMkcertAlert = document.getElementById("dc-mkcert-alert");
 const btnDcCreate = document.getElementById("btn-dc-create");
 const dcHint = document.getElementById("dc-hint");
 const dockerlistContainer = document.getElementById("dockerlist-container");
@@ -336,6 +336,10 @@ const reposFolderAlertText = document.getElementById("repos-folder-alert-text");
 const reposSubmenu = document.getElementById("repos-submenu");
 const reposSubPanel = document.getElementById("repos-sub-panel");
 const agentskillsContainer = document.getElementById("agentskills-container");
+const itemTableContainer = document.getElementById("itemtable-container");
+const itemTableIntro = document.getElementById("itemtable-intro");
+const itemTableHeader = document.getElementById("itemtable-header");
+const itemTableRows = document.getElementById("itemtable-rows");
 const asScopeSelect = document.getElementById("as-scope");
 const asScopeAlertTitle = document.getElementById("as-scope-alert-title");
 const asScopeAlertDesc = document.getElementById("as-scope-alert-desc");
@@ -422,6 +426,29 @@ Events.On("action-done", function (ev) {
   finishRun(ev.data);
 });
 
+// The backend refused to quit (window closed or tray "Sair") because an
+// action is running: the main window shows the Execução tab with a notice.
+// The compact window ignores it.
+// quit-blocked reaches every window: the one running the action shows its
+// Execução tab; the main window without the action points to the other one.
+Events.On("quit-blocked", function () {
+  if (activeRun) {
+    selectTab("terminal");
+    openMessage(
+      "Ação em andamento",
+      "O Perci não será fechado enquanto uma ação está em execução. Aguarde ela terminar na aba Execução.",
+      false
+    );
+    return;
+  }
+  if (compactAction) return;
+  openMessage(
+    "Ação em andamento",
+    "O Perci não será fechado enquanto uma ação está em execução na janela da bandeja. Aguarde ela terminar.",
+    false
+  );
+});
+
 // failRun ends this window's run when the backend refused to start it
 // ("outra ação já está em execução") or the call itself failed — no
 // "action-done" event comes in that case. Every App call that follows a
@@ -447,6 +474,9 @@ function finishRun(result) {
   termTitle.textContent = result.ok ? "Concluído." : "Falhou.";
   if (result.ok) termProgress.value = termProgress.max;
   run.buttons.forEach(function (b) { b.disabled = false; });
+  // An update that ended outside Visão Geral leaves its status stale: the
+  // next visit checks again.
+  if (run.actionId === "dashboard" && dashboardRunningAction === "self-update") selfUpdateCheckedAt = 0;
   const current = window.__selectedItem && window.__selectedItem.actionId;
   doneHandlerFor(current)(run);
   if (run.actionId === "dashboard") dashboardRunningAction = null;
@@ -456,7 +486,8 @@ function finishRun(result) {
 // container (checklists, single apps, IDEs, local-file apps) resolve by
 // family in doneHandlerFor; anything else just re-evaluates "Executar".
 const ACTION_DONE_HANDLERS = {
-  postinstall: function () { btnExecutarPostinstall.disabled = false; },
+  // Re-fetches which items are applied now.
+  postinstall: function () { renderPostinstallScreen(); },
   // Creating Nginx/MariaDB may have just disabled that option in the select
   // (singleton) — re-fetches the whole catalog.
   "docker-create": function () { renderDockerCreateScreen(); },
@@ -484,40 +515,44 @@ const ACTION_DONE_HANDLERS = {
 
 function doneHandlerFor(actionId) {
   if (ACTION_DONE_HANDLERS[actionId]) return ACTION_DONE_HANDLERS[actionId];
+  // Re-fetches what is installed now.
+  if (ITEM_TABLE_SCREENS[actionId]) return function () { renderItemTableScreen(window.__selectedItem); };
   if (MULTISELECT_SCREENS[actionId]) {
     return function () {
       btnExecutarMultiselect.disabled = false;
       multiselectExtraButtons.forEach(function (btn) { btn.disabled = false; });
     };
   }
+  // The three families below share their container's buttons with the
+  // screen's own render, so they use the render's latestOnly key.
   if (SINGLE_APP_SCREENS[actionId]) {
     // Re-fetches the installed state: after Instalar, Desinstalar should
     // become enabled (and Instalar disabled), and vice versa.
     return function () {
-      SINGLE_APP_SCREENS[actionId].fetch().then(function (info) {
+      SINGLE_APP_SCREENS[actionId].fetch().then(latestOnly("singleapp", function (info) {
         btnSingleappInstall.disabled = info.installed;
         btnSingleappUninstall.disabled = !info.installed;
-      });
+      }));
     };
   }
   if (IDE_SCREENS[actionId]) {
     return function () {
-      ideFetch(IDE_SCREENS[actionId].cmd).then(function (info) {
+      App.GetIDEInfo(IDE_SCREENS[actionId].cmd).then(latestOnly("ide", function (info) {
         btnIdeInstall.disabled = false;
         btnIdeUpdate.disabled = !info.installed;
         btnIdeUninstall.disabled = !info.installed;
-      });
+      }));
     };
   }
   if (FILEAPP_SCREENS[actionId]) {
     return function () {
       const cfg = FILEAPP_SCREENS[actionId];
       const hasPath = !!window.__fileappPath;
-      cfg.fetch().then(function (info) {
+      cfg.fetch().then(latestOnly("fileapp", function (info) {
         btnFileappInstall.disabled = !hasPath;
         if (cfg.update) btnFileappUpdate.disabled = !hasPath;
         btnFileappUninstall.disabled = !info.installed;
-      });
+      }));
     };
   }
   return updateExecutarButton;

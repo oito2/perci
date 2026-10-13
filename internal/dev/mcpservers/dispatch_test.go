@@ -22,17 +22,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/oito2/perci/internal/executor"
 )
 
-// agentsEnv gives the test its own HOME and fake claude/codex binaries
-// that append "<name> <cwd>|<args>" to a log; FAIL_CLAUDE/FAIL_CODEX=1
-// make them exit 1.
+// agentsEnv gives the test its own HOME and fake claude/codex/npx/uvx
+// binaries that append "<name> <cwd>|<args>" to a log; FAIL_CLAUDE/
+// FAIL_CODEX=1 make them exit 1. `codex mcp get <name> --json` prints
+// $HOME/codex-<name>.json when that file exists and fails otherwise.
 type agentsEnv struct {
-	home, log string
+	home, log, bin string
 }
 
 func newAgentsEnv(t *testing.T) agentsEnv {
@@ -42,15 +44,60 @@ func newAgentsEnv(t *testing.T) agentsEnv {
 	log := filepath.Join(bin, "calls.log")
 	for _, name := range []string{"claude", "codex"} {
 		fail := "FAIL_" + strings.ToUpper(name)
-		script := "#!/bin/sh\nprintf '%s %s|%s\\n' " + name + " \"$PWD\" \"$*\" >> '" + log + "'\n" +
-			"[ \"${" + fail + ":-}\" = 1 ] && exit 1\nexit 0\n"
+		script := "#!/bin/sh\nprintf '%s %s|%s\\n' " + name + " \"$PWD\" \"$*\" >> '" + log + "'\n"
+		if name == "codex" {
+			script += "if [ \"$1 $2\" = \"mcp get\" ]; then cat \"$HOME/codex-$3.json\" 2>/dev/null || exit 1; exit 0; fi\n"
+		}
+		script += "[ \"${" + fail + ":-}\" = 1 ] && exit 1\nexit 0\n"
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"npx", "uvx"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	return agentsEnv{home: home, log: log}
+	return agentsEnv{home: home, log: log, bin: bin}
+}
+
+// registerEverywhere records, the way each agent stores it, an entry for
+// the generic server slug launched with command/args: in Claude Code's
+// state file (user scope, or the project at folder), as the answer of the
+// fake `codex mcp get`, and in Antigravity's global config.
+func (e agentsEnv) registerEverywhere(t *testing.T, slug string, global bool, folder, command string, args ...string) {
+	t.Helper()
+	entry := map[string]any{"type": "stdio", "command": command, "args": args}
+	servers := map[string]any{slug: entry}
+	state := map[string]any{"mcpServers": servers}
+	if !global {
+		state = map[string]any{"projects": map[string]any{folder: map[string]any{"mcpServers": servers}}}
+	}
+	writeJSONFile(t, filepath.Join(e.home, ".claude.json"), state)
+	writeJSONFile(t, filepath.Join(e.home, "codex-"+slug+".json"), map[string]any{
+		"name": slug, "transport": map[string]any{"type": "stdio", "command": command, "args": args},
+	})
+	cfg := filepath.Join(e.home, ".gemini", "config", "mcp_config.json")
+	if !global {
+		cfg = filepath.Join(folder, ".agents", "mcp_config.json")
+	}
+	writeJSONFile(t, cfg, map[string]any{"mcpServers": servers})
+}
+
+func writeJSONFile(t *testing.T, path string, v any) {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (e agentsEnv) calls(t *testing.T) []string {
@@ -99,11 +146,16 @@ func equalCalls(t *testing.T, got, want []string) {
 
 func TestInstall_FilesystemGlobal(t *testing.T) {
 	env := newAgentsEnv(t)
-	if err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/data/proj"); err != nil {
+	agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/data/proj")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if want := []string{AgentClaude, AgentCodex, AgentAntigravity}; !slices.Equal(agents, want) {
+		t.Errorf("accepted agents = %v, want %v", agents, want)
 	}
 	equalCalls(t, argsOf(env.calls(t)), []string{
 		"claude mcp add --scope user filesystem -- npx -y " + filesystemServerPkg + " /data/proj",
+		"codex mcp get filesystem --json",
 		"codex mcp add filesystem -- npx -y " + filesystemServerPkg + " /data/proj",
 	})
 	servers := readServers(t, filepath.Join(env.home, ".gemini", "config", "mcp_config.json"))
@@ -118,8 +170,12 @@ func TestInstall_FilesystemGlobal(t *testing.T) {
 func TestInstall_SQLiteLocal(t *testing.T) {
 	env := newAgentsEnv(t)
 	folder := t.TempDir()
-	if err := Install(context.Background(), &executor.Executor{}, io.Discard, "sqlite", false, folder, "/data/db.sqlite"); err != nil {
+	agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, "sqlite", false, folder, "/data/db.sqlite")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if want := []string{AgentClaude, AgentAntigravity}; !slices.Equal(agents, want) {
+		t.Errorf("accepted agents = %v, want %v", agents, want)
 	}
 	calls := env.calls(t)
 	equalCalls(t, calls, []string{
@@ -134,8 +190,12 @@ func TestInstall_FailsOnlyWhenNoAgentAccepted(t *testing.T) {
 	t.Run("partial success", func(t *testing.T) {
 		newAgentsEnv(t)
 		t.Setenv("FAIL_CLAUDE", "1")
-		if err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p"); err != nil {
+		agents, err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p")
+		if err != nil {
 			t.Errorf("one agent accepted, err = %v", err)
+		}
+		if want := []string{AgentCodex, AgentAntigravity}; !slices.Equal(agents, want) {
+			t.Errorf("accepted agents = %v, want %v", agents, want)
 		}
 	})
 	t.Run("nobody accepted", func(t *testing.T) {
@@ -149,7 +209,7 @@ func TestInstall_FailsOnlyWhenNoAgentAccepted(t *testing.T) {
 		if err := os.WriteFile(cfg, []byte(`{"mcpServers": []}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p"); err == nil {
+		if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p"); err == nil {
 			t.Error("expected an error")
 		}
 	})
@@ -157,13 +217,12 @@ func TestInstall_FailsOnlyWhenNoAgentAccepted(t *testing.T) {
 
 func TestRemove_GenericKeepsOtherEntries(t *testing.T) {
 	env := newAgentsEnv(t)
+	env.registerEverywhere(t, "sqlite", true, "", "uvx", sqliteServerPkg, "--db-path", "/x.sqlite")
 	cfg := filepath.Join(env.home, ".gemini", "config", "mcp_config.json")
-	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(cfg, []byte(`{"mcpServers": {"sqlite": {}, "mine": {"command": "x"}}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeJSONFile(t, cfg, map[string]any{"mcpServers": map[string]any{
+		"sqlite": map[string]any{"command": "uvx", "args": []string{sqliteServerPkg, "--db-path", "/x.sqlite"}},
+		"mine":   map[string]any{"command": "x"},
+	}})
 	// Failures stay warnings: removal still succeeds.
 	t.Setenv("FAIL_CODEX", "1")
 	if err := Remove(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, ""); err != nil {
@@ -171,6 +230,7 @@ func TestRemove_GenericKeepsOtherEntries(t *testing.T) {
 	}
 	equalCalls(t, argsOf(env.calls(t)), []string{
 		"claude mcp remove sqlite --scope user",
+		"codex mcp get sqlite --json",
 		"codex mcp remove sqlite",
 	})
 	servers := readServers(t, cfg)
@@ -186,7 +246,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 	ref := dartFlutterPluginRef
 	t.Run("install global", func(t *testing.T) {
 		env := newAgentsEnv(t)
-		if err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err != nil {
+		if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err != nil {
 			t.Fatal(err)
 		}
 		equalCalls(t, argsOf(env.calls(t)), []string{
@@ -199,7 +259,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 	t.Run("install local skips Codex", func(t *testing.T) {
 		env := newAgentsEnv(t)
 		folder := t.TempDir()
-		if err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", false, folder, ""); err != nil {
+		if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", false, folder, ""); err != nil {
 			t.Fatal(err)
 		}
 		for _, c := range env.calls(t) {
@@ -221,7 +281,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 	})
 	t.Run("update global", func(t *testing.T) {
 		env := newAgentsEnv(t)
-		if err := Update(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err != nil {
+		if _, err := Update(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err != nil {
 			t.Fatal(err)
 		}
 		equalCalls(t, argsOf(env.calls(t)), []string{
@@ -234,7 +294,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 		newAgentsEnv(t)
 		t.Setenv("FAIL_CLAUDE", "1")
 		t.Setenv("FAIL_CODEX", "1")
-		if err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err == nil {
+		if _, err := Install(context.Background(), &executor.Executor{}, io.Discard, "dart-flutter", true, "", ""); err == nil {
 			t.Error("expected an error")
 		}
 	})
@@ -243,7 +303,7 @@ func TestDartFlutter_InstallRemoveUpdate(t *testing.T) {
 func TestUpdate_Generic(t *testing.T) {
 	t.Run("missing parameter removes nothing", func(t *testing.T) {
 		env := newAgentsEnv(t)
-		if err := Update(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", ""); err == nil {
+		if _, err := Update(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", ""); err == nil {
 			t.Fatal("expected an error")
 		}
 		if calls := env.calls(t); len(calls) != 0 {
@@ -252,11 +312,16 @@ func TestUpdate_Generic(t *testing.T) {
 	})
 	t.Run("remove then install", func(t *testing.T) {
 		env := newAgentsEnv(t)
-		if err := Update(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p"); err != nil {
+		env.registerEverywhere(t, "filesystem", true, "", "npx", "-y", "@modelcontextprotocol/server-filesystem@2020.1.1", "/old")
+		agents, err := Update(context.Background(), &executor.Executor{}, io.Discard, "filesystem", true, "", "/p")
+		if err != nil {
 			t.Fatal(err)
 		}
+		if want := []string{AgentClaude, AgentCodex, AgentAntigravity}; !slices.Equal(agents, want) {
+			t.Errorf("agents = %v, want %v", agents, want)
+		}
 		got := argsOf(env.calls(t))
-		if len(got) != 4 || !strings.HasPrefix(got[0], "claude mcp remove") || !strings.HasPrefix(got[2], "claude mcp add") {
+		if len(got) != 6 || !strings.HasPrefix(got[0], "claude mcp remove") || !strings.HasPrefix(got[3], "claude mcp add") {
 			t.Errorf("calls = %q", got)
 		}
 	})
@@ -271,7 +336,7 @@ func TestUpdate_Generic(t *testing.T) {
 		if err := os.WriteFile(cfg, []byte(`{"mcpServers": "broken"}`), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		err := Update(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, "", "/db.sqlite")
+		_, err := Update(context.Background(), &executor.Executor{}, io.Discard, "sqlite", true, "", "/db.sqlite")
 		if !errors.Is(err, ErrNotReinstalled) {
 			t.Errorf("err = %v, want ErrNotReinstalled", err)
 		}
@@ -282,13 +347,13 @@ func TestUnsupportedSlugs(t *testing.T) {
 	env := newAgentsEnv(t)
 	exe := &executor.Executor{}
 	for _, slug := range []string{"godot-studio", "nope"} {
-		if err := Install(context.Background(), exe, io.Discard, slug, true, "", ""); err == nil {
+		if _, err := Install(context.Background(), exe, io.Discard, slug, true, "", ""); err == nil {
 			t.Errorf("Install(%s): expected an error", slug)
 		}
 		if err := Remove(context.Background(), exe, io.Discard, slug, true, ""); err == nil {
 			t.Errorf("Remove(%s): expected an error", slug)
 		}
-		if err := Update(context.Background(), exe, io.Discard, slug, true, "", ""); err == nil {
+		if _, err := Update(context.Background(), exe, io.Discard, slug, true, "", ""); err == nil {
 			t.Errorf("Update(%s): expected an error", slug)
 		}
 	}

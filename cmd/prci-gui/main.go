@@ -60,6 +60,30 @@ var iconBlueTray []byte
 //go:embed frontend/dist/assets/perci-pink-systray.png
 var iconPinkTray []byte
 
+// appIcons picks the window and tray icons for the configured app icon
+// variant ("pink" or, for anything else and a nil cfg, "blue").
+func appIcons(cfg *config.Config) (window, tray []byte) {
+	if cfg != nil && cfg.AppIconOrDefault() == "pink" {
+		return iconPink, iconPinkTray
+	}
+	return iconBlue, iconBlueTray
+}
+
+// singleInstanceID identifies Perci's single-instance lock (a D-Bus name on
+// the session bus).
+const singleInstanceID = "io.github.oito2.perci"
+
+// handleSecondInstance reacts to a later launch of Perci while this instance
+// is running: args are the second process's os.Args. A launch with
+// hiddenFlag (the login autostart) changes nothing; any other launch calls
+// focus to bring the main window to the front.
+func handleSecondInstance(args []string, focus func()) {
+	if len(args) > 1 && slices.Contains(args[1:], hiddenFlag) {
+		return
+	}
+	focus()
+}
+
 func main() {
 	home := &HomeService{}
 	linux := &LinuxService{}
@@ -76,10 +100,11 @@ func main() {
 	// starts in the tray only. Honored only while the tray is enabled —
 	// without it, a hidden window would leave no way to reach the app.
 	startHidden := slices.Contains(os.Args[1:], hiddenFlag) && cfgErr == nil && cfg.TrayEnabled
-	icon := iconBlue
-	if cfgErr == nil && cfg.AppIconOrDefault() == "pink" {
-		icon = iconPink
+	iconCfg := cfg
+	if cfgErr != nil {
+		iconCfg = nil
 	}
+	icon, _ := appIcons(iconCfg)
 
 	wailsApp := application.New(application.Options{
 		Name: "Perci",
@@ -93,6 +118,17 @@ func main() {
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
+		},
+		// Only one Perci process runs per session: a second launch hands its
+		// arguments to the running instance over D-Bus and exits, so it never
+		// creates a second window or tray icon.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				handleSecondInstance(data.Args, func() {
+					application.InvokeAsync(tray.FocusMainWindow)
+				})
+			},
 		},
 	})
 
@@ -145,15 +181,17 @@ func main() {
 	})
 	tray.mainWindow = mainWindow
 
-	// Closing (X) only hides into the tray when it's enabled — read from
-	// config on every close, not from an in-memory flag, so toggling it at
-	// runtime (SetTrayEnabled) takes effect immediately with no extra
-	// synchronization. With the tray disabled (the default), X still quits
-	// as usual — otherwise the app would vanish with no way to reopen it,
-	// since the tray is opt-in.
+	// Closing (X) hides into the tray when it's enabled — read from config
+	// on every close, not from an in-memory flag, so toggling it at runtime
+	// (SetTrayEnabled) takes effect immediately. With the tray disabled (the
+	// default), X quits, unless an action is running: then the window stays
+	// open (see mainCloseDecision).
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		if trayCfg, err := config.Load(); err == nil && trayCfg.TrayEnabled {
+		cancel, hide := tray.mainCloseDecision()
+		if cancel {
 			e.Cancel()
+		}
+		if hide {
 			mainWindow.Hide()
 		}
 	})

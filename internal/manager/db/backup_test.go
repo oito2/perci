@@ -90,6 +90,46 @@ func TestBackup_FailureRemovesDest(t *testing.T) {
 	}
 }
 
+// A failed dump keeps the backup it was going to replace, and leaves no
+// temporary file in its folder.
+func TestBackup_FailureKeepsPreviousBackup(t *testing.T) {
+	fakeDocker(t, "running", 1)
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "backup.sql")
+	if err := os.WriteFile(dest, []byte("PREVIOUS"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := Backup(context.Background(), executor.New(&buf, &buf), &buf, "mariadb", "dev", "x", dest); err == nil {
+		t.Fatal("expected an error")
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "PREVIOUS" {
+		t.Errorf("previous backup = %q, want it untouched", b)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("leftover files after a failed dump: %v", entries)
+	}
+}
+
+// A completed dump replaces the previous backup, still 0600.
+func TestBackup_ReplacesPreviousBackup(t *testing.T) {
+	fakeDocker(t, "running", 0)
+	dest := filepath.Join(t.TempDir(), "backup.sql")
+	if err := os.WriteFile(dest, []byte("PREVIOUS"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := Backup(context.Background(), executor.New(&buf, &buf), &buf, "mariadb", "dev", "x", dest); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "DUMP" {
+		t.Errorf("backup = %q", b)
+	}
+	if info, _ := os.Stat(dest); info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600", info.Mode().Perm())
+	}
+}
+
 // A stopped container is refused before anything runs.
 func TestBackup_ContainerNotRunning(t *testing.T) {
 	rec := fakeDocker(t, "exited", 0)

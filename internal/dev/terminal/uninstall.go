@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/dev/prereqs"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 )
@@ -35,26 +36,21 @@ func UninstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 		script := `rm -rf "$HOME/.local/kitty.app" "$HOME/.local/bin/kitty" "$HOME/.local/bin/kitten" 2>/dev/null; true`
 		return exe.Run(ctx, opts, "bash", "-c", script)
 	case "alacritty":
-		switch family {
-		case distro.Fedora:
-			return exe.Run(ctx, sudo, "dnf", "remove", "-y", "--", "alacritty")
-		case distro.Debian:
-			return exe.Run(ctx, sudo, "apt-get", "purge", "-y", "--", "alacritty")
-		default:
-			return fmt.Errorf("unsupported distro family for Alacritty: %s", family)
-		}
+		return removePackage(ctx, exe, sudo, family, "alacritty")
 	case "blackbox-terminal":
 		flatOpts := executor.Options{Stdout: stdout, Stderr: stdout, Env: []string{"TERM=dumb"}}
 		return exe.Run(ctx, flatOpts, "flatpak", "uninstall", "--noninteractive", config.FlatpakFlag(), "-y", t.FlatID)
 	case "kgx":
-		switch family {
-		case distro.Fedora:
-			return exe.Run(ctx, sudo, "dnf", "remove", "-y", "--", "gnome-console")
-		case distro.Debian:
-			return exe.Run(ctx, sudo, "apt-get", "purge", "-y", "--", "gnome-console")
-		default:
-			return fmt.Errorf("unsupported distro family for Console: %s", family)
-		}
+		return removePackage(ctx, exe, sudo, family, "gnome-console")
 	}
 	return fmt.Errorf("desinstalador desconhecido para %s", t.Name)
+}
+
+// removePackage removes pkg only when the removal takes no other package
+// with it.
+func removePackage(ctx context.Context, exe *executor.Executor, sudo executor.Options, family, pkg string) error {
+	if family != distro.Fedora && family != distro.Debian {
+		return fmt.Errorf("unsupported distro family for %s: %s", pkg, family)
+	}
+	return prereqs.RemovePackages(ctx, exe, sudo, family, pkg)
 }

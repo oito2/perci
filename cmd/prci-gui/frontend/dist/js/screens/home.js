@@ -69,6 +69,9 @@ function loadSelfUpdateStatus(force) {
     } else {
       suStatus.textContent = "O Perci está atualizado.";
     }
+  }).catch(function (err) {
+    selfUpdateCheckedAt = 0;
+    suStatus.textContent = "Falha ao verificar atualizações: " + err;
   });
 }
 
@@ -80,8 +83,11 @@ btnSuCheck.addEventListener("click", function () {
 btnSuUpdate.addEventListener("click", function () {
   if (running) return;
   dashboardRunningAction = "self-update";
-  startExecution("Atualizar Perci", [btnSuUpdate, btnSuCheck], 1, "Iniciando atualização do Perci...");
-  App.RunSelfUpdate().catch(failRun);
+  beginRun("Atualizar Perci", function () { return App.RunSelfUpdate(); }, {
+    buttons: [btnSuUpdate, btnSuCheck],
+    maxSteps: 1,
+    announce: "Iniciando atualização do Perci...",
+  });
 });
 
 // --- "Desinstalar Perci" (embedded in Visão Geral) — three independent
@@ -110,10 +116,13 @@ btnSu2Uninstall.addEventListener("click", function () {
 
   openConfirm("Desinstalar o Perci?", message, function () {
     function startUninstall(backupPath) {
-      if (running) return; // re-checked: the dialogs are async
+      if (running || activeRun) return; // re-checked: the dialogs are async
       dashboardRunningAction = "self-uninstall";
-      startExecution("Desinstalar", [btnSu2Uninstall], 1, "Desinstalando o Perci...");
-      App.RunSelfUninstall(removeConfig, removeDocker, backupPath || "").catch(failRun);
+      beginRun("Desinstalar", function () { return App.RunSelfUninstall(removeConfig, removeDocker, backupPath || ""); }, {
+        buttons: [btnSu2Uninstall],
+        maxSteps: 1,
+        announce: "Desinstalando o Perci...",
+      });
     }
 
     if (!backupConfig) {
@@ -164,8 +173,8 @@ function renderImagePickerGrid(container, values, current, srcFor, onPick) {
 // Tema — a click on a swatch applies and persists
 // right away, with no "Salvar" button involved.
 function renderThemeGrid(current) {
-  cfgThemeGrid.innerHTML = "";
   App.GetGUIThemes().then(function (themes) {
+    cfgThemeGrid.innerHTML = "";
     themes.forEach(function (name) {
       const btn = document.createElement("button");
       btn.type = "button";

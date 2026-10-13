@@ -18,8 +18,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/dev/agentskills"
 )
 
 // Every bound method that takes a folder or file path from the frontend
@@ -31,19 +35,40 @@ import (
 func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	missing := filepath.Join(t.TempDir(), "missing")
-	unapproved := filepath.Join(t.TempDir(), "not-picked.txt")
-	if err := os.WriteFile(unapproved, []byte("x"), 0o600); err != nil {
+	// An existing file: refused as a folder, and as a file not picked.
+	unapprovedFile := filepath.Join(t.TempDir(), "not-picked.txt")
+	if err := os.WriteFile(unapprovedFile, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// An existing directory nobody picked or registered: valid in itself,
+	// so only the approval check can refuse it.
+	unapprovedDir := t.TempDir()
 
 	type method func(b *serviceBase, path string) error
-	folderMethods := map[string]method{
+	// These only require an existing absolute directory.
+	plainFolderMethods := map[string]method{
 		"InspectMoodlePlugin": func(b *serviceBase, f string) error {
 			_, err := (&DevToolsService{*b}).InspectMoodlePlugin(f, "mdle", "local", "x")
 			return err
 		},
 		"AddMoodlePlugin": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).AddMoodlePlugin(f, "mdle", "local", "x")
+		},
+	}
+	// These also require the folder to be picked this session or already
+	// registered.
+	folderMethods := map[string]method{
+		"GetRepoFolderState": func(b *serviceBase, f string) error {
+			_, err := (&DevToolsService{*b}).GetRepoFolderState(f)
+			return err
+		},
+		"GetAgentSkillsRows": func(b *serviceBase, f string) error {
+			_, err := (&DevToolsService{*b}).GetAgentSkillsRows(false, f)
+			return err
+		},
+		"GetMCPServerRows": func(b *serviceBase, f string) error {
+			_, err := (&DevToolsService{*b}).GetMCPServerRows(false, f)
+			return err
 		},
 		"ApplyAIContext": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).ApplyAIContext(f, []string{"x"})
@@ -122,9 +147,16 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		}
 		runMu.Unlock()
 	}
+	for name, call := range plainFolderMethods {
+		t.Run(name, func(t *testing.T) {
+			for _, bad := range []string{"", "relative/dir", missing, unapprovedFile} {
+				check(t, call, bad)
+			}
+		})
+	}
 	for name, call := range folderMethods {
 		t.Run(name, func(t *testing.T) {
-			for _, bad := range []string{"", "relative/dir", missing, unapproved} {
+			for _, bad := range []string{"", "relative/dir", missing, unapprovedFile, unapprovedDir} {
 				check(t, call, bad)
 			}
 		})
@@ -132,7 +164,7 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 	for name, call := range fileMethods {
 		t.Run(name, func(t *testing.T) {
 			// RunSelfUninstall treats "" as "no backup" — a valid choice.
-			bads := []string{"relative.txt", missing, unapproved}
+			bads := []string{"relative.txt", missing, unapprovedFile}
 			if name != "RunSelfUninstall" {
 				bads = append(bads, "")
 			}
@@ -160,5 +192,225 @@ func TestSetWorkspacePath_AcceptsOnlyPickedFolder(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(home, ".perci", "config.yaml"))
 	if err != nil || !strings.Contains(string(data), picked) {
 		t.Errorf("config.yaml = %q (err %v), want the picked folder", data, err)
+	}
+}
+
+// A folder is known when picked this session or already registered as a
+// remembered repository folder or as the folder of a local SKILL/MCP
+// record; global records and anything else do not count.
+func TestRequireKnownFolder(t *testing.T) {
+	isolateActions(t)
+	unknown := t.TempDir()
+	if err := requireKnownFolder(unknown); err == nil {
+		t.Fatal("an existing directory nobody picked or registered must be refused")
+	}
+
+	picked, _ := approvePath(t.TempDir(), nil)
+	if err := requireKnownFolder(picked); err != nil {
+		t.Errorf("picked folder: %v", err)
+	}
+
+	repoDir, skillDir, mcpDir, globalSkillDir, globalMCPDir := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	if err := config.Update(func(c *config.Config) error {
+		c.RepoFolders = []string{repoDir + "/"}
+		c.AgentSkills = []config.AgentSkillInstall{
+			{Slug: "a", Folder: skillDir},
+			{Slug: "a", Global: true, Folder: globalSkillDir},
+		}
+		c.MCPServers = []config.MCPServerInstall{
+			{Slug: "b", Folder: mcpDir},
+			{Slug: "b", Global: true, Folder: globalMCPDir},
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for name, dir := range map[string]string{"repo folder": repoDir, "local skill": skillDir, "local mcp": mcpDir} {
+		if err := requireKnownFolder(dir); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, dir := range map[string]string{"global skill": globalSkillDir, "global mcp": globalMCPDir, "unknown": unknown} {
+		if err := requireKnownFolder(dir); err == nil {
+			t.Errorf("%s: must be refused", name)
+		}
+	}
+	if err := requireKnownFolder(filepath.Join(picked, "missing")); err == nil {
+		t.Error("a missing folder must be refused")
+	}
+	if err := requireKnownFolderUnlessGlobal(true, "relative"); err != nil {
+		t.Errorf("the folder does not matter in Global scope: %v", err)
+	}
+}
+
+// AddRepoFolder only remembers a folder picked in a dialog this session,
+// compares cleaned paths and forgets by the cleaned path too.
+func TestAddRepoFolder_RequiresPickedFolderAndCleansPaths(t *testing.T) {
+	isolateActions(t)
+	d := &DevToolsService{}
+	existing := t.TempDir()
+	if err := d.AddRepoFolder(existing); err == nil {
+		t.Fatal("a folder that was not picked must be refused")
+	}
+	picked, _ := approvePath(t.TempDir(), nil)
+	for _, spelling := range []string{picked, picked + "/", picked + "/./"} {
+		if err := d.AddRepoFolder(spelling); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := d.GetRepoFolders(); len(got) != 1 || got[0].Path != picked {
+		t.Fatalf("folders = %+v, want the one cleaned path %s", got, picked)
+	}
+	if err := d.RemoveRepoFolder(picked + "/"); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.GetRepoFolders(); len(got) != 0 {
+		t.Errorf("folders after remove = %+v", got)
+	}
+}
+
+// The MCP parameter must come from a dialog this session or be the value
+// already recorded for that very server and scope.
+func TestRequireMCPParam(t *testing.T) {
+	isolateActions(t)
+	dir := t.TempDir()
+	if err := requireMCPParam("filesystem", true, "", dir); err == nil {
+		t.Fatal("an unpicked directory must be refused")
+	}
+	if err := requireMCPParam("sqlite", true, "", filepath.Join(dir, "db.sqlite")); err == nil {
+		t.Fatal("an unpicked file must be refused")
+	}
+	if err := requireMCPParam("dart-flutter", true, "", "anything"); err != nil {
+		t.Errorf("a server without a parameter: %v", err)
+	}
+	if err := requireMCPParam("filesystem", true, "", ""); err != nil {
+		t.Errorf("an empty parameter is the install's own error: %v", err)
+	}
+
+	picked, _ := approvePath(t.TempDir(), nil)
+	if err := requireMCPParam("filesystem", true, "", picked); err != nil {
+		t.Errorf("picked: %v", err)
+	}
+
+	if err := recordMCPServerInstall("filesystem", true, "", dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := requireMCPParam("filesystem", true, "", dir); err != nil {
+		t.Errorf("the recorded parameter must pass: %v", err)
+	}
+	if err := requireMCPParam("filesystem", false, t.TempDir(), dir); err == nil {
+		t.Error("the record of another scope must not authorize the parameter")
+	}
+	if err := requireMCPParam("sqlite", true, "", dir); err == nil {
+		t.Error("the record of another server must not authorize the parameter")
+	}
+
+	b, _ := newTestBase(t)
+	if err := (&DevToolsService{*b}).InstallMCPServer("filesystem", true, "", t.TempDir()); err == nil {
+		t.Error("InstallMCPServer must refuse an unpicked parameter")
+	}
+	if err := (&DevToolsService{*b}).UpdateMCPServer("filesystem", true, "", t.TempDir()); err == nil {
+		t.Error("UpdateMCPServer must refuse an unpicked parameter")
+	}
+}
+
+// A record that names its agents reports "partial" when one is missing;
+// a record from before the field never does.
+func TestRows_PartialState(t *testing.T) {
+	isolateActions(t)
+	err := config.Update(func(c *config.Config) error {
+		c.AgentSkills = []config.AgentSkillInstall{
+			{Slug: "godot-ui", Global: true, Agents: []string{"claude-code", "codex"}},
+			{Slug: "godot-master", Global: true, Agents: agentskills.TargetAgents()},
+			{Slug: "daisyui", Global: true},
+		}
+		c.MCPServers = []config.MCPServerInstall{
+			{Slug: "filesystem", Global: true, Param: "/p", Agents: []string{"claude", "antigravity"}},
+			{Slug: "sqlite", Global: true, Param: "/d", Agents: []string{"claude", "codex", "antigravity"}},
+			{Slug: "dart-flutter", Global: true},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &DevToolsService{}
+
+	skills, err := d.GetAgentSkillsRows(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bySlug := map[string]AgentSkillRow{}
+	for _, r := range skills {
+		bySlug[r.Slug] = r
+	}
+	if r := bySlug["godot-ui"]; !r.Installed || !r.Partial || !slices.Equal(r.Agents, []string{"Claude", "Codex"}) {
+		t.Errorf("godot-ui = %+v", r)
+	}
+	if r := bySlug["godot-master"]; !r.Installed || r.Partial || len(r.Agents) != 4 {
+		t.Errorf("godot-master = %+v", r)
+	}
+	if r := bySlug["daisyui"]; !r.Installed || r.Partial || len(r.Agents) != 0 {
+		t.Errorf("an old record = %+v", r)
+	}
+	if r := bySlug["code-review"]; r.Installed || r.Partial {
+		t.Errorf("not installed = %+v", r)
+	}
+
+	servers, err := d.GetMCPServerRows(true, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp := map[string]MCPServerRow{}
+	for _, r := range servers {
+		mcp[r.Slug] = r
+	}
+	if r := mcp["filesystem"]; !r.Partial || !slices.Equal(r.Agents, []string{"Claude", "Antigravity"}) || r.Param != "/p" {
+		t.Errorf("filesystem = %+v", r)
+	}
+	if r := mcp["sqlite"]; r.Partial {
+		t.Errorf("sqlite = %+v", r)
+	}
+	if r := mcp["dart-flutter"]; !r.Installed || r.Partial {
+		t.Errorf("an old record = %+v", r)
+	}
+}
+
+// Installing records which agents accepted it, and a row built from that
+// record is not partial.
+func TestInstallRecordsTheAcceptingAgents(t *testing.T) {
+	isolateActions(t)
+	b, rec := newTestBase(t)
+	d := &DevToolsService{*b}
+	if err := d.InstallMCPServer("dart-flutter", true, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, done := rec.wait(t); done["ok"] != true {
+		t.Fatalf("done = %v", done)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.MCPServers) != 1 || !slices.Equal(cfg.MCPServers[0].Agents, []string{"claude", "codex"}) {
+		t.Errorf("record = %+v", cfg.MCPServers)
+	}
+
+	b2, rec2 := newTestBase(t)
+	if err := (&DevToolsService{*b2}).InstallAgentSkill("daisyui", true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, done := rec2.wait(t); done["ok"] != true {
+		t.Fatalf("done = %v", done)
+	}
+	cfg, _ = config.Load()
+	if len(cfg.AgentSkills) != 1 || !slices.Equal(cfg.AgentSkills[0].Agents, agentskills.TargetAgents()) {
+		t.Errorf("record = %+v", cfg.AgentSkills)
+	}
+	rows, _ := d.GetAgentSkillsRows(true, "")
+	for _, r := range rows {
+		if r.Slug == "daisyui" && (!r.Installed || r.Partial) {
+			t.Errorf("row = %+v", r)
+		}
 	}
 }

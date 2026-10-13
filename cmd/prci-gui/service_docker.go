@@ -20,7 +20,6 @@ package main
 // internal/manager/db (MariaDB Backup/Restore).
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/oito2/perci/internal/appstack"
 	"github.com/oito2/perci/internal/config"
-	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/manager/db"
 )
@@ -160,9 +158,15 @@ func (s *DockerService) CreateDockerContainer(req ContainerFormRequest) error {
 	return s.runAction(func(stdout io.Writer) error {
 		switch {
 		case req.Kind == kindNginx:
+			if appstack.NginxExists(context.Background(), s.exe) {
+				return fmt.Errorf("o contêiner Nginx já existe")
+			}
 			_, err := appstack.CreateNginx(context.Background(), s.exe, nil, stdout)
 			return err
 		case req.Kind == kindMariaDB:
+			if appstack.MariaDBExists(context.Background(), s.exe) {
+				return fmt.Errorf("o contêiner MariaDB já existe")
+			}
 			return appstack.CreateMariaDB(context.Background(), s.exe, stdout, req.DBUser, req.DBPass)
 		case isAppKind(req.Kind):
 			return appstack.CreateApp(context.Background(), s.exe, stdout, req.toAppContainer())
@@ -279,17 +283,9 @@ func (s *DockerService) UpdateDockerContainer(req ContainerFormRequest) error {
 			}
 			return appstack.CreateMariaDB(ctx, s.exe, stdout, req.DBUser, req.DBPass)
 		case isAppKind(req.Kind):
-			// Validated before the running container is removed: invalid
-			// input must not leave the app down.
-			if err := appstack.ValidateAppInStack(req.toAppContainer()); err != nil {
-				return err
-			}
-			if appstack.AppExists(ctx, s.exe, req.Folder) {
-				if err := appstack.RemoveApp(ctx, s.exe, stdout, req.Folder); err != nil {
-					return err
-				}
-			}
-			return appstack.CreateApp(ctx, s.exe, stdout, req.toAppContainer())
+			// Validated and built before the running container is removed:
+			// invalid input or a failed build must not leave the app down.
+			return appstack.UpdateApp(ctx, s.exe, stdout, req.toAppContainer())
 		default:
 			return fmt.Errorf("tipo sem edição: %s", req.Kind)
 		}
@@ -305,31 +301,39 @@ func (s *DockerService) UpdateDockerContainer(req ContainerFormRequest) error {
 // GUI uses.
 
 func (s *DockerService) StartDockerContainer(folder string) error {
-	return appstack.StartContainer(context.Background(), s.exe, io.Discard, folder)
+	return runExclusive(func() error {
+		return appstack.StartContainer(context.Background(), s.exe, io.Discard, folder)
+	})
 }
 
 func (s *DockerService) StopDockerContainer(folder string) error {
-	return appstack.StopContainer(context.Background(), s.exe, io.Discard, folder)
+	return runExclusive(func() error {
+		return appstack.StopContainer(context.Background(), s.exe, io.Discard, folder)
+	})
 }
 
 func (s *DockerService) RestartDockerContainer(folder string) error {
-	return appstack.RestartContainer(context.Background(), s.exe, io.Discard, folder)
+	return runExclusive(func() error {
+		return appstack.RestartContainer(context.Background(), s.exe, io.Discard, folder)
+	})
 }
 
 // RemoveDockerContainer deletes the container (if running/stopped) and its
 // entry in config.yaml — appstack.Delete{Nginx,MariaDB,App}, called only
 // after the frontend's confirmation modal.
 func (s *DockerService) RemoveDockerContainer(kind, folder string) error {
-	ctx := context.Background()
-	switch kind {
-	case kindNginx:
-		return appstack.DeleteNginx(ctx, s.exe, io.Discard)
-	case kindMariaDB:
-		return appstack.DeleteMariaDB(ctx, s.exe, io.Discard)
-	case kindApp:
-		return appstack.DeleteApp(ctx, s.exe, io.Discard, folder)
-	}
-	return fmt.Errorf("tipo desconhecido: %s", kind)
+	return runExclusive(func() error {
+		ctx := context.Background()
+		switch kind {
+		case kindNginx:
+			return appstack.DeleteNginx(ctx, s.exe, io.Discard)
+		case kindMariaDB:
+			return appstack.DeleteMariaDB(ctx, s.exe, io.Discard)
+		case kindApp:
+			return appstack.DeleteApp(ctx, s.exe, io.Discard, folder)
+		}
+		return fmt.Errorf("tipo desconhecido: %s", kind)
+	})
 }
 
 // RecreateDockerContainer dispatches to RecreateNginx/RecreateMariaDB/
@@ -354,13 +358,11 @@ func (s *DockerService) RecreateDockerContainer(kind, folder string) error {
 // ── Ver Logs ──────────────────────────────────────────────────────────────
 
 // GetContainerLogsSnapshot fetches the last 200 lines once (docker logs
-// --tail 200, no -f) — an instant modal, not a live stream (appstack.
-// ContainerLogs uses -f, meant for continuous stdout, which doesn't fit
-// here). The modal's "Atualizar" button just calls this method again.
+// --tail 200, no -f) — an instant modal, not a live stream. Only the logs of
+// Nginx, MariaDB or a registered Container Aplicativo are returned. The
+// modal's "Atualizar" button just calls this method again.
 func (s *DockerService) GetContainerLogsSnapshot(folder string) (string, error) {
-	var buf bytes.Buffer
-	err := s.exe.Run(context.Background(), executor.Options{Stdout: &buf, Stderr: &buf}, "docker", "logs", "--tail", "200", "--", folder)
-	return buf.String(), err
+	return appstack.ContainerLogs(context.Background(), s.exe, folder, 200)
 }
 
 // PickLogsExportPath opens the native "Salvar Como" dialog for exporting a
@@ -417,12 +419,31 @@ func (s *DockerService) PickImportConfigPath() (string, error) {
 }
 
 // ImportPreview is the pre-import summary shown in the confirmation modal
-// (workspace, Nginx, MariaDB, app count) — nothing is applied yet.
+// (workspace, Nginx, MariaDB, app count, and every command the apps will
+// run) — nothing is applied yet. Commands holds one "<pasta>: <comando>"
+// entry per start command and "<pasta> (worker): <comando>" per worker
+// command in the file.
 type ImportPreview struct {
-	WorkspacePath string `json:"workspacePath"`
-	HasNginx      bool   `json:"hasNginx"`
-	HasMariaDB    bool   `json:"hasMariaDb"`
-	AppsCount     int    `json:"appsCount"`
+	WorkspacePath string   `json:"workspacePath"`
+	HasNginx      bool     `json:"hasNginx"`
+	HasMariaDB    bool     `json:"hasMariaDb"`
+	AppsCount     int      `json:"appsCount"`
+	Commands      []string `json:"commands"`
+}
+
+// importCommands lists the commands the apps in exported would run inside
+// their containers, labelled by app folder.
+func importCommands(exported appstack.ExportedConfig) []string {
+	commands := []string{}
+	for _, app := range exported.Docker.Apps {
+		if app.DevCommand != "" {
+			commands = append(commands, app.Folder+": "+app.DevCommand)
+		}
+		if app.WorkerCommand != "" {
+			commands = append(commands, app.Folder+" (worker): "+app.WorkerCommand)
+		}
+	}
+	return commands
 }
 
 // PreviewImportConfig reads and parses path (appstack.LoadExportedConfig)
@@ -441,6 +462,7 @@ func (s *DockerService) PreviewImportConfig(path string) (ImportPreview, error) 
 		HasNginx:      exported.Docker.NginxCreated,
 		HasMariaDB:    exported.Docker.MariaDB.DBUser != "",
 		AppsCount:     len(exported.Docker.Apps),
+		Commands:      importCommands(exported),
 	}, nil
 }
 

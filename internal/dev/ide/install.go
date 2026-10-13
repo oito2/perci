@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 )
@@ -29,8 +31,14 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, e
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	switch e.Cmd {
 	case "zed":
-		script := `set -Eeuo pipefail; curl -fsSL https://zed.dev/install.sh | sh`
-		return exe.Run(ctx, opts, "bash", "-c", script)
+		script := `set -Eeuo pipefail; curl -fsSL ` + nettimeout.CurlShellFlags + ` https://zed.dev/install.sh | sh`
+		ctx, cancel := nettimeout.Context(ctx)
+		defer cancel()
+		if err := exe.Run(ctx, opts, "bash", "-c", script); err != nil {
+			return err
+		}
+		localbin.EnsureInPath(stdout)
+		return nil
 
 	case "code":
 		return installVSCode(ctx, exe, stdout, family)

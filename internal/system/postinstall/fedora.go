@@ -121,31 +121,42 @@ var fedoraProfile = Profile{
 			Run:         fedoraUpgradeSystem},
 		{ID: "enable-rpmfusion", Label: "Habilitar RPM Fusion",
 			Description: "Adiciona os repositórios RPM Fusion free e nonfree, necessários para codecs e drivers de vídeo.",
+			Applied:     func(p *Probe) bool { return p.rpmInstalled("rpmfusion-free-release", "rpmfusion-nonfree-release") },
 			Run:         fedoraEnableRPMFusion},
 		{ID: "install-codecs", Label: "Instalar codecs multimídia",
 			Description: "Troca o ffmpeg-free pelo ffmpeg completo e instala o grupo multimedia (dnf group install), com suporte a formatos de áudio/vídeo comuns.",
-			DependsOn:   "enable-rpmfusion", Run: fedoraInstallCodecs},
+			DependsOn:   "enable-rpmfusion", Run: fedoraInstallCodecs,
+			Applied: func(p *Probe) bool {
+				return p.rpmInstalled("ffmpeg", "gstreamer1-plugin-libav", "gstreamer1-plugins-good")
+			}},
 		{ID: "install-essentials", Label: "Instalar pacotes essenciais",
 			Description: "Ferramentas de compilação, compressão de arquivos e utilitários de linha de comando comuns.",
+			Applied:     func(p *Probe) bool { return p.rpmInstalled(fedoraPackages...) },
 			Run:         fedoraInstallEssentials},
 		{ID: "install-unrar", Label: "Instalar unrar",
 			Description: "Instala o unrar (do RPM Fusion nonfree), para extrair arquivos .rar.",
-			DependsOn:   "enable-rpmfusion", Run: fedoraInstallUnrar},
+			DependsOn:   "enable-rpmfusion", Run: fedoraInstallUnrar,
+			Applied: func(p *Probe) bool { return p.rpmInstalled("unrar") }},
 		{ID: "install-ntfs", Label: "Instalar suporte a NTFS",
 			Description: "Instala o ntfs-3g (dos repositórios do Fedora) para ler/gravar discos formatados em NTFS — melhor esforço, pode já estar coberto pelo driver ntfs3 do kernel.",
+			Applied:     func(p *Probe) bool { return p.rpmInstalled("ntfs-3g") },
 			Run:         fedoraInstallNTFS},
 		{ID: "apply-sysctl", Label: "Aplicar ajustes de kernel",
 			Description: "Reduz a troca de memória (swappiness) e aumenta o limite de observadores de arquivo (inotify).",
+			Applied:     (*Probe).sysctlConfigured,
 			Run:         fedoraApplySysctl},
 		{ID: "enable-trim", Label: "Ativar TRIM para SSDs",
 			Description: "Habilita o serviço fstrim.timer, que mantém discos SSD saudáveis a longo prazo.",
+			Applied:     (*Probe).trimEnabled,
 			Run:         fedoraEnableTRIM},
 		{ID: "vaapi-intel", Label: "Driver de vídeo Intel (VA-API)",
 			Description: "Instala a aceleração de vídeo por hardware para GPUs Intel (do RPM Fusion). Marque só se sua GPU for Intel.",
-			DependsOn:   "enable-rpmfusion", Run: fedoraVAAPIIntel},
+			DependsOn:   "enable-rpmfusion", Run: fedoraVAAPIIntel,
+			Applied: func(p *Probe) bool { return p.rpmInstalled("intel-media-driver") }},
 		{ID: "vaapi-amd", Label: "Driver de vídeo AMD (VA-API)",
 			Description: "Instala a aceleração de vídeo por hardware para GPUs AMD (do RPM Fusion). Marque só se sua GPU for AMD.",
-			DependsOn:   "enable-rpmfusion", Run: fedoraVAAPIAMD},
+			DependsOn:   "enable-rpmfusion", Run: fedoraVAAPIAMD,
+			Applied: func(p *Probe) bool { return p.rpmInstalled("mesa-va-drivers-freeworld") }},
 		{ID: "cleanup", Label: "Limpar pacotes desnecessários",
 			Description: "Remove dependências órfãs e limpa o cache do dnf (autoremove + clean all).",
 			Run:         fedoraCleanup},
@@ -155,25 +166,37 @@ var fedoraProfile = Profile{
 func enableRPMFusion(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Habilitando repositórios RPM Fusion...")
 
-	if rpmFusionEnabled(ctx, exe) {
+	args, err := rpmFusionInstallArgs(ctx, exe)
+	if err != nil {
+		return err
+	}
+	if args == nil {
 		ui.Info(stdout, "RPM Fusion já habilitado, pulando.")
 		return nil
 	}
+	return exe.Run(ctx, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}, "dnf", args...)
+}
 
+// rpmFusionInstallArgs returns the dnf arguments that install only the RPM
+// Fusion release packages (free, nonfree) still missing, or nil when both
+// are installed.
+func rpmFusionInstallArgs(ctx context.Context, exe *executor.Executor) ([]string, error) {
+	missing := rpmFusionMissing(ctx, exe)
+	if len(missing) == 0 {
+		return nil, nil
+	}
 	ver, err := exe.Output(ctx, executor.Options{}, "rpm", "-E", "%fedora")
 	if err != nil {
-		return fmt.Errorf("detectar versão fedora: %w", err)
+		return nil, fmt.Errorf("detectar versão fedora: %w", err)
 	}
-	v := stripNewline(ver)
-
-	freeURL := fmt.Sprintf(
-		"https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-%s.noarch.rpm", v,
-	)
-	nonfreeURL := fmt.Sprintf(
-		"https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-%s.noarch.rpm", v,
-	)
-	return exe.Run(ctx,
-		executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout},
-		"dnf", "install", "-y", freeURL, nonfreeURL,
-	)
+	args := []string{"install", "-y", "--"}
+	for _, flavor := range missing {
+		args = append(args, fmt.Sprintf(
+			"https://download1.rpmfusion.org/%[1]s/fedora/rpmfusion-%[1]s-release-%[2]s.noarch.rpm", flavor, stripNewline(ver)))
+	}
+	return args, nil
 }
+
+// fedoraBudgieProfile is the Fedora Budgie spin: the same actions as
+// fedoraProfile, which don't depend on the desktop.
+var fedoraBudgieProfile = Profile{ID: "fedora-budgie", Label: "Fedora 44 Budgie", Actions: fedoraProfile.Actions}

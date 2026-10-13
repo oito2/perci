@@ -75,8 +75,12 @@ func TestComboDockerfile(t *testing.T) {
 	if !strings.Contains(comboDockerfile, "COPY php.ini /usr/local/etc/php/php.ini") {
 		t.Errorf("expected comboDockerfile to reuse the tuned php.ini (same as EnsureImage), got:\n%s", comboDockerfile)
 	}
-	if !strings.Contains(comboDockerfile, "setup_${NODE_VERSION}.x") {
-		t.Errorf("expected comboDockerfile to install Node via the NodeSource setup script for the chosen version, got:\n%s", comboDockerfile)
+	if !strings.Contains(comboDockerfile, "FROM node:${NODE_VERSION}-bookworm-slim AS node-src") ||
+		!strings.Contains(comboDockerfile, "COPY --from=node-src /usr/local/bin/node /usr/local/bin/node") {
+		t.Errorf("expected comboDockerfile to take Node from the official node image of the chosen version, got:\n%s", comboDockerfile)
+	}
+	if strings.Contains(comboDockerfile, "nodesource") || strings.Contains(comboDockerfile, "| bash") {
+		t.Errorf("comboDockerfile must not pipe a remote script into a shell, got:\n%s", comboDockerfile)
 	}
 	if !strings.Contains(comboDockerfile, "supervisor") {
 		t.Errorf("expected comboDockerfile to install the supervisor package, got:\n%s", comboDockerfile)

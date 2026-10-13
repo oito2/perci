@@ -51,8 +51,7 @@ btnReposIdentityApply.addEventListener("click", function () {
   if (running || btnReposIdentityApply.disabled) return;
   const name = reposIdentityName.value;
   const email = reposIdentityEmail.value;
-  startExecution("Aplicar Identidade Global");
-  App.ApplyGlobalGitIdentity(name, email).catch(failRun);
+  beginRun("Aplicar Identidade Global", function () { return App.ApplyGlobalGitIdentity(name, email); });
 });
 
 // --- "Repositórios" tab: list of known folders (cards) + horizontal menu
@@ -213,10 +212,14 @@ function refreshReposFolderState() {
     renderReposSubPanel();
     return;
   }
-  App.GetRepoFolderState(reposFolderPath).then(function (state) {
+  // A response for a folder that is no longer the selected one is dropped.
+  const path = reposFolderPath;
+  App.GetRepoFolderState(path).then(function (state) {
+    if (path !== reposFolderPath) return;
     reposFolderState = state;
     renderReposSubPanel();
   }).catch(function (err) {
+    if (path !== reposFolderPath) return;
     reposFolderState = null;
     renderReposSubPanel();
     openError("Falha ao ler a pasta selecionada: " + err);
@@ -286,8 +289,7 @@ function renderReposSubPanel() {
       { key: "name", label: "Nome no Git", value: gid.name },
       { key: "email", label: "E-mail no Git", value: gid.email },
     ], "Clonar", function (v) {
-      startExecution("Clonar repositório");
-      App.CloneRepo(v.url, reposFolderPath, v.name, v.email).catch(failRun);
+      beginRun("Clonar repositório", function () { return App.CloneRepo(v.url, reposFolderPath, v.name, v.email); });
     });
     return;
   }
@@ -301,8 +303,7 @@ function renderReposSubPanel() {
       { key: "name", label: "Nome Local (opcional)", value: gid.name },
       { key: "email", label: "E-mail Local (opcional)", value: gid.email },
     ], "Iniciar Repositório", function (v) {
-      startExecution("Iniciar Repositório");
-      App.InitRepoAt(reposFolderPath, v.name, v.email).catch(failRun);
+      beginRun("Iniciar Repositório", function () { return App.InitRepoAt(reposFolderPath, v.name, v.email); });
     });
     return;
   }
@@ -321,8 +322,7 @@ function renderReposSubPanel() {
       { key: "name", label: "Nome Local", value: gid.name },
       { key: "email", label: "E-mail Local", value: gid.email },
     ], "Aplicar Identificação Local", function (v) {
-      startExecution("Aplicar Identificação Local");
-      App.ApplyLocalGitIdentityAt(reposFolderPath, v.name, v.email).catch(failRun);
+      beginRun("Aplicar Identificação Local", function () { return App.ApplyLocalGitIdentityAt(reposFolderPath, v.name, v.email); });
     });
     return;
   }
@@ -340,9 +340,7 @@ function renderReposSubPanel() {
       '<button id="btn-repos-conduct" type="button" class="btn btn-outline">Criar/Atualizar Código de Conduta</button>' +
       "</div>";
     document.getElementById("btn-repos-gitignore").addEventListener("click", function () {
-      if (running) return;
-      startExecution("Criar/Atualizar .gitignore");
-      App.GenerateGitignoreAt(reposFolderPath).catch(failRun);
+      beginRun("Criar/Atualizar .gitignore", function () { return App.GenerateGitignoreAt(reposFolderPath); });
     });
     document.getElementById("btn-repos-conduct").addEventListener("click", function () {
       if (running) return;
@@ -351,8 +349,7 @@ function renderReposSubPanel() {
         openError("Informe o e-mail de contato para denúncias.");
         return;
       }
-      startExecution("Criar/Atualizar Código de Conduta");
-      App.CreateConductAt(reposFolderPath, email).catch(failRun);
+      beginRun("Criar/Atualizar Código de Conduta", function () { return App.CreateConductAt(reposFolderPath, email); });
     });
   }
 }

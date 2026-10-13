@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/oito2/perci/internal/executor"
 )
@@ -51,8 +53,9 @@ type SignedRepo struct {
 	PkgName string
 }
 
-// InstallFromSignedRepo adds r (idempotent — skips re-adding the repo if
-// its list/repo file already exists) and installs r.PkgName from it. The
+// InstallFromSignedRepo adds r (idempotent — skips re-adding the repo if its
+// list/repo file already exists, or on Debian if any apt source file already
+// references the repo URL) and installs r.PkgName from it. The
 // keyring only counts as present when non-empty, and is downloaded to a
 // temp file first, so a failed download never leaves an empty keyring
 // behind.
@@ -63,26 +66,7 @@ func InstallFromSignedRepo(ctx context.Context, exe *executor.Executor, stdout i
 	sudo := executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}
 	switch family {
 	case Debian:
-		script := fmt.Sprintf(`set -Eeuo pipefail
-if [ ! -s %[1]s ]; then
-  tmp=$(mktemp)
-  trap 'rm -f -- "$tmp"' EXIT
-  wget -qO- %[2]s | gpg --batch --yes --dearmor -o "$tmp"
-  install -D -m 0644 -- "$tmp" %[1]s
-fi
-if [ ! -s %[3]s ]; then
-  printf '%%s' %[4]s | tee %[3]s > /dev/null
-fi
-apt-get update -qq
-apt-get install -y %[5]s
-`,
-			executor.ShellQuote(r.KeyringPath),
-			executor.ShellQuote(r.KeyURL),
-			executor.ShellQuote(r.AptListPath),
-			executor.ShellQuote(r.AptListContent),
-			executor.ShellQuote(r.PkgName),
-		)
-		return exe.Run(ctx, sudo, "bash", "-c", script)
+		return exe.Run(ctx, sudo, "bash", "-c", debianSignedRepoScript(r, aptSourcesDir))
 	case Fedora:
 		script := fmt.Sprintf(`set -Eeuo pipefail
 rpm --import %[1]s
@@ -98,6 +82,70 @@ dnf install -y %[4]s
 	default:
 		return UnsupportedFamilyError(family)
 	}
+}
+
+// aptSourcesDir is where apt reads additional source files (*.list and
+// *.sources) from.
+const aptSourcesDir = "/etc/apt/sources.list.d"
+
+// repoURLPattern matches the first URL of an apt source definition, both in
+// the one-line format and in a DEB822 "URIs:" field.
+var repoURLPattern = regexp.MustCompile(`https?://[^\s\]]+`)
+
+// debianSignedRepoScript builds the privileged bash script that adds r's
+// apt source (unless any file in sourcesDir already references the repo URL,
+// so a second source with a different Signed-By is never written) and
+// installs r.PkgName non-interactively.
+func debianSignedRepoScript(r SignedRepo, sourcesDir string) string {
+	configured := "false"
+	if repoURL := repoURLPattern.FindString(r.AptListContent); repoURL != "" {
+		configured = "repo_configured " + executor.ShellQuote(repoURL) + " " + executor.ShellQuote(sourcesDir)
+	}
+	return fmt.Sprintf(`set -Eeuo pipefail
+export DEBIAN_FRONTEND=noninteractive
+# repo_configured succeeds when an active apt source in $2 references $1:
+# an uncommented line of a *.list file, or a *.sources file without
+# "Enabled: no".
+repo_configured() {
+  local f
+  for f in "$2"/*.list; do
+    [ -f "$f" ] && grep -v '^[[:space:]]*#' -- "$f" | grep -qF -- "$1" && return 0
+  done
+  for f in "$2"/*.sources; do
+    [ -f "$f" ] && grep -v '^[[:space:]]*#' -- "$f" | grep -qF -- "$1" \
+      && ! grep -qiE '^[[:space:]]*Enabled:[[:space:]]*no' -- "$f" && return 0
+  done
+  return 1
+}
+if [ ! -s %[1]s ]; then
+  tmp=$(mktemp)
+  trap 'rm -f -- "$tmp"' EXIT
+  wget -qO- --https-only %[2]s | gpg --batch --yes --dearmor -o "$tmp"
+  install -D -m 0644 -- "$tmp" %[1]s
+fi
+if ! %[5]s && [ ! -s %[3]s ]; then
+  printf '%%s' %[4]s | tee %[3]s > /dev/null
+fi
+apt-get %[6]s
+apt-get %[7]s
+`,
+		executor.ShellQuote(r.KeyringPath),
+		executor.ShellQuote(r.KeyURL),
+		executor.ShellQuote(r.AptListPath),
+		executor.ShellQuote(r.AptListContent),
+		configured,
+		shellWords(AptArgs("update", "-qq")),
+		shellWords(AptArgs("install", "-y", "--", r.PkgName)),
+	)
+}
+
+// shellWords quotes each word and joins them with spaces.
+func shellWords(words []string) string {
+	quoted := make([]string, len(words))
+	for i, w := range words {
+		quoted[i] = executor.ShellQuote(w)
+	}
+	return strings.Join(quoted, " ")
 }
 
 // requireHTTPS rejects a KeyURL that isn't https — the trust of the whole

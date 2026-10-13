@@ -118,3 +118,39 @@ func TestApply_SystemScopeSetupAndInstallOnePrompt(t *testing.T) {
 		}
 	}
 }
+
+// Apply keeps both the user-scope failures and the privileged batch outcome.
+func TestApplyResult(t *testing.T) {
+	if err := applyResult(nil, nil); err != nil {
+		t.Errorf("no failure: got %v", err)
+	}
+	if err := applyResult(nil, executor.ErrCompletedWithWarnings); !errors.Is(err, executor.ErrCompletedWithWarnings) {
+		t.Errorf("warnings batch must surface ErrCompletedWithWarnings, got %v", err)
+	}
+	boom := errors.New("boom")
+	err := applyResult([]string{"Loupe"}, boom)
+	if !errors.Is(err, boom) || !strings.Contains(err.Error(), "1 aplicativo(s) com falha: Loupe") {
+		t.Errorf("both failures must be reported, got %v", err)
+	}
+	if err := applyResult([]string{"Loupe"}, nil); err == nil || !strings.Contains(err.Error(), "Loupe") {
+		t.Errorf("user failures alone must be reported, got %v", err)
+	}
+}
+
+// The Debian flatpak install uses the shared unattended apt options.
+func TestFlatpakSetupSteps_DebianUsesSharedAptOptions(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if distro.Detect() != distro.Debian {
+		t.Skip("needs a Debian-family host")
+	}
+	exe := executor.New(nil, nil)
+	exe.LookPath = func(string) (string, error) { return "", errors.New("not found") }
+	steps, _, err := FlatpakSetupSteps(context.Background(), exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(steps[0].Args, " ")
+	if !strings.Contains(args, "--force-confold") || strings.Join(steps[0].Env, " ") != strings.Join(distro.AptEnv, " ") {
+		t.Errorf("apt step does not use the shared options: %v %v", steps[0].Env, steps[0].Args)
+	}
+}

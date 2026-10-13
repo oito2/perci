@@ -50,7 +50,10 @@ function renderAicItems() {
   aicItems.innerHTML = "";
   btnAicApply.disabled = true;
   btnAicApply.onclick = null;
-  if (!aicFolder) return;
+  if (!aicFolder) {
+    invalidate("aicontext");
+    return;
+  }
 
   App.GetAIContextItems(aicFolder).then(latestOnly("aicontext", function (items) {
     items = items || [];
@@ -67,8 +70,7 @@ function renderAicItems() {
       const selected = items
         .filter(function (it) { return checkboxes[it.id].checked; })
         .map(function (it) { return it.id; });
-      startExecution("Aplicar Contextos de IA");
-      App.ApplyAIContext(aicFolder, selected).catch(failRun);
+      beginRun("Aplicar Contextos de IA", function () { return App.ApplyAIContext(aicFolder, selected); });
     };
   }));
 }

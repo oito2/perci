@@ -62,8 +62,8 @@ func TestActions_ReachTheirDomainCode(t *testing.T) {
 		{"RunAIApps", func(b *serviceBase) error {
 			return (&DevSetupService{*b}).RunAIApps(nil)
 		}, []string{"uninstall", "@openai/codex"}},
-		{"RunPrereqs", func(b *serviceBase) error {
-			return (&DevSetupService{*b}).RunPrereqs([]string{"Git"})
+		{"RunPrereqAction", func(b *serviceBase) error {
+			return (&DevSetupService{*b}).RunPrereqAction("Git", "install")
 		}, []string{"git"}},
 		{"InstallIDE", func(b *serviceBase) error { return (&DevSetupService{*b}).InstallIDE("zed") },
 			[]string{"zed.dev"}},
@@ -77,8 +77,6 @@ func TestActions_ReachTheirDomainCode(t *testing.T) {
 		}, []string{"flatpak", "org.gnome.Loupe"}},
 		{"RunSystemUpdate", func(b *serviceBase) error { return (&LinuxService{*b}).RunSystemUpdate(false, false) },
 			[]string{"[dry-run] /usr/bin/sudo", "update"}},
-		{"UninstallLinuxToys", func(b *serviceBase) error { return (&LinuxService{*b}).UninstallLinuxToys() },
-			[]string{"linuxtoys"}},
 		{"UninstallMegaSync", func(b *serviceBase) error { return (&LinuxService{*b}).UninstallMegaSync() },
 			[]string{"megasync"}},
 		{"ApplyGlobalGitIdentity", func(b *serviceBase) error {
@@ -161,6 +159,9 @@ func TestRepoFolders_AddListStateRemove(t *testing.T) {
 	b, _ := newTestBase(t)
 	d := &DevToolsService{*b}
 	dir := t.TempDir()
+	if _, err := approvePath(dir, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	for range 2 {
 		if err := d.AddRepoFolder(dir); err != nil {
@@ -256,7 +257,6 @@ func TestGetters_ListTheirCatalogues(t *testing.T) {
 	_ = devSetup.GetIDEInfo("zed")
 	_ = devSetup.GetAndroidStudioInfo()
 	_ = devSetup.GetAntigravityIDEInfo()
-	_ = linux.GetLinuxToysInfo()
 	_ = linux.GetMegaSyncInfo()
 	_ = linux.GetPostinstallProfile()
 	_ = docker.GetContainerRows()

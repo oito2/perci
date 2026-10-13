@@ -62,7 +62,7 @@ func TestInstallOne(t *testing.T) {
 		"claude":   "https://claude.ai/install.sh",
 		"agy":      "https://antigravity.google/cli/install.sh",
 		"opencode": "https://opencode.ai/install",
-		"codex":    "@openai/codex",
+		"codex":    "@openai/codex@0.162.1",
 	} {
 		t.Run(cmd, func(t *testing.T) {
 			home, _ := isolate(t)
@@ -76,6 +76,9 @@ func TestInstallOne(t *testing.T) {
 			}
 			if strings.Contains(out, "pkexec") {
 				t.Errorf("no password prompt expected:\n%s", out)
+			}
+			if cmd != "codex" && !strings.Contains(out, "--connect-timeout 10 --max-time 600") {
+				t.Errorf("curl without time limits:\n%s", out)
 			}
 			rc, _ := os.ReadFile(filepath.Join(home, ".bashrc"))
 			hasPath := strings.Contains(string(rc), ".local/bin")
@@ -248,7 +251,7 @@ func TestUninstallOne_OpenCodeLeftovers(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".opencode")); !os.IsNotExist(err) {
 		t.Errorf("~/.opencode should be removed once empty (err=%v)", err)
 	}
-	for path, want := range map[string]string{bashrc: "alias a=b\n\n", fish: "set -x A 1\n\n"} {
+	for path, want := range map[string]string{bashrc: "alias a=b\n", fish: "set -x A 1\n"} {
 		b, _ := os.ReadFile(path)
 		if string(b) != want {
 			t.Errorf("%s = %q, want %q", path, b, want)

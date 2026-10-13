@@ -30,8 +30,8 @@ import (
 const pkgName = "megasync"
 
 // rpmKeyRemoveScript deletes the key installFromDNF imported with `rpm
-// --import`, found by its name rather than a fingerprint. It lists and
-// deletes keys with rpmkeys; finding none is not an error.
+// --import` from the rpm database, found by its name. It lists and deletes
+// keys with rpmkeys; finding none is not an error.
 const rpmKeyRemoveScript = `rpmkeys --list | awk '/MegaLimited/ {print $1}' | while read -r fp; do rpmkeys --delete "$fp"; done`
 
 // Uninstall removes MegaSync via the distro's native package manager, then
@@ -48,13 +48,13 @@ func uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, fa
 	switch family {
 	case distro.Debian:
 		steps = []executor.PrivilegedStep{
-			{Name: "apt-get", Args: []string{"purge", "-y", "--", pkgName}},
+			{Env: distro.AptEnv, Name: "apt-get", Args: distro.AptArgs("purge", "-y", "--", pkgName)},
 			{Announce: "Removendo o repositório da MEGA...", Name: "rm", Args: []string{"-f", "--", aptSourceList, aptKeyring}},
 		}
 	case distro.Fedora:
 		steps = []executor.PrivilegedStep{
 			{Name: "dnf", Args: []string{"remove", "-y", "--", pkgName}},
-			{Announce: "Removendo o repositório da MEGA...", Name: "rm", Args: []string{"-f", "--", dnfRepoFile}},
+			{Announce: "Removendo o repositório da MEGA...", Name: "rm", Args: []string{"-f", "--", dnfRepoFile, rpmKeyFile}},
 			{
 				Announce: "Removendo a chave de assinatura da MEGA...",
 				Name:     "sh", Args: []string{"-c", rpmKeyRemoveScript},

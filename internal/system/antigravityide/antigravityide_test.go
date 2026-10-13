@@ -312,3 +312,75 @@ func TestVerifySandboxPerms(t *testing.T) {
 		t.Error("missing file accepted")
 	}
 }
+
+// The old install is restored when the final rename fails, and the stale
+// backup never disappears before the new tree is in place.
+func TestInstallScript_RestoresPreviousWhenSwapFails(t *testing.T) {
+	if _, err := exec.LookPath("sha256sum"); err != nil {
+		t.Skip("sha256sum not available")
+	}
+	root := t.TempDir()
+	installDir := filepath.Join(root, "antigravity")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(installDir, "previous")
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := makeAppTree(t, "sandbox-v3")
+	sum, err := fileSHA256(filepath.Join(src, "chrome-sandbox"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	realMv, err := exec.LookPath("mv")
+	if err != nil {
+		t.Skip("mv not available")
+	}
+	fakeBin := t.TempDir()
+	for name, body := range map[string]string{
+		"chown": "exit 0",
+		// Fails the rename of the staging dir into place; any other mv is real.
+		"mv": `[ "$2" = "${2%.new}" ] || exit 1; exec ` + realMv + ` "$@"`,
+	} {
+		if err := os.WriteFile(filepath.Join(fakeBin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.Command("sh", "-c", installScript, "sh", installDir, src, sum, sandboxPermWant)
+	cmd.Env = append(os.Environ(), "PATH="+fakeBin+":"+os.Getenv("PATH"))
+	if out, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("the failed swap must fail the script:\n%s", out)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("the previous install must be restored: %v", err)
+	}
+	for _, leftover := range []string{installDir + ".new", installDir + ".old"} {
+		if _, err := os.Stat(leftover); !os.IsNotExist(err) {
+			t.Errorf("%s should not remain", leftover)
+		}
+	}
+}
+
+// A backup left by an earlier interrupted run survives until a new install
+// is complete, even when the new tree is refused.
+func TestInstallScript_KeepsStaleBackupOnRefusal(t *testing.T) {
+	if _, err := exec.LookPath("sha256sum"); err != nil {
+		t.Skip("sha256sum not available")
+	}
+	installDir := filepath.Join(t.TempDir(), "antigravity")
+	if err := os.MkdirAll(installDir+".old", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := makeAppTree(t, "genuine")
+	sum, _ := fileSHA256(filepath.Join(src, "chrome-sandbox"))
+	if err := os.WriteFile(filepath.Join(src, "chrome-sandbox"), []byte("swapped"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := runInstallScript(t, installDir, src, sum); err == nil {
+		t.Fatal("tampered chrome-sandbox should be refused")
+	}
+	if _, err := os.Stat(installDir + ".old"); err != nil {
+		t.Errorf("the backup must be kept: %v", err)
+	}
+}

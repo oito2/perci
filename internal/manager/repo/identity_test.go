@@ -16,6 +16,7 @@
 package repo
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -174,5 +175,57 @@ func TestResolveCredHelper(t *testing.T) {
 	}
 	if got := resolveCredHelper(context.Background(), &executor.Executor{}); got != "libsecret" {
 		t.Errorf("on PATH: got %q, want libsecret", got)
+	}
+}
+
+// A credential.helper that is already configured is never replaced.
+func TestConfigureGlobal_KeepsAnExistingCredentialHelper(t *testing.T) {
+	gitHome(t)
+	if out, err := exec.Command("git", "config", "--global", "credential.helper", "manager").CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	var out bytes.Buffer
+	if err := ConfigureGlobal(context.Background(), &executor.Executor{}, &out, "Dev", "dev@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if got := gitConfig(t, "", "--global", "--get-all", "credential.helper"); got != "manager" {
+		t.Errorf("credential.helper = %q, want the user's manager kept alone", got)
+	}
+	if !strings.Contains(out.String(), "já configurado") {
+		t.Errorf("no notice:\n%s", out.String())
+	}
+}
+
+// A helper configured globally (or system-wide) also counts for a local
+// repository: none is added on top of it.
+func TestApplyLocalIdentityAt_KeepsTheGlobalCredentialHelper(t *testing.T) {
+	gitHome(t)
+	if out, err := exec.Command("git", "config", "--global", "credential.helper", "manager").CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if err := ApplyLocalIdentityAt(context.Background(), &executor.Executor{}, io.Discard, "Dev", "dev@example.com", dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := gitConfig(t, dir, "--local", "credential.helper"); got != "" {
+		t.Errorf("local credential.helper = %q, want none", got)
+	}
+}
+
+// Falling back to the memory-only cache helper is announced.
+func TestConfigureGlobal_WarnsWhenOnlyCacheIsAvailable(t *testing.T) {
+	gitHome(t)
+	var out bytes.Buffer
+	if err := ConfigureGlobal(context.Background(), &executor.Executor{}, &out, "Dev", "dev@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if got := gitConfig(t, "", "--global", "credential.helper"); got != "cache" {
+		t.Errorf("credential.helper = %q", got)
+	}
+	if !strings.Contains(out.String(), "cache") || !strings.Contains(out.String(), "Libsecret Tools") {
+		t.Errorf("no warning about the cache fallback:\n%s", out.String())
 	}
 }

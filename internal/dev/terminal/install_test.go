@@ -130,10 +130,10 @@ func TestInstallUninstall_Commands(t *testing.T) {
 		name, family, action, want string
 	}{
 		{"Alacritty", distro.Fedora, "install", "dnf install -y -- alacritty"},
-		{"Alacritty", distro.Fedora, "uninstall", "dnf remove -y -- alacritty"},
-		{"Alacritty", distro.Debian, "uninstall", "apt-get purge -y -- alacritty"},
+		{"Alacritty", distro.Fedora, "uninstall", "dnf remove -y --no-autoremove -- alacritty"},
+		{"Alacritty", distro.Debian, "uninstall", "purge -y -- alacritty"},
 		{"GNOME Console", distro.Debian, "install", "'gnome-console'"},
-		{"GNOME Console", distro.Fedora, "uninstall", "dnf remove -y -- gnome-console"},
+		{"GNOME Console", distro.Fedora, "uninstall", "dnf remove -y --no-autoremove -- gnome-console"},
 		{"Black Box", distro.Debian, "install", "flatpak [install --noninteractive"},
 		{"Black Box", distro.Debian, "uninstall", "flatpak [uninstall --noninteractive"},
 	} {
@@ -208,5 +208,27 @@ func TestApply_DryRunSkipsContextMenuSync(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".local", "share")); !os.IsNotExist(err) {
 		t.Error("DryRun created context-menu files")
+	}
+}
+
+// Kitty's installer must not open Kitty when it ends, its curl is bounded,
+// and ~/.local/bin ends up on PATH.
+func TestInstallKitty_DoesNotLaunchAndIsBounded(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/bash")
+	fakeBin(t, map[string]string{"curl": `echo "$*" >> "$HOME/curl.log"
+printf 'printf "%%s" "$1" > "$HOME/installer-arg"\nmkdir -p "$HOME/.local/kitty.app/bin"\n'`})
+	if err := InstallOne(context.Background(), &executor.Executor{}, io.Discard, findTerminal(t, "Kitty"), distro.Debian); err != nil {
+		t.Fatal(err)
+	}
+	if arg, _ := os.ReadFile(filepath.Join(home, "installer-arg")); string(arg) != "launch=n" {
+		t.Errorf("installer argument = %q, want launch=n", arg)
+	}
+	if log, _ := os.ReadFile(filepath.Join(home, "curl.log")); !strings.Contains(string(log), "--connect-timeout 10 --max-time 600") {
+		t.Errorf("curl without time limits: %q", log)
+	}
+	if rc, _ := os.ReadFile(filepath.Join(home, ".bashrc")); !strings.Contains(string(rc), ".local/bin") {
+		t.Errorf("~/.local/bin not added to PATH: %q", rc)
 	}
 }

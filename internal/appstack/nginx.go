@@ -18,12 +18,15 @@ package appstack
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/executor"
@@ -35,6 +38,14 @@ import (
 // adding a new Container Aplicativo only requires rewriting default.conf
 // and reloading it.
 const appHTMLMount = "/var/www/localhost/html"
+
+// nginxConfTarget and nginxCertsTarget are where the generated
+// default.conf and the certificate directory are mounted in an Nginx
+// container.
+const (
+	nginxConfTarget  = "/etc/nginx/conf.d/default.conf"
+	nginxCertsTarget = "/etc/nginx/certs"
+)
 
 // NetworkName is the Docker network every appstack container joins.
 const NetworkName = "docker-php-network"
@@ -126,10 +137,34 @@ func isMkcertInstalled(ctx context.Context, exe *executor.Executor) bool {
 	return exe.CommandAvailable(ctx, "mkcert")
 }
 
+// certRenewWindow is how long before its expiry the wildcard certificate is
+// regenerated.
+const certRenewWindow = 30 * 24 * time.Hour
+
+// certNeedsRenewal reports whether the PEM certificate at certFile expires
+// within certRenewWindow of now. A file that cannot be read or parsed counts
+// as needing renewal.
+func certNeedsRenewal(certFile string, now time.Time) bool {
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		return true
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return true
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return true
+	}
+	return now.Add(certRenewWindow).After(cert.NotAfter)
+}
+
 // EnsureWildcardCert makes sure a *.localhost wildcard certificate pair
-// exists at CertsDir(), generating one via mkcert if missing, and returns
-// its (cert, key) paths. Idempotent: an existing pair is reused as-is, so
-// recreating the Nginx container never mints a new certificate.
+// exists at CertsDir(), generating one via mkcert if missing or expiring
+// within 30 days, and returns its (cert, key) paths. An existing pair that
+// is not about to expire is reused as-is, so recreating the Nginx container
+// does not mint a new certificate every time.
 func EnsureWildcardCert(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer) (certFile, keyFile string, err error) {
 	if !isMkcertInstalled(ctx, exe) {
 		return "", "", fmt.Errorf("mkcert não está instalado — instale em \"Dev Stuff :: Pré-requisitos\" antes de criar o Contêiner Nginx")
@@ -149,7 +184,10 @@ func EnsureWildcardCert(ctx context.Context, exe *executor.Executor, stdin io.Re
 
 	if _, statErr := os.Stat(certFile); statErr == nil {
 		if _, statErr := os.Stat(keyFile); statErr == nil {
-			return certFile, keyFile, nil
+			if !certNeedsRenewal(certFile, time.Now()) {
+				return certFile, keyFile, nil
+			}
+			ui.Info(stdout, "O certificado *.localhost expira em menos de 30 dias — gerando um novo...")
 		}
 	}
 
@@ -511,8 +549,9 @@ func nginxContainerRunning(ctx context.Context, exe *executor.Executor) bool {
 // container is running, tests and reloads it without downtime — rolling
 // the file back if the new config doesn't pass `nginx -t`. Called
 // automatically after every Container Aplicativo create/edit/remove. If
-// Nginx hasn't been created yet, the file is still written to disk so it's
-// picked up whenever it is.
+// Nginx isn't running, the new config is first tested by a throwaway
+// container of the same image and written only when it passes, so a broken
+// file cannot sit on disk until the next start.
 //
 // This function only ever overwrites default.conf's content in place
 // (os.WriteFile truncates the existing inode, it doesn't replace it), so
@@ -524,15 +563,21 @@ func ReloadNginxConfig(ctx context.Context, exe *executor.Executor, stdout io.Wr
 	}
 	path = filepath.Join(path, "default.conf")
 
+	if !nginxContainerRunning(ctx, exe) {
+		if err := validateNginxConfStandalone(ctx, exe, BuildNginxConf(apps)); err != nil {
+			return err
+		}
+		if _, err := writeNginxConf(apps); err != nil {
+			return err
+		}
+		ui.Info(stdout, "nginx/default.conf atualizado em disco. Crie ou inicie o Contêiner Nginx para aplicar.")
+		return nil
+	}
+
 	oldContent, readErr := os.ReadFile(path) // readErr != nil is fine if it doesn't exist yet
 
 	if _, err := writeNginxConf(apps); err != nil {
 		return err
-	}
-
-	if !nginxContainerRunning(ctx, exe) {
-		ui.Info(stdout, "nginx/default.conf atualizado em disco. Crie ou inicie o Contêiner Nginx para aplicar.")
-		return nil
 	}
 
 	var out bytes.Buffer
@@ -557,24 +602,76 @@ func ReloadNginxConfig(ctx context.Context, exe *executor.Executor, stdout io.Wr
 	return nil
 }
 
+// validateNginxConfStandalone runs `nginx -t` on content in a throwaway
+// container of NginxImage with the wildcard certificate mounted, for when
+// no Nginx container is running to test it. It tests nothing (and returns
+// nil) when there is nothing to test with: no certificate pair yet, or no
+// local copy of the image.
+func validateNginxConfStandalone(ctx context.Context, exe *executor.Executor, content string) error {
+	if !WildcardCertReady() {
+		return nil
+	}
+	if _, err := exe.Output(ctx, executor.Options{}, "docker", "image", "inspect", "--", NginxImage); err != nil {
+		return nil
+	}
+	certsDir, err := CertsDir()
+	if err != nil {
+		return err
+	}
+	confDir, err := NginxConfDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		return fmt.Errorf("criar %s: %w", confDir, err)
+	}
+	tmp, err := os.CreateTemp(confDir, ".candidate-*.conf")
+	if err != nil {
+		return fmt.Errorf("criar arquivo temporário de teste: %w", err)
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("escrever %s: %w", tmp.Name(), err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("escrever %s: %w", tmp.Name(), err)
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	if err := mountableError(tmp.Name(), certsDir); err != nil {
+		return err
+	}
+
+	args := []string{"run", "--rm", "--network", "none", "--entrypoint", "nginx"}
+	args = append(args, bindMount(tmp.Name(), nginxConfTarget, true)...)
+	args = append(args, bindMount(certsDir, nginxCertsTarget, true)...)
+	args = append(args, "--", NginxImage, "-t")
+	var out bytes.Buffer
+	if err := exe.Run(ctx, executor.Options{Stdout: &out, Stderr: &out}, "docker", args...); err != nil {
+		return fmt.Errorf("configuração nginx inválida (nada foi gravado): %s", out.String())
+	}
+	return nil
+}
+
 // nginxRunArgs builds the "docker run" argument list for the Nginx
 // container, given the already-resolved paths for its config, certs, html
 // tree and logs. Unit-testable without a Docker daemon.
 func nginxRunArgs(confPath, certsDir, htmlDir, logDir string) []string {
-	return []string{
+	args := []string{
 		"run", "-d",
 		"--name", NginxContainerName,
 		"--network", NetworkName,
 		"--restart", "unless-stopped",
 		"-p", "127.0.0.1:80:80",
 		"-p", "127.0.0.1:443:443",
-		"-v", confPath + ":/etc/nginx/conf.d/default.conf",
-		"-v", certsDir + ":/etc/nginx/certs:ro",
-		"-v", htmlDir + ":" + appHTMLMount + ":ro",
-		"-v", logDir + ":/var/log/nginx",
-		"--",
-		NginxImage,
 	}
+	args = append(args, bindMount(confPath, nginxConfTarget, false)...)
+	args = append(args, bindMount(certsDir, nginxCertsTarget, true)...)
+	args = append(args, bindMount(htmlDir, appHTMLMount, true)...)
+	args = append(args, bindMount(logDir, "/var/log/nginx", false)...)
+	return append(args, "--", NginxImage)
 }
 
 // CreateNginx creates the appstack's Nginx container: ensures NetworkName,
@@ -583,6 +680,12 @@ func nginxRunArgs(confPath, certsDir, htmlDir, logDir string) []string {
 // exists yet; the caller checks NginxExists and calls RemoveNginx first
 // when recreating. Returns the wildcard certificate's path.
 func CreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer) (certFile string, err error) {
+	return createNginx(ctx, exe, stdin, stdout, true)
+}
+
+// createNginx is CreateNginx; lock tells whether it takes stackMu around the
+// default.conf write (false when the caller already holds it).
+func createNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer, lock bool) (certFile string, err error) {
 	if !isDockerInstalled(ctx, exe) {
 		return "", fmt.Errorf("docker não instalado")
 	}
@@ -606,7 +709,7 @@ func CreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, s
 		return "", err
 	}
 
-	confPath, err := writeNginxConf(cfg.Docker.Apps)
+	confPath, err := writeNginxConfFromConfig(lock)
 	if err != nil {
 		return "", err
 	}
@@ -619,6 +722,9 @@ func CreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, s
 	logDir := filepath.Join(workspace, "localhost", "logs", "nginx")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return "", fmt.Errorf("criar diretório de logs: %w", err)
+	}
+	if err := mountableError(confPath, filepath.Dir(certFile), htmlDir, logDir); err != nil {
+		return "", err
 	}
 
 	ui.Info(stdout, "Criando contêiner nginx...")
@@ -637,23 +743,52 @@ func CreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, s
 	return certFile, nil
 }
 
+// writeNginxConfFromConfig writes default.conf from the apps in the current
+// config.yaml and returns its path, holding stackMu while it reads the list
+// and writes the file when lock is true, so no concurrent app change can
+// have its routing overwritten by a stale list.
+func writeNginxConfFromConfig(lock bool) (string, error) {
+	if lock {
+		stackMu.Lock()
+		defer stackMu.Unlock()
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return "", fmt.Errorf("carregar config: %w", err)
+	}
+	return writeNginxConf(cfg.Docker.Apps)
+}
+
 // RecreateNginx is CreateNginx's "Recriar" flavor: removes the existing
 // container first if there is one, with no form and no confirmation of its
 // own. Nginx has no user-editable parameters, so Recriar is its only
 // mutating action beyond Start/Stop/Restart/Remover.
 func RecreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer) (certFile string, err error) {
+	return recreateNginx(ctx, exe, stdin, stdout, true)
+}
+
+// recreateNginx is RecreateNginx; lock is passed on to createNginx.
+func recreateNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer, lock bool) (certFile string, err error) {
+	// The certificate is ensured (and renewed when close to expiring)
+	// before the running container is removed, so a mkcert failure leaves
+	// Nginx running.
+	if _, _, err := EnsureWildcardCert(ctx, exe, stdin, stdout); err != nil {
+		return "", err
+	}
 	if NginxExists(ctx, exe) {
 		if err := RemoveNginx(ctx, exe, stdout); err != nil {
 			return "", err
 		}
 	}
-	return CreateNginx(ctx, exe, stdin, stdout)
+	return createNginx(ctx, exe, stdin, stdout, lock)
 }
 
 // DeleteNginx removes the nginx container (if any) and clears
 // cfg.Docker.NginxCreated. The caller is responsible for confirming with
 // the user first.
 func DeleteNginx(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
+	stackMu.Lock()
+	defer stackMu.Unlock()
 	if NginxExists(ctx, exe) {
 		if err := RemoveNginx(ctx, exe, stdout); err != nil {
 			return err

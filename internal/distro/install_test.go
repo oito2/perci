@@ -20,7 +20,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -82,7 +84,7 @@ func TestInstallPkgs(t *testing.T) {
 		if n := strings.Count(out, "pkexec"); n != 1 {
 			t.Errorf("pkexec called %d times, want 1:\n%s", n, out)
 		}
-		for _, want := range []string{"'apt-get' 'update'", "'install' '-y' '--' 'git' 'curl'"} {
+		for _, want := range []string{"'DEBIAN_FRONTEND=noninteractive' 'apt-get'", "'Dpkg::Options::=--force-confold' 'update'", "'install' '-y' '--' 'git' 'curl'"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("missing %q:\n%s", want, out)
 			}
@@ -141,7 +143,7 @@ func TestInstallFromSignedRepo(t *testing.T) {
 			s := script(t, out)
 			want := []string{"'https://example.com/key.asc'", "'x-pkg'"}
 			if family == Debian {
-				want = append(want, "if [ ! -s '/usr/share/keyrings/x.gpg' ]", "gpg --batch --yes --dearmor", "'/etc/apt/sources.list.d/x.list'")
+				want = append(want, "wget -qO- --https-only", "export DEBIAN_FRONTEND=noninteractive", "if [ ! -s '/usr/share/keyrings/x.gpg' ]", "gpg --batch --yes --dearmor", "'/etc/apt/sources.list.d/x.list'")
 			} else {
 				want = append(want, "rpm --import", "[ -s '/etc/yum.repos.d/x.repo' ]")
 			}
@@ -175,5 +177,129 @@ func TestInstallFromSignedRepo_Rejects(t *testing.T) {
 	err := InstallFromSignedRepo(context.Background(), dryRun(&bytes.Buffer{}), io.Discard, Unknown, testRepo)
 	if !errors.Is(err, ErrUnsupportedFamily) {
 		t.Errorf("unknown family: err = %v", err)
+	}
+}
+
+// fakeBin writes an executable shell stub named name into dir.
+func fakeBin(t *testing.T, dir, name, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// runDebianScript runs the Debian signed-repo script with stubbed network and
+// apt tools and a temp sources directory; it returns the recorded apt-get
+// invocations and the paths used.
+func runDebianScript(t *testing.T, existingSource string) (aptLog, listPath string, err error) {
+	t.Helper()
+	return runDebianScriptWith(t, "vscode.sources", existingSource)
+}
+
+// runDebianScriptWith is runDebianScript with the existing source written
+// to sources.list.d/<name>.
+func runDebianScriptWith(t *testing.T, name, existingSource string) (aptLog, listPath string, err error) {
+	t.Helper()
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	srcDir := filepath.Join(root, "sources.list.d")
+	for _, d := range []string{bin, srcDir} {
+		if e := os.MkdirAll(d, 0o755); e != nil {
+			t.Fatal(e)
+		}
+	}
+	logFile := filepath.Join(root, "apt.log")
+	fakeBin(t, bin, "wget", `printf key; printf '%s\n' "$*" >> `+logFile+`.wget`)
+	fakeBin(t, bin, "gpg", `cat >/dev/null; printf x > "$5"`)
+	fakeBin(t, bin, "install", `cp "$5" "$6"`)
+	fakeBin(t, bin, "apt-get", `printf '%s|%s\n' "$DEBIAN_FRONTEND" "$*" >> `+logFile)
+	if existingSource != "" {
+		if e := os.WriteFile(filepath.Join(srcDir, name), []byte(existingSource), 0o644); e != nil {
+			t.Fatal(e)
+		}
+	}
+	r := testRepo
+	r.KeyringPath = filepath.Join(root, "x.gpg")
+	listPath = filepath.Join(srcDir, "x.list")
+	r.AptListPath = listPath
+	cmd := exec.Command("bash", "-c", debianSignedRepoScript(r, srcDir))
+	cmd.Env = []string{"PATH=" + bin + ":/usr/bin:/bin"}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("script output: %s", out)
+	}
+	b, _ := os.ReadFile(logFile)
+	return string(b), listPath, err
+}
+
+func TestDebianSignedRepoScript_WritesSourceWhenAbsent(t *testing.T) {
+	log, list, err := runDebianScript(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, e := os.Stat(list); e != nil {
+		t.Errorf("source file not written: %v", e)
+	}
+	for _, want := range []string{"noninteractive|", "Dpkg::Options::=--force-confold", "install -y -- x-pkg"} {
+		if !strings.Contains(log, want) {
+			t.Errorf("apt-get log missing %q:\n%s", want, log)
+		}
+	}
+}
+
+// Any existing source that already references the repo URL — whatever its
+// file name or format — keeps the script from writing a second source.
+func TestDebianSignedRepoScript_SkipsWhenAnySourceReferencesRepo(t *testing.T) {
+	existing := "Types: deb\nURIs: https://example.com/apt\nSuites: stable\nSigned-By: /usr/share/keyrings/other.gpg\n"
+	log, list, err := runDebianScript(t, existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, e := os.Stat(list); !os.IsNotExist(e) {
+		t.Errorf("a second source must not be written, stat err = %v", e)
+	}
+	if !strings.Contains(log, "install -y -- x-pkg") {
+		t.Errorf("package must still be installed:\n%s", log)
+	}
+}
+
+// Sources apt ignores — backup files, commented lines, disabled deb822
+// stanzas — don't count as configured: the source is written.
+func TestDebianSignedRepoScript_IgnoresInactiveSources(t *testing.T) {
+	for _, c := range []struct{ name, content string }{
+		{"vscode.list.save", "deb [arch=amd64] https://example.com/apt stable main\n"},
+		{"vscode.list", "# deb [arch=amd64] https://example.com/apt stable main # disabled on upgrade\n"},
+		{"vscode.sources", "Types: deb\nURIs: https://example.com/apt\nSuites: stable\nEnabled: no\n"},
+	} {
+		_, list, err := runDebianScriptWith(t, c.name, c.content)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if _, e := os.Stat(list); e != nil {
+			t.Errorf("%s: the source must be written, stat err = %v", c.name, e)
+		}
+	}
+}
+
+// A missing keyring is created even when an active source already exists.
+func TestDebianSignedRepoScript_KeyringIndependentOfSource(t *testing.T) {
+	existing := "Types: deb\nURIs: https://example.com/apt\nSuites: stable\n"
+	_, list, err := runDebianScript(t, existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyring := filepath.Join(filepath.Dir(filepath.Dir(list)), "x.gpg")
+	if _, e := os.Stat(keyring); e != nil {
+		t.Errorf("keyring not created: %v", e)
+	}
+	if _, e := os.Stat(list); !os.IsNotExist(e) {
+		t.Errorf("a second source must not be written, stat err = %v", e)
+	}
+}
+
+func TestParseOSRelease_SingleQuotes(t *testing.T) {
+	fam, id, ver := parseOSRelease("ID='ubuntu'\nVERSION_ID='24.04'\n")
+	if fam != Debian || id != "ubuntu" || ver != "24.04" {
+		t.Errorf("got %q %q %q", fam, id, ver)
 	}
 }

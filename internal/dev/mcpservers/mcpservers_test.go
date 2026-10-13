@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -47,17 +48,20 @@ func TestValidateParam(t *testing.T) {
 // No agent accepting the registration fails the action; any success wins.
 func TestAgentResults(t *testing.T) {
 	allFail := &agentResults{stdout: io.Discard}
-	allFail.done("Claude Code", "", errors.New("not found"))
-	allFail.done("Antigravity", "", errors.New("permission denied"))
+	allFail.done(AgentClaude, "Claude Code", "", errors.New("not found"))
+	allFail.done(AgentAntigravity, "Antigravity", "", errors.New("permission denied"))
 	if err := allFail.err("x"); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Errorf("all failures should fail with the causes, got %v", err)
 	}
 
 	partial := &agentResults{stdout: io.Discard}
-	partial.done("Claude Code", "", errors.New("not found"))
-	partial.done("Antigravity", "ok", nil)
+	partial.done(AgentClaude, "Claude Code", "", errors.New("not found"))
+	partial.done(AgentAntigravity, "Antigravity", "ok", nil)
 	if err := partial.err("x"); err != nil {
 		t.Errorf("a partial success must not fail, got %v", err)
+	}
+	if !slices.Equal(partial.accepted, []string{AgentAntigravity}) {
+		t.Errorf("accepted = %v", partial.accepted)
 	}
 }
 
@@ -72,7 +76,7 @@ func TestAntigravityConfig_SetKeepsOtherEntriesModeAndHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := antigravitySetServer(false, folder, "filesystem", "npx", []string{"-y", "pkg", "/dir"}); err != nil {
+	if err := antigravitySetServer("filesystem", false, folder, "filesystem", "npx", []string{"-y", "pkg", "/dir"}); err != nil {
 		t.Fatalf("antigravitySetServer: %v", err)
 	}
 	data, err := os.ReadFile(path)
@@ -92,7 +96,7 @@ func TestAntigravityConfig_SetKeepsOtherEntriesModeAndHTML(t *testing.T) {
 
 func TestAntigravityConfig_RemoveWithoutFileWritesNothing(t *testing.T) {
 	folder := t.TempDir()
-	if err := antigravityRemoveServer(false, folder, "filesystem"); err != nil {
+	if err := antigravityRemoveServer("filesystem", false, folder, "filesystem"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(folder, ".agents")); !os.IsNotExist(err) {
@@ -107,7 +111,7 @@ func TestAntigravityConfig_RejectsNonObjectServers(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"mcpServers":[1,2]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := antigravitySetServer(false, folder, "sqlite", "uvx", nil); err == nil {
+	if err := antigravitySetServer("sqlite", false, folder, "sqlite", "uvx", nil); err == nil {
 		t.Fatal("a non-object mcpServers must be an error, not silently replaced")
 	}
 	if data, _ := os.ReadFile(path); string(data) != `{"mcpServers":[1,2]}` {

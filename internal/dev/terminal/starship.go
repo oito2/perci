@@ -22,7 +22,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
+	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/shellrc"
 	"github.com/oito2/perci/internal/ui"
@@ -47,11 +50,14 @@ func InstallStarship(ctx context.Context, exe *executor.Executor, stdout io.Writ
 	script := `
 set -Eeuo pipefail
 mkdir -p "$HOME/.local/bin"
-curl -fsSL https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.local/bin"
+curl -fsSL ` + nettimeout.CurlShellFlags + ` https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.local/bin"
 `
-	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", script); err != nil {
+	netCtx, cancel := nettimeout.Context(ctx)
+	defer cancel()
+	if err := exe.Run(netCtx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", script); err != nil {
 		return err
 	}
+	localbin.EnsureInPath(stdout)
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -71,6 +77,17 @@ curl -fsSL https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.loc
 	return nil
 }
 
+// starshipBackupPath is cfg + ".perci-bak", or, when that already exists,
+// the same name with now's date and time appended so an earlier backup is
+// never overwritten.
+func starshipBackupPath(cfg string, now time.Time) string {
+	backup := cfg + ".perci-bak"
+	if _, err := os.Lstat(backup); err == nil {
+		return backup + "-" + now.Format("20060102-150405")
+	}
+	return backup
+}
+
 // UninstallStarship removes the Starship binary and shell init hooks. The
 // config file is renamed to starship.toml.perci-bak, not deleted.
 func UninstallStarship(stdout io.Writer) error {
@@ -82,10 +99,11 @@ func UninstallStarship(stdout io.Writer) error {
 	_ = os.Remove(filepath.Join(home, ".local", "bin", "starship"))
 	cfg := filepath.Join(home, ".config", "starship.toml")
 	if _, statErr := os.Stat(cfg); statErr == nil {
-		if err := os.Rename(cfg, cfg+".perci-bak"); err != nil {
+		backup := starshipBackupPath(cfg, time.Now())
+		if err := os.Rename(cfg, backup); err != nil {
 			ui.Warning(stdout, "Não foi possível renomear "+cfg+": "+err.Error())
 		} else {
-			ui.Info(stdout, "Configuração do Starship preservada em "+cfg+".perci-bak")
+			ui.Info(stdout, "Configuração do Starship preservada em "+backup)
 		}
 	}
 

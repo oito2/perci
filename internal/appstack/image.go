@@ -123,14 +123,34 @@ func ValidPHPVersionForMoodleVersion(moodleVersion, version string) bool {
 // Container Aplicativo on that version.
 func ImageName(version string) string { return "perci-php" + phpTag(version) }
 
-// phpDockerfile is the Dockerfile every perci-php<version> image builds
-// from. Building the image bakes in the invoking user's UID (ARG UID /
-// usermod www-data), so every Container Aplicativo on this version shares
-// one image without a permission mismatch on the bind-mounted html folder.
-const phpDockerfile = `ARG PHP_VERSION=8.1
-FROM php:${PHP_VERSION}-fpm
+// Versions pinned in the PHP images, so a rebuild never picks up whatever is
+// newest upstream: redis (supports PHP 7.4 to 8.4), xdebug (3.1.x is the last
+// line supporting PHP 7.4, 3.4.x supports 8.0 to 8.4) and the composer
+// image, fixed by tag and by the digest of its multi-platform index.
+const (
+	redisVersion        = "6.3.0"
+	xdebugVersion       = "3.4.7"
+	xdebugVersionPHP74  = "3.1.6"
+	composerImage       = "2.10.3@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac"
+	downloadCurlOptions = "--connect-timeout 10 --max-time 600"
+)
+
+// phpDockerfileBody is the Dockerfile every perci-php<version> image builds
+// from, without the leading PHP_VERSION build-arg declaration, so the combo
+// Dockerfile can declare its arguments ahead of an extra first stage.
+// Building the image bakes in the invoking user's UID (ARG UID / usermod
+// www-data), so every Container Aplicativo on this version shares one image
+// without a permission mismatch on the bind-mounted html folder. Images
+// based on Debian bullseye (PHP 7.4 and 8.0), which is out of support, take
+// their packages from archive.debian.org.
+const phpDockerfileBody = `FROM php:${PHP_VERSION}-fpm
 
 ARG UID=1000
+
+RUN . /etc/os-release; if [ "$VERSION_CODENAME" = bullseye ]; then \
+      sed -i -e 's#deb.debian.org/debian-security#archive.debian.org/debian-security#' \
+             -e 's#deb.debian.org/debian#archive.debian.org/debian#' /etc/apt/sources.list; \
+    fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -143,17 +163,18 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 RUN docker-php-ext-install \
     pdo_mysql mysqli intl zip gd soap mbstring exif xml opcache
 
-RUN if pecl install redis; then docker-php-ext-enable redis; else echo "WARN: redis extension not installed" >&2; fi
-RUN if pecl install xdebug; then docker-php-ext-enable xdebug; else echo "WARN: xdebug extension not installed" >&2; fi
+RUN if pecl install redis-` + redisVersion + `; then docker-php-ext-enable redis; else echo "WARN: redis extension not installed" >&2; fi
+RUN case "$PHP_VERSION" in 7.4.*) XDEBUG=` + xdebugVersionPHP74 + `;; *) XDEBUG=` + xdebugVersion + `;; esac; \
+    if pecl install "xdebug-${XDEBUG}"; then docker-php-ext-enable xdebug; else echo "WARN: xdebug extension not installed" >&2; fi
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=composer:` + composerImage + ` /usr/bin/composer /usr/bin/composer
 
 RUN set -e; \
     cd /tmp; \
     PHPCS_VERSION=3.13.5; \
-    curl -fsSL "https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/download/${PHPCS_VERSION}/phpcs.phar" -o phpcs.phar; \
+    curl ` + downloadCurlOptions + ` -fsSL "https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/download/${PHPCS_VERSION}/phpcs.phar" -o phpcs.phar; \
     echo "9ff3ddf1fcc6c9347a57bed63da10edfc6610e4339c6bee149e92537609c7939  phpcs.phar" | sha256sum -c -; \
-    curl -fsSL "https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/download/${PHPCS_VERSION}/phpcbf.phar" -o phpcbf.phar; \
+    curl ` + downloadCurlOptions + ` -fsSL "https://github.com/PHPCSStandards/PHP_CodeSniffer/releases/download/${PHPCS_VERSION}/phpcbf.phar" -o phpcbf.phar; \
     echo "a5b097357e78615a5509d569fda709c8751f30d4c1bf2a073b6e2df9884f349b  phpcbf.phar" | sha256sum -c -; \
     mv phpcs.phar /usr/local/bin/phpcs; \
     mv phpcbf.phar /usr/local/bin/phpcbf; \
@@ -165,7 +186,7 @@ RUN set -e; \
     if [ "$MINOR" -ge 4 ]; then VER=12.5.30; HASH=2f6d24d19d1238d6b5332f85a12a1aa021c79cc9e704fbe25fca93181752cfe1; \
     elif [ "$MINOR" -ge 2 ]; then VER=11.5.39; HASH=63601d96eca81db5ab675657f4a0b4056ff7b4acfe0d5767a1d74f50b626456d; \
     else VER=10.5.55; HASH=3a29d4dd24dad475b3c761758854bd3d7ecdd85645097ff0589d98b408b7f4ba; fi; \
-    curl -fsSL "https://phar.phpunit.de/phpunit-${VER}.phar" -o phpunit.phar; \
+    curl ` + downloadCurlOptions + ` -fsSL "https://phar.phpunit.de/phpunit-${VER}.phar" -o phpunit.phar; \
     echo "${HASH}  phpunit.phar" | sha256sum -c -; \
     mv phpunit.phar /usr/local/bin/phpunit; \
     chmod +x /usr/local/bin/phpunit
@@ -224,14 +245,17 @@ xdebug.start_with_request = yes
 xdebug.log = /var/log/php/xdebug.log
 `
 
-// phpImageDockerfile is phpDockerfile plus one extra COPY that bakes
-// phpIni into the image at build time. phpIni is written into the build
-// context as a sibling file; see EnsureImage.
-const phpImageDockerfile = phpDockerfile + "\nCOPY php.ini /usr/local/etc/php/php.ini\n"
+// phpImageBody is phpDockerfileBody plus one extra COPY that bakes phpIni
+// into the image at build time. phpIni is written into the build context as
+// a sibling file; see EnsureImage.
+const phpImageBody = phpDockerfileBody + "\nCOPY php.ini /usr/local/etc/php/php.ini\n"
 
-// EnsureImage builds ImageName(version), using phpDockerfile plus phpIni
-// baked in (see phpImageDockerfile), when it's missing or was built from
-// different content (see ensureImage). The build bakes in the invoking
+// phpImageDockerfile is the complete Dockerfile of a perci-php<version>
+// image.
+const phpImageDockerfile = "ARG PHP_VERSION=8.1\n" + phpImageBody
+
+// EnsureImage builds ImageName(version) from phpImageDockerfile, with phpIni
+// baked in, when it's missing or was built from different content (see ensureImage). The build bakes in the invoking
 // user's UID, so every Container Aplicativo on this version shares one
 // image without a permission mismatch on the bind-mounted html folder.
 func EnsureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, version string) error {

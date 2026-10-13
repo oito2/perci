@@ -57,16 +57,40 @@ func writeNodeAppWrappers(folder, appDir, user string, stdout io.Writer) {
 	writeWrappers(folder, nodeAppTools, appDir, "/app", user, stdout)
 }
 
+// wrapperMarker is the second line of every wrapper perci writes: only a
+// file carrying it (or the layout older versions wrote) is ever replaced or
+// removed.
+const wrapperMarker = "# perci-wrapper"
+
+// legacyWrapperPrefix is how wrappers written before wrapperMarker existed
+// begin.
+const legacyWrapperPrefix = "#!/usr/bin/env bash\nCONTAINER="
+
+// isPerciWrapper reports whether the file at path is a wrapper perci wrote.
+func isPerciWrapper(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	return strings.Contains(content, "\n"+wrapperMarker+"\n") ||
+		(strings.HasPrefix(content, legacyWrapperPrefix) && strings.Contains(content, "docker exec"))
+}
+
 // removeAppWrappers deletes every wrapper writeAppWrappers/
 // writeNodeAppWrappers may have created for folder, so no <tool>-<folder>
-// is left pointing at a missing container.
+// is left pointing at a missing container. A file at one of those paths
+// that is not a perci wrapper is left alone.
 func removeAppWrappers(folder string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
 	}
 	for _, tool := range append(append([]string{}, appTools...), nodeAppTools...) {
-		_ = os.Remove(filepath.Join(home, ".local", "bin", tool+"-"+folder))
+		path := filepath.Join(home, ".local", "bin", tool+"-"+folder)
+		if isPerciWrapper(path) {
+			_ = os.Remove(path)
+		}
 	}
 }
 
@@ -88,6 +112,11 @@ func writeWrappers(folder string, tools []string, hostDir, containerDir, user st
 	for _, tool := range tools {
 		name := tool + "-" + folder
 		path := filepath.Join(localBin, name)
+		// A file that is not a perci wrapper is never overwritten.
+		if _, err := os.Lstat(path); err == nil && !isPerciWrapper(path) {
+			ui.Warning(stdout, "O arquivo "+path+" já existe e não é um wrapper do Perci — mantido, o wrapper "+name+" não foi criado.")
+			continue
+		}
 		// Each wrapper is removed first so a symlink at path is replaced, not followed.
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			ui.Warning(stdout, "Falha ao substituir wrapper "+name+": "+err.Error())
@@ -116,6 +145,7 @@ func buildAppWrapperScript(container, tool, hostDir, containerDir, user string) 
 		execAs = "(-u " + appWrapperSingleQuote(user) + " -e HOME=/tmp)"
 	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
+`+wrapperMarker+`
 CONTAINER=%s
 WS_HOST=%s
 WS_CONT=%s
@@ -123,7 +153,7 @@ EXEC_AS=%s
 ARGS=()
 for arg in "$@"; do
     if [[ "$arg" == "${WS_HOST}/"* ]] || [[ "$arg" == "${WS_HOST}" ]]; then
-        ARGS+=("${WS_CONT}${arg#${WS_HOST}}")
+        ARGS+=("${WS_CONT}${arg#"${WS_HOST}"}")
     else
         ARGS+=("$arg")
     fi

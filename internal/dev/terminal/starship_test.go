@@ -16,12 +16,14 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/oito2/perci/internal/executor"
 )
@@ -78,7 +80,7 @@ func TestUninstallStarship(t *testing.T) {
 		t.Errorf("backup content = %q", got)
 	}
 	for path, want := range map[string]string{
-		bashrc: "alias ll='ls -l'\n\n",
+		bashrc: "alias ll='ls -l'\n",
 		zshrc:  "export A=1\n",
 		fish:   "set -x B 2\n",
 	} {
@@ -167,5 +169,57 @@ func TestInstallStarship_DownloadFailureFails(t *testing.T) {
 	fakeBin(t, map[string]string{"curl": "exit 6"})
 	if err := InstallStarship(context.Background(), &executor.Executor{}, io.Discard, ""); err == nil {
 		t.Error("expected an error")
+	}
+}
+
+// Uninstalling keeps an earlier backup: the new one gets a dated name.
+func TestUninstallStarship_NeverOverwritesAnEarlierBackup(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := filepath.Join(home, ".config", "starship.toml")
+	writeFile(t, cfg, "current\n")
+	writeFile(t, cfg+".perci-bak", "older\n")
+
+	if err := UninstallStarship(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, cfg+".perci-bak"); got != "older\n" {
+		t.Errorf("the earlier backup was overwritten: %q", got)
+	}
+	dated, _ := filepath.Glob(cfg + ".perci-bak-*")
+	if len(dated) != 1 || readFile(t, dated[0]) != "current\n" {
+		t.Errorf("dated backups = %v", dated)
+	}
+}
+
+func TestStarshipBackupPath(t *testing.T) {
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "starship.toml")
+	now := time.Date(2026, 10, 13, 9, 8, 7, 0, time.UTC)
+	if got := starshipBackupPath(cfg, now); got != cfg+".perci-bak" {
+		t.Errorf("no earlier backup: %q", got)
+	}
+	writeFile(t, cfg+".perci-bak", "x")
+	if got := starshipBackupPath(cfg, now); got != cfg+".perci-bak-20261013-090807" {
+		t.Errorf("earlier backup present: %q", got)
+	}
+}
+
+// The Starship installer is downloaded with bounded curl timeouts and
+// ~/.local/bin ends up on PATH.
+func TestInstallStarship_BoundedAndOnPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/bash")
+	var buf bytes.Buffer
+	exe := &executor.Executor{DryRun: true, Stdout: &buf, Stderr: &buf}
+	if err := InstallStarship(context.Background(), exe, &buf, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "--connect-timeout 10 --max-time 600") {
+		t.Errorf("curl without time limits:\n%s", buf.String())
+	}
+	if rc := readFile(t, filepath.Join(home, ".bashrc")); !strings.Contains(rc, ".local/bin") {
+		t.Errorf("~/.local/bin not added to PATH: %q", rc)
 	}
 }

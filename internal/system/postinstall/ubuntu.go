@@ -15,6 +15,8 @@
 
 package postinstall
 
+import "slices"
+
 var ubuntuPackages = []string{
 	"ubuntu-restricted-extras",
 	"ffmpeg",
@@ -68,3 +70,39 @@ func ubuntuActions() []Action {
 
 var ubuntu2404Profile = Profile{ID: "ubuntu-2404", Label: "Ubuntu 24.04", Actions: ubuntuActions()}
 var ubuntu2604Profile = Profile{ID: "ubuntu-2604", Label: "Ubuntu 26.04", Actions: ubuntuActions()}
+
+// ubuntuBudgiePackages is ubuntuPackages without the GNOME-only entries:
+// gnome-tweaks, and gnome-software-plugin-flatpak, which would install
+// GNOME Software alongside Ubuntu Budgie's own software store.
+var ubuntuBudgiePackages = slices.DeleteFunc(slices.Clone(ubuntuPackages), func(pkg string) bool {
+	return pkg == "gnome-tweaks" || pkg == "gnome-software-plugin-flatpak"
+})
+
+// ubuntuBudgieActions is the checklist for Ubuntu Budgie: ubuntuActions
+// with ubuntuBudgiePackages, and flatpakApps as the Flathub apps of the
+// Flatpak step.
+func ubuntuBudgieActions(flatpakApps []string, flatpakDescription string) []Action {
+	return []Action{
+		actEnableUbuntuComponents(),
+		actUpdateIndex("enable-repos"),
+		actAptUpgrade("update-index"),
+		actAptInstall("install-essentials", "Instalar pacotes essenciais e codecs",
+			"Codecs restritos (ubuntu-restricted-extras), ferramentas de compilação, Timeshift e utilitários de linha de comando comuns.",
+			"update-index", true, ubuntuBudgiePackages...),
+		actSysctl(),
+		actSwap(),
+		actTRIM(),
+		actAptVAAPIIntel("enable-repos"),
+		actAptVAAPIAMD("enable-repos"),
+		actFlatpakApps("Configurar Flatpak", flatpakDescription, flatpakApps...),
+		actUbuntuDrivers("enable-repos"),
+	}
+}
+
+var ubuntuBudgie2404Profile = Profile{ID: "ubuntu-budgie-2404", Label: "Ubuntu Budgie 24.04",
+	Actions: ubuntuBudgieActions(flatpakEssentialApps, flatpakSetupDescription)}
+
+// Ubuntu Budgie 26.04 ships VLC as a distro package, so the Flatpak step
+// installs only the web-app manager.
+var ubuntuBudgie2604Profile = Profile{ID: "ubuntu-budgie-2604", Label: "Ubuntu Budgie 26.04",
+	Actions: ubuntuBudgieActions(flatpakWebAppsOnly, flatpakWebAppsDescription)}

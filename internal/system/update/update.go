@@ -17,6 +17,7 @@ package update
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -71,7 +72,7 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 	if hasSnap {
 		steps = append(steps, executor.PrivilegedStep{
 			Announce: "Atualizando Snaps...",
-			Soft:     true, WarnMessage: "Falha ao atualizar snaps.",
+			Soft:     true, SoftReport: true, WarnMessage: "Falha ao atualizar snaps.",
 			Name: "snap", Args: []string{"refresh"},
 		})
 	} else {
@@ -83,7 +84,7 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 	if opts.CleanJournal && hasJournal {
 		steps = append(steps, executor.PrivilegedStep{
 			Announce: "Limpando logs antigos do journal...",
-			Soft:     true, WarnMessage: "Falha ao limpar journal.",
+			Soft:     true, SoftReport: true, WarnMessage: "Falha ao limpar journal.",
 			Name: "journalctl", Args: []string{"--vacuum-time=7d"},
 		})
 	}
@@ -100,49 +101,62 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts Opt
 
 	nextStep("Atualizando pacotes do sistema...")
 	ui.Info(stdout, "Solicitando autenticação de administrador (uma única vez para as etapas acima)...")
+	warned := false
 	if err := exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps); err != nil {
-		ui.Err(stdout, "Falha ao atualizar pacotes: "+err.Error())
-		return err
+		if !errors.Is(err, executor.ErrCompletedWithWarnings) {
+			ui.Err(stdout, "Falha ao atualizar pacotes: "+err.Error())
+			return err
+		}
+		warned = true
 	}
 
 	if hasFlatpak {
 		nextStep("Atualizando Flatpaks do usuário...")
 		if err := updateUserFlatpak(ctx, exe, stdout, opts.Autoremove); err != nil {
 			ui.Warning(stdout, "Falha ao atualizar flatpaks do usuário: "+err.Error())
+			warned = true
 		}
 	} else {
 		ui.Info(stdout, "Flatpak não instalado. Etapa ignorada.")
 	}
 
+	return finish(stdout, warned)
+}
+
+// finish reports the end of the update: success, or — when a Soft step of
+// the batch or the user's Flatpak update failed — a completion with warnings.
+func finish(stdout io.Writer, warned bool) error {
+	if warned {
+		ui.Warning(stdout, "Atualização concluída com avisos: uma ou mais etapas falharam.")
+		return executor.ErrCompletedWithWarnings
+	}
 	ui.Success(stdout, "Atualização finalizada com sucesso.")
 	return nil
 }
-
-// aptEnv is the extra environment apt-get needs to never block on a TTY
-// prompt (ex. a config-file conflict dialog) mid-batch.
-var aptEnv = []string{"DEBIAN_FRONTEND=noninteractive"}
 
 // packageSteps returns family's package-manager commands as
 // executor.RunSudoSequence steps. Announce carries each step's narration;
 // full-upgrade alone covers the upgrade.
 func packageSteps(family string, autoremove bool) ([]executor.PrivilegedStep, error) {
-	aptOpts := []string{"-o", "APT::Color=0", "-o", "Dpkg::Progress-Fancy=0", "-o", "Dpkg::Use-Pty=0"}
 	switch family {
 	case distro.Debian:
+		aptStep := func(announce string, args ...string) executor.PrivilegedStep {
+			return executor.PrivilegedStep{Announce: announce, Env: distro.AptEnv, Name: "apt-get", Args: distro.AptArgs(args...)}
+		}
 		steps := []executor.PrivilegedStep{
-			{Announce: "Sincronizando lista de pacotes...", Env: aptEnv, Name: "apt-get", Args: append([]string{"update"}, aptOpts...)},
-			{Announce: "Instalando atualizações...", Env: aptEnv, Name: "apt-get", Args: append([]string{"full-upgrade", "-y"}, aptOpts...)},
+			aptStep("Sincronizando lista de pacotes...", "update"),
+			aptStep("Instalando atualizações...", "full-upgrade", "-y"),
 		}
 		if autoremove {
-			steps = append(steps, executor.PrivilegedStep{Announce: "Removendo pacotes desnecessários...", Env: aptEnv, Name: "apt-get", Args: append([]string{"autoremove", "-y"}, aptOpts...)})
+			steps = append(steps, aptStep("Removendo pacotes desnecessários...", "autoremove", "-y"))
 		}
-		return append(steps, executor.PrivilegedStep{Announce: "Limpando cache APT...", Env: aptEnv, Name: "apt-get", Args: []string{"autoclean", "-y"}}), nil
+		return append(steps, aptStep("Limpando cache APT...", "autoclean", "-y")), nil
 	case distro.Fedora:
 		steps := []executor.PrivilegedStep{
 			{Announce: "Atualizando pacotes DNF...", Name: "dnf", Args: []string{"upgrade", "--refresh", "-y"}},
 		}
 		if autoremove {
-			steps = append(steps, executor.PrivilegedStep{Announce: "Removendo pacotes desnecessários...", Soft: true, WarnMessage: "Falha no dnf autoremove.", Name: "dnf", Args: []string{"autoremove", "-y"}})
+			steps = append(steps, executor.PrivilegedStep{Announce: "Removendo pacotes desnecessários...", Soft: true, SoftReport: true, WarnMessage: "Falha no dnf autoremove.", Name: "dnf", Args: []string{"autoremove", "-y"}})
 		}
 		return steps, nil
 	default:
@@ -156,17 +170,18 @@ var flatpakEnv = []string{"TERM=dumb"}
 // systemFlatpakSteps updates the system Flatpak installation and, with
 // autoremove, removes its unused runtimes. The steps run as root inside the
 // privileged batch, so Flatpak never asks for authorization on its own.
-// Both are Soft: a Flatpak failure does not abort the system update.
+// Both are Soft: a Flatpak failure does not abort the system update, but is
+// reported as a completion with warnings.
 func systemFlatpakSteps(autoremove bool) []executor.PrivilegedStep {
 	steps := []executor.PrivilegedStep{{
 		Announce: "Atualizando Flatpaks do sistema...",
-		Soft:     true, WarnMessage: "Falha ao atualizar flatpaks do sistema.",
+		Soft:     true, SoftReport: true, WarnMessage: "Falha ao atualizar flatpaks do sistema.",
 		Env: flatpakEnv, Name: "flatpak", Args: []string{"update", "--system", "--noninteractive", "-y"},
 	}}
 	if autoremove {
 		steps = append(steps, executor.PrivilegedStep{
 			Announce: "Removendo runtimes Flatpak do sistema sem uso...",
-			Soft:     true, WarnMessage: "Falha ao remover flatpaks do sistema não utilizados.",
+			Soft:     true, SoftReport: true, WarnMessage: "Falha ao remover flatpaks do sistema não utilizados.",
 			Env: flatpakEnv, Name: "flatpak", Args: []string{"uninstall", "--system", "--unused", "--noninteractive", "-y"},
 		})
 	}
@@ -184,7 +199,7 @@ func updateUserFlatpak(ctx context.Context, exe *executor.Executor, stdout io.Wr
 		return nil
 	}
 	if err := exe.Run(ctx, opts, "flatpak", "uninstall", "--user", "--unused", "--noninteractive", "-y"); err != nil {
-		ui.Warning(stdout, "Falha ao remover flatpaks do usuário não utilizados: "+err.Error())
+		return fmt.Errorf("flatpak uninstall --unused: %w", err)
 	}
 	return nil
 }

@@ -27,7 +27,7 @@ perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](ht
 
 ## 🏗️ Arquitetura (para contribuintes)
 
-- [Gerenciamento de Sistema](./architecture/system-management.md) — `internal/system/*` (pós-instalação, fontes, templates, update, apps, linuxtoys, megasync).
+- [Gerenciamento de Sistema](./architecture/system-management.md) — `internal/system/*` (pós-instalação, fontes, templates, update, apps, megasync).
 - [Ambiente de Desenvolvimento](./architecture/dev-environment.md) — `internal/dev/*` (SDKs, IDEs, CLIs de LLM/MCP, terminais).
 - [Stack Docker de Aplicativos](./architecture/appstack.md) — `internal/appstack` (ciclo de vida de containers Nginx/PHP/Node/MariaDB por projeto, roteamento Moodle).
 - [Backend do Dev Tools](./architecture/managers.md) — `internal/manager/*` (contexto IA, skills IA, banco de dados, repositório, gitignore).

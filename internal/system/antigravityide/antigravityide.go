@@ -140,7 +140,7 @@ func doInstallOrUpdate(ctx context.Context, exe *executor.Executor, stdout io.Wr
 		ui.Warning(stdout, err.Error())
 	}
 
-	if iconPath, err := extractIcon(ctx, exe, stdout, userOpts, workdir); err != nil {
+	if iconPath, err := extractIcon(workdir); err != nil {
 		ui.Warning(stdout, "Não foi possível extrair o ícone do app — o app funcionará, mas sem ícone customizado: "+err.Error())
 	} else {
 		installIcon(stdout, home, iconPath)
@@ -161,17 +161,23 @@ func doInstallOrUpdate(ctx context.Context, exe *executor.Executor, stdout io.Wr
 // installScript is doInstallOrUpdate's privileged batch. $1 = installDir,
 // $2 = extracted app dir (user-owned), $3 = expected chrome-sandbox SHA-256,
 // $4 = chrome-sandbox mode. Positional parameters keep every value out of
-// the script text.
+// the script text. The previous install is kept as $1.old until the new one
+// is in place and is moved back when the final rename fails.
 const installScript = `set -e
 new="$1.new"; old="$1.old"
-rm -rf -- "$new" "$old"
+rm -rf -- "$new"
 cp -a --no-preserve=ownership -- "$2" "$new"
 chown -R root:root -- "$new"
 chmod -R u-s,g-s -- "$new"
 printf '%s  %s\n' "$3" "$new/chrome-sandbox" | sha256sum -c --status - || { rm -rf -- "$new"; echo "chrome-sandbox foi alterado após a verificação" >&2; exit 1; }
 chmod "$4" -- "$new/chrome-sandbox"
-if [ -e "$1" ]; then mv -- "$1" "$old"; fi
-mv -- "$new" "$1"
+if [ -e "$1" ]; then rm -rf -- "$old"; mv -- "$1" "$old"; fi
+if ! mv -- "$new" "$1"; then
+  rm -rf -- "$new"
+  if [ -e "$old" ]; then mv -- "$old" "$1"; fi
+  echo "Falha ao colocar a nova versão no lugar; a instalação anterior foi restaurada." >&2
+  exit 1
+fi
 rm -rf -- "$old"`
 
 // fileSHA256 returns the hex SHA-256 of the regular file at path.
@@ -278,25 +284,16 @@ func verifySandboxPerms(ctx context.Context, exe *executor.Executor, sandbox str
 	return nil
 }
 
-// extractIcon extracts the app's icon from its Electron app.asar via `npx
-// @electron/asar`, pinned to 3.4.1 so the version never floats. Best-effort:
-// npx unavailable (no Node.js/nvm) is a warning, not a failure.
-func extractIcon(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts executor.Options, workdir string) (string, error) {
-	dest := filepath.Join(workdir, iconExtractedRel)
-	script := `
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
-command -v npx >/dev/null 2>&1 || exit 3
-cd "$1" || exit 1
-rm -f "$2"
-npx --yes @electron/asar@3.4.1 extract-file "$3/resources/app.asar" "$2" 2>/dev/null || true
-[ -f "$2" ]
-`
-	if err := exe.Run(ctx, opts, "bash", "-c", script, "--", workdir, iconExtractedRel, installDir); err != nil {
-		return "", fmt.Errorf("npx indisponível ou extração falhou")
+// extractIcon copies icon.png out of the installed app's Electron
+// app.asar into workdir and returns its path.
+func extractIcon(workdir string) (string, error) {
+	data, err := readAsarFile(filepath.Join(installDir, "resources", "app.asar"), iconExtractedRel)
+	if err != nil {
+		return "", err
 	}
-	if _, err := os.Stat(dest); err != nil {
-		return "", fmt.Errorf("app.asar não continha /icon.png")
+	dest := filepath.Join(workdir, iconExtractedRel)
+	if err := os.WriteFile(dest, data, 0o600); err != nil {
+		return "", err
 	}
 	return dest, nil
 }

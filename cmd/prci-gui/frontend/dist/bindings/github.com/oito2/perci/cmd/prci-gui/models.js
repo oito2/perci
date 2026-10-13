@@ -7,7 +7,9 @@
 import { Create as $Create } from "/wails/runtime.js";
 
 /**
- * AgentSkillRow is one row of "Dev Tools :: IA: SKILLs".
+ * AgentSkillRow is one row of "Dev Tools :: IA: SKILLs". Agents lists, by
+ * name, the agents that accepted the skill (empty for a record written
+ * before they were recorded); Partial is set when some agent is missing.
  */
 export class AgentSkillRow {
     /**
@@ -36,6 +38,20 @@ export class AgentSkillRow {
              */
             this["installed"] = false;
         }
+        if (!("partial" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["partial"] = false;
+        }
+        if (!("agents" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["agents"] = [];
+        }
 
         Object.assign(this, $$source);
     }
@@ -46,7 +62,11 @@ export class AgentSkillRow {
      * @returns {AgentSkillRow}
      */
     static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("agents" in $$parsedSource) {
+            $$parsedSource["agents"] = $$createField4_0($$parsedSource["agents"]);
+        }
         return new AgentSkillRow(/** @type {Partial<AgentSkillRow>} */($$parsedSource));
     }
 }
@@ -396,7 +416,10 @@ export class GitIdentity {
 
 /**
  * ImportPreview is the pre-import summary shown in the confirmation modal
- * (workspace, Nginx, MariaDB, app count) — nothing is applied yet.
+ * (workspace, Nginx, MariaDB, app count, and every command the apps will
+ * run) — nothing is applied yet. Commands holds one "<pasta>: <comando>"
+ * entry per start command and "<pasta> (worker): <comando>" per worker
+ * command in the file.
  */
 export class ImportPreview {
     /**
@@ -432,6 +455,13 @@ export class ImportPreview {
              */
             this["appsCount"] = 0;
         }
+        if (!("commands" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["commands"] = [];
+        }
 
         Object.assign(this, $$source);
     }
@@ -442,13 +472,20 @@ export class ImportPreview {
      * @returns {ImportPreview}
      */
     static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("commands" in $$parsedSource) {
+            $$parsedSource["commands"] = $$createField4_0($$parsedSource["commands"]);
+        }
         return new ImportPreview(/** @type {Partial<ImportPreview>} */($$parsedSource));
     }
 }
 
 /**
- * MCPServerRow is one row of "Dev Tools :: IA: MCPs".
+ * MCPServerRow is one row of "Dev Tools :: IA: MCPs". Agents lists, by
+ * name, the agents that accepted the registration (empty for a record
+ * written before they were recorded); Partial is set when some agent that
+ * applies to the scope is missing.
  */
 export class MCPServerRow {
     /**
@@ -476,6 +513,20 @@ export class MCPServerRow {
              * @type {boolean}
              */
             this["installed"] = false;
+        }
+        if (!("partial" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["partial"] = false;
+        }
+        if (!("agents" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["agents"] = [];
         }
         if (!("param" in $$source)) {
             /**
@@ -532,8 +583,87 @@ export class MCPServerRow {
      * @returns {MCPServerRow}
      */
     static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("agents" in $$parsedSource) {
+            $$parsedSource["agents"] = $$createField4_0($$parsedSource["agents"]);
+        }
         return new MCPServerRow(/** @type {Partial<MCPServerRow>} */($$parsedSource));
+    }
+}
+
+/**
+ * ManagedItemInfo is one row of a table screen whose items each have their
+ * own Instalar/Atualizar/Desinstalar buttons.
+ */
+export class ManagedItemInfo {
+    /**
+     * Creates a new ManagedItemInfo instance.
+     * @param {Partial<ManagedItemInfo>} [$$source = {}] - The source object to create the ManagedItemInfo.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * the item's Name
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("installed" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["installed"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Missing lists the requirements not installed yet — while it isn't
+             * empty the item can't be installed.
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["missing"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * RemoveWarning is shown in the uninstall confirmation.
+             * @member
+             * @type {string | undefined}
+             */
+            this["removeWarning"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ManagedItemInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ManagedItemInfo}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("missing" in $$parsedSource) {
+            $$parsedSource["missing"] = $$createField4_0($$parsedSource["missing"]);
+        }
+        return new ManagedItemInfo(/** @type {Partial<ManagedItemInfo>} */($$parsedSource));
     }
 }
 
@@ -970,9 +1100,9 @@ export class MultiSelectItemInfo {
 }
 
 /**
- * PostinstallActionInfo is one checklist item, without the unexported
- * Run func (internal/system/postinstall.Action isn't JSON-safe as-is —
- * Run is a func value).
+ * PostinstallActionInfo is one item of "Linux :: Pós-instalação", without
+ * the Run and Applied funcs of internal/system/postinstall.Action (func
+ * values aren't JSON-safe).
  */
 export class PostinstallActionInfo {
     /**
@@ -1025,7 +1155,7 @@ export class PostinstallActionInfo {
 
 /**
  * PostinstallProfileInfo is what the frontend needs to render "Linux ::
- * Pós-instalação" — either Supported (with the checklist) or not (shows
+ * Pós-instalação" — either Supported (with the item list) or not (shows
  * "Seu Sistema Operacional não é suportado pelo Perci").
  */
 export class PostinstallProfileInfo {
@@ -1281,8 +1411,8 @@ export class SelfUpdateInfo {
 
 /**
  * SingleAppInfo is what the frontend needs for the "app único
- * install/desinstalar" screen pattern (e.g. Linux :: Aplicativos - Linux
- * Toys/MegaSync) — two buttons instead of a checklist: "Instalar" (always
+ * install/desinstalar" screen pattern (e.g. Linux :: Aplicativos -
+ * MegaSync) — two buttons instead of a checklist: "Instalar" (always
  * enabled) and "Desinstalar" (enabled only when Installed is true).
  */
 export class SingleAppInfo {

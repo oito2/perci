@@ -39,7 +39,7 @@ sudo dnf install -y gtk4 webkitgtk6.0
 ## Automatic Installer (Recommended)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
 ```
 
 `install.sh`:
@@ -47,7 +47,7 @@ curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/oito2/pe
 1. Detects your CPU architecture — only `amd64` is supported; the script exits with a clear error on `arm64` (see "Supported Architectures" below).
 2. Fetches the latest GitHub release tag via the GitHub API (HTTPS only), refusing a tag that doesn't look like `vX.Y.Z`.
 3. Downloads the `prci-linux-amd64` asset and the release's `checksums.txt`.
-4. Verifies the downloaded binary's SHA-256 against `checksums.txt`, aborting on any mismatch.
+4. Verifies the downloaded binary's SHA-256 against `checksums.txt`, aborting on any mismatch. Every download goes over HTTPS only (redirects included), with connection and total timeouts, and only from `github.com` or `*.githubusercontent.com`. When the GitHub CLI (`gh`) is installed **and** logged in, the build provenance attestation of the binary is verified too and a failed check aborts the install; without a logged-in `gh` that check is skipped with a notice.
 5. Installs it to `/usr/local/bin/prci`. When that directory isn't user-writable, `sudo` copies the binary into a root-owned staging file, re-verifies the checksum on that copy and only then moves it into place as `root:root` 0755 — the file downloaded to `/tmp` is never trusted after the password prompt.
 6. Links `perci` as a symlink alias to `prci` — both commands work interchangeably.
 7. Adds an application menu entry (`/usr/share/applications/perci.desktop` + the icon set in `/usr/share/icons/hicolor/<size>/apps/perci.png`, sizes 512, 256, 128, 64, 48 and 32), so Perci shows up in your desktop's app launcher — not just via `prci`/`perci` in a terminal. The files come from the release's `perci-menu.tar.gz`, verified against `checksums.txt` like the binary (and re-verified by root before extracting). It always installs the blue icon; choosing another color in **Home → Configurações → Ícone do Aplicativo** reinstalls the set (asking for the admin password once). A leftover `/usr/share/pixmaps/perci.png` from older installs is removed. This step is best-effort: if it fails (e.g. no network, or a release older than this change that has no `perci-menu.tar.gz`), the install still succeeds, just without a menu entry.
@@ -101,7 +101,7 @@ Or, using the provided `Makefile`:
 ```bash
 make build              # builds ./prci with VERSION=dev
 make build VERSION=v1.0.0
-make install            # builds, then installs to /usr/local/bin with the perci alias
+make install            # builds, then installs to /usr/local/bin with the perci alias; the icon sizes come from the packaging tree
 ```
 
 ## Release Artifacts
@@ -112,9 +112,9 @@ Each GitHub release publishes exactly three files, produced by `make release` an
 |---|---|
 | `prci-linux-amd64` | The GUI binary itself — no installer package (`.deb`, `.rpm`, AppImage, Flatpak) is produced. |
 | `perci-menu.tar.gz` | The application menu entry `install.sh` installs: `share/applications/perci.desktop` + `share/icons/hicolor/*/apps/perci.png` (blue), extracted into `/usr`. Built reproducibly. |
-| `checksums.txt` | SHA-256 of both files above, checked by `install.sh` and (for the binary) by **Home → Atualizar Perci**. |
+| `checksums.txt` | SHA-256 of both files above, checked by `install.sh` and (for the binary) by **Home → Atualizar Perci**. A release without `checksums.txt` is listed, but the update is refused. |
 
-All three carry a signed build provenance attestation (`gh attestation verify <file> --repo oito2/perci`). The workflow builds and tests with a read-only token; only the separate publish job can write to the release.
+All three carry a signed build provenance attestation (`gh attestation verify <file> --repo oito2/perci`). The release workflow runs the CI workflow (lint, tests, ShellCheck on `install.sh`) first, then builds with a read-only token; only the separate publish job can write to the release.
 
 To build them locally:
 
@@ -133,9 +133,11 @@ perci.gnl's post-installation and desktop-environment-aware features are scoped 
 | Distribution | Desktop Environment |
 |---|---|
 | Linux Mint 22.3 | Cinnamon, XFCE |
-| Ubuntu 26.04 | GNOME (default) |
-| Fedora 44 | GNOME (default) |
+| Ubuntu 24.04, 26.04 | GNOME (default) |
+| Ubuntu Budgie 24.04, 26.04 | Budgie |
+| Fedora 44 | GNOME (default), KDE Plasma, Budgie |
 | Zorin OS 18.1 | Core (GNOME), Lite (XFCE) |
+| Pop!_OS 24.04 | COSMIC |
 
 Arch-family distros are not supported — `internal/distro` only detects the Debian and Fedora families.
 

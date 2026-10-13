@@ -41,6 +41,10 @@ docker:
 | `workspace_path` | string | Home → Configurações | Pasta raiz dos projetos. Aceita `~`. Pela GUI, só é definido pelo seletor de pastas (o "Criar Workspace" recusa um caminho que não foi escolhido nele). Vazio significa ainda não escolhido: a tela Configurações avisa, o **Importar configurações** adota o workspace do arquivo exportado, e tudo o que precisa de uma pasta usa `~/workspace`. |
 | `flatpak_scope` | string | Home → Configurações | `system` ou `user` — determina a flag `--system`/`--user` passada pra toda invocação `flatpak`. |
 | `docker` | objeto | Docker → Criar Container / Gerenciar Containers | A definição inteira da stack Docker de aplicativos — veja abaixo. Omitido do arquivo por completo enquanto vazio. |
+| `postinstall_applied` | mapa de listas | Linux → Pós-instalação | Por ID de perfil de pós-instalação (ex.: `ubuntu-2404`), os IDs dos itens sem estado detectável no sistema (`update-index`, `upgrade-system`, `detect-drivers`, `cleanup`) que terminaram com sucesso — eles aparecem como "Aplicado". Os demais itens são detectados no próprio sistema. Apague um ID para liberar o item de novo. |
+| `postinstall_machine_id` | string | Linux → Pós-instalação | O `/etc/machine-id` em que o `postinstall_applied` foi registrado. Registros feitos sob outro ID de máquina (por exemplo, depois de reinstalar o SO mantendo o `$HOME`) ou antes de esta chave existir não contam, então os itens voltam a ser oferecidos e o arquivo é regravado com o ID atual. Gravado junto com o `postinstall_applied`; não edite à mão. |
+| `agent_skills` | lista | Dev Tools → IA: SKILLs | Um registro por (`slug` da skill, `global`, `folder`) instalada. `agents` lista, por nome, os agentes que aceitaram a skill (vazio em registros de versões antigas); a tela mostra **parcial: …** quando algum falta. |
+| `mcp_servers` | lista | Dev Tools → IA: MCPs | Um registro por (`slug` do servidor, `global`, `folder`) registrado, mais o `param` (pasta ou caminho de arquivo) que alguns servidores precisam, mantido para que uma atualização registre de novo com o mesmo valor. `agents` lista os agentes que aceitaram o registro, como em `agent_skills`. |
 
 A distribuição e o ambiente de desktop são sempre detectados (`/etc/os-release`, `XDG_CURRENT_DESKTOP`); as chaves `distro`/`de` que versões anteriores documentavam nunca eram lidas e são ignoradas.
 
@@ -65,7 +69,7 @@ Veja a [arquitetura da stack Docker de aplicativos](../architecture/appstack.md)
 | `folder` | string | Nome da pasta = nome do container = hostname na `docker-php-network` (identificador técnico). Validado por `appstack.ValidAppFolder`. |
 | `type` | string | `moodle` \| `php` \| `generic` (comportamento idêntico a `php`, só rótulo de catálogo diferente) \| `node` \| `php_node`. |
 | `url` | string | `<pasta>.localhost`. Validado por `appstack.ValidAppURL`. |
-| `php_version` | string | `7.4`–`8.4`. Usado por todo tipo exceto `node` puro; no Moodle, restrito à faixa que `moodle_version` permite. |
+| `php_version` | string | `7.4`–`8.4` (as imagens do PHP 7.4 e 8.0 são baseadas no Debian bullseye, que está fora de suporte: seus pacotes vêm do `archive.debian.org` e elas não recebem mais atualizações de segurança). Usado por todo tipo exceto `node` puro; no Moodle, restrito à faixa que `moodle_version` permite. |
 | `moodle_version` | string | Só `moodle`, omitido nos demais tipos. `3.x` (PHP 7.4) \| `4.1` (PHP 7.4–8.1) \| `4.2-4.3` (PHP 8.0–8.2) \| `4.4-4.5` (PHP 8.1–8.3) \| `5.0` (PHP 8.2–8.4) \| `5.1+` (PHP 8.3–8.4, cobre 5.1–5.3). `4.x` (PHP 7.4–8.1) continua aceito para contêineres salvos com ele, mas não é mais oferecido. Escolhe a receita de roteamento Nginx (`appstack.moodleRoutingFor`) — as faixas de PHP se sobrepõem e as receitas diferem, por isso é campo próprio em vez de derivado de `php_version`. Vazio/ausente é tratado como `5.1+`. |
 | `db_access` | bool | Se as env vars `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASS`/`DB_NAME` (de `docker.mariadb.*`) são injetadas no container. Todo app é alcançável na `docker-php-network` independentemente disso — isso só controla se as credenciais são injetadas. |
 | `node_version` | string | Só `node`/`php_node`. `22`, `24` ou `26`. Validado por `appstack.ValidNodeVersion`. |
@@ -78,10 +82,11 @@ Veja a [arquitetura da stack Docker de aplicativos](../architecture/appstack.md)
 
 | Caminho | Propósito |
 |---|---|
-| `~/.perci/appstack/certs/` | Certificado TLS wildcard `*.localhost` gerado pelo mkcert, criado uma vez por "Criar Container Nginx". |
+| `~/.perci/appstack/certs/` | Certificado TLS wildcard `*.localhost` gerado pelo mkcert, criado por "Criar Container Nginx" e regenerado quando faltam menos de 30 dias para vencer. |
 | `~/.perci/appstack/nginx/default.conf` | Config gerada do Nginx, um bloco `server{}` por app em `docker.apps`; regenerada e recarregada automaticamente a cada criação/edição/remoção. |
 | `~/.perci/appstack/php-conf/<pasta>/zz-perci-overrides.ini` | Snippet de php.ini gerado por app (hoje só `memory_limit`), bind-montado somente leitura no próprio container do app em `/usr/local/etc/php/conf.d/`; regenerado a cada criação/edição. |
 | `{{workspace_path}}/localhost/html\|data\|logs\|databases/*` | Pastas bind-montadas por app — veja [arquitetura da stack Docker de aplicativos](../architecture/appstack.md#convenções-de-caminho). |
-| `<projeto-alvo>/AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.instructions/*.md` | Gerados pela tela **Dev Tools → IA: Contextos** da GUI dentro de um projeto alvo — não é config do próprio perci. |
+| `<projeto-alvo>/AGENTS.md`, `CLAUDE.md`, `.aiexclude`, `.claude/settings.json`, `.instructions/*.md` | Gerados pela tela **Dev Tools → IA: Contextos** da GUI dentro de um projeto alvo — não é config do próprio perci. |
 | `<projeto-alvo>/.agents/skills/<slug>/`, `~/.agents/skills/<slug>/` | Escrito pela ferramenta `npx skills` (só na GUI, "Dev Tools :: IA: SKILLs") pra OpenCode/Antigravity/Codex — Claude Code usa `.claude/skills/`/`~/.claude/skills/` em vez disso; não é config do próprio perci. |
 | `<projeto-alvo>/.agents/mcp_config.json`, `~/.gemini/config/mcp_config.json` | Registro de servidores MCP do Antigravity, editado diretamente (só na GUI, "Dev Tools :: IA: MCPs", `internal/dev/mcpservers` — Claude Code/Codex usam seu próprio `mcp add`/config em vez disso). |
+| `<arquivo gerado>.perci-bak` | Cópia da versão anterior de um arquivo gerado de projeto (contexto de IA, `.claude/settings.json`, código de conduta, wrapper do Flutter, entradas de menu de contexto; não os arquivos de configuração de MCP, que podem conter tokens) mantida quando o Perci o sobrescreve com conteúdo diferente. Pode ser apagada. |

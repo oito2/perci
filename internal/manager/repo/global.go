@@ -24,27 +24,24 @@ import (
 	"github.com/oito2/perci/internal/executor"
 )
 
-// ConfigureGlobal sets global git user.name, user.email and
-// credential.helper — same checks as ApplyLocalIdentityAt: both values
+// ConfigureGlobal sets global git user.name, user.email and, when none is
+// configured yet, credential.helper — same checks as ApplyLocalIdentityAt: both values
 // required, and "--" before each key so a value starting with "-" is never
 // read as an option. git's own output goes to stdout (the GUI's terminal).
 func ConfigureGlobal(ctx context.Context, exe *executor.Executor, stdout io.Writer, name, email string) error {
 	if name == "" || email == "" {
 		return fmt.Errorf("nome e e-mail não podem ser vazios")
 	}
-	cred := resolveCredHelper(ctx, exe)
-
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
 	for _, args := range [][]string{
 		{"config", "--global", "--", "user.name", name},
 		{"config", "--global", "--", "user.email", email},
-		{"config", "--global", "--", "credential.helper", cred},
 	} {
 		if err := exe.Run(ctx, opts, "git", args...); err != nil {
 			return fmt.Errorf("git %v: %w", args, err)
 		}
 	}
-	return nil
+	return setCredentialHelper(ctx, exe, stdout, "--global", "")
 }
 
 // GetGlobalIdentity returns the current configured global user.name and user.email.

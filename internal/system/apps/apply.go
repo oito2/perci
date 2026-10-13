@@ -146,16 +146,22 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 		batchErr = exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, privSteps)
 	}
 
+	return applyResult(failed, batchErr)
+}
+
+// applyResult combines the user-scope failures and the privileged batch's
+// outcome into Apply's error. A batch that only completed with warnings was
+// already reported inline by each failing step, so it is returned as is;
+// any other batch error is wrapped. Both errors survive when both occurred.
+func applyResult(failed []string, batchErr error) error {
+	var failedErr error
 	if len(failed) > 0 {
-		return fmt.Errorf("%d aplicativo(s) com falha: %s", len(failed), strings.Join(failed, ", "))
+		failedErr = fmt.Errorf("%d aplicativo(s) com falha: %s", len(failed), strings.Join(failed, ", "))
 	}
-	if errors.Is(batchErr, executor.ErrCompletedWithWarnings) {
-		return batchErr // some system-scope app failed; each warned inline
+	if batchErr != nil && !errors.Is(batchErr, executor.ErrCompletedWithWarnings) {
+		batchErr = fmt.Errorf("lote de operações privilegiadas falhou: %w", batchErr)
 	}
-	if batchErr != nil {
-		return fmt.Errorf("lote de operações privilegiadas falhou: %w", batchErr)
-	}
-	return nil
+	return errors.Join(failedErr, batchErr)
 }
 
 // installStep/overrideStep/uninstallStep build the RunSudoSequence steps for

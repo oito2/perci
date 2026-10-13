@@ -28,6 +28,28 @@ asSkillsShLink.addEventListener("click", function (ev) {
   Browser.OpenURL("https://www.skills.sh/");
 });
 
+// Skills are written by third parties and run with the agent's permissions:
+// a note after the intro says so.
+(function addThirdPartyNote() {
+  const intro = asSkillsShLink.parentNode;
+  if (!intro || !intro.parentNode) return;
+  const note = document.createElement("p");
+  note.className = "text-sm opacity-80 mb-4";
+  note.textContent = "As SKILLs são conteúdo de terceiros: cada uma é instalada na versão (commit) fixada pelo Perci, mas o conteúdo não é revisado por ele e a SKILL executa com as permissões do agente. Leia o código antes de usar.";
+  intro.parentNode.insertBefore(note, intro.nextSibling);
+})();
+
+// partialBadge is the "parcial: Claude, Codex" tag of a row whose record
+// says some agent did not accept it (the names are the ones that did), or
+// null for any other row.
+function partialBadge(row) {
+  if (!row.partial) return null;
+  const badge = document.createElement("span");
+  badge.className = "badge badge-warning badge-sm ml-2";
+  badge.textContent = "parcial: " + (row.agents || []).join(", ");
+  return badge;
+}
+
 const asTable = createScopedTable({
   els: { select: asScopeSelect, alertTitle: asScopeAlertTitle, alertDesc: asScopeAlertDesc, pickButton: btnAsPickFolder, rows: asRows },
   noun: "das SKILLs",
@@ -35,7 +57,7 @@ const asTable = createScopedTable({
   pickFolder: function () { return App.PickAgentSkillsFolder(); },
   fetchRows: function (global, folder) { return App.GetAgentSkillsRows(global, folder); },
   keyOf: function (row) { return row.slug; },
-  sigOf: function (row) { return row.slug + "|" + row.name + "|" + row.installed; },
+  sigOf: function (row) { return [row.slug, row.name, row.installed, row.partial, (row.agents || []).join(",")].join("|"); },
   buildRow: function (row) { return buildAgentSkillRow(row); },
 });
 
@@ -46,6 +68,8 @@ function buildAgentSkillRow(row) {
 
   const tdName = document.createElement("td");
   tdName.textContent = row.name;
+  const badge = partialBadge(row);
+  if (badge) tdName.appendChild(badge);
   tr.appendChild(tdName);
 
   const tdActions = document.createElement("td");

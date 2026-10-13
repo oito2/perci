@@ -13,21 +13,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package prereqs
+package nettimeout
 
 import (
 	"context"
-	"io"
-
-	"github.com/oito2/perci/internal/checklist"
-	"github.com/oito2/perci/internal/executor"
+	"strings"
+	"testing"
+	"time"
 )
 
-// Apply installs prerequisites listed in toInstall and removes those in
-// toRemove, one ui.Step per processed item (via checklist.Apply).
-func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInstall, toRemove []string) error {
-	return checklist.Apply(stdout, Catalogue, func(p Prereq) string { return p.Name }, toInstall, toRemove,
-		func(p Prereq) error { return InstallOne(ctx, exe, stdout, p) },
-		func(p Prereq) error { return UninstallOne(ctx, exe, stdout, p) },
-	)
+func TestContext_HasADeadline(t *testing.T) {
+	ctx, cancel := Context(context.Background())
+	defer cancel()
+	deadline, ok := ctx.Deadline()
+	if !ok || time.Until(deadline) > Limit || time.Until(deadline) < Limit-time.Minute {
+		t.Errorf("deadline = %v (ok=%v), want about %v ahead", deadline, ok, Limit)
+	}
+}
+
+func TestCurlFlagsMatchTheShellForm(t *testing.T) {
+	if got := strings.Join(CurlFlags, " "); got != CurlShellFlags {
+		t.Errorf("CurlFlags = %q, CurlShellFlags = %q", got, CurlShellFlags)
+	}
 }

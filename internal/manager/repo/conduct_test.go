@@ -112,3 +112,36 @@ func TestCreateConduct_KeepsLegacyFile(t *testing.T) {
 		t.Errorf("legacy file must be left untouched, got %q, %v", data, err)
 	}
 }
+
+// Overwriting keeps the previous version as .perci-bak and writes through
+// a symlink instead of replacing it.
+func TestCreateConduct_BackupAndSymlink(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "CODE_OF_CONDUCT.md"), []byte("my own code\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "docs", "pt-br"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	shared := filepath.Join(t.TempDir(), "shared-pt.md")
+	if err := os.WriteFile(shared, []byte("shared\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "docs", "pt-br", "codigo-de-conduta.md")
+	if err := os.Symlink(shared, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := CreateConduct(io.Discard, dir, "conduta@example.com", true); err != nil {
+		t.Fatal(err)
+	}
+	if bak, err := os.ReadFile(filepath.Join(dir, "CODE_OF_CONDUCT.md.perci-bak")); err != nil || string(bak) != "my own code\n" {
+		t.Errorf("backup = %q, %v", bak, err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("the symlink was replaced (err=%v)", err)
+	}
+	if data, _ := os.ReadFile(shared); !strings.Contains(string(data), "conduta@example.com") {
+		t.Errorf("the link target was not written: %.80q", data)
+	}
+}

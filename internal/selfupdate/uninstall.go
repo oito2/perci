@@ -44,53 +44,69 @@ func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, re
 	}
 
 	ui.Info(stdout, "Removendo binário: "+currentExe)
+
+	// Everything that cannot be removed without privilege is collected into
+	// ONE privileged batch, so the password is asked at most once: the binary
+	// (a failure there aborts the uninstall), then the 'perci' alias and the
+	// menu entry/icons (Soft: a failure only warns).
+	var steps []executor.PrivilegedStep
+	binaryNeedsRoot := false
 	if err := os.Remove(currentExe); err != nil {
-		ui.Info(stdout, "Não foi possível remover o binário diretamente ("+err.Error()+"). Tentando com sudo...")
-		if sudoErr := exe.Run(ctx,
-			executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout},
-			"rm", "-f", "--", currentExe,
-		); sudoErr != nil {
-			return fmt.Errorf("remover binário: %w", sudoErr)
-		}
+		ui.Info(stdout, "Não foi possível remover o binário diretamente ("+err.Error()+"). Será usado privilégio de administrador.")
+		binaryNeedsRoot = true
+		steps = append(steps, executor.PrivilegedStep{Name: "rm", Args: []string{"-f", "--", currentExe}})
 	}
 
-	// 'perci' alias (a symlink to the 'prci' binary above) — removed too, so
-	// no broken symlink pointing at the just-removed binary is left behind.
-	// os.Executable() always resolves to the symlink's real target, so
-	// currentExe here is always ".../prci", and the alias lives right next
-	// to it under a fixed name. Best-effort, same as the block below:
-	// doesn't abort the uninstall if it fails.
-	if aliasPath := filepath.Join(filepath.Dir(currentExe), "perci"); aliasPath != currentExe {
+	// 'perci' alias: removed only when it is a symlink to the binary above,
+	// so no broken symlink is left behind and an unrelated file or directory
+	// named 'perci' is never touched. os.Executable() resolves to the
+	// symlink's real target, so the alias sits right next to currentExe.
+	if aliasPath := filepath.Join(filepath.Dir(currentExe), "perci"); aliasPath != currentExe && isOurAlias(aliasPath, currentExe) {
 		if err := os.Remove(aliasPath); err != nil && !os.IsNotExist(err) {
-			if sudoErr := exe.Run(ctx,
-				executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout},
-				"rm", "-f", "--", aliasPath,
-			); sudoErr != nil {
-				ui.Warning(stdout, "Falha ao remover o alias 'perci': "+sudoErr.Error())
-			}
+			steps = append(steps, executor.PrivilegedStep{
+				Soft:        true,
+				WarnMessage: "Falha ao remover o alias 'perci'.",
+				Name:        "rm",
+				Args:        []string{"-f", "--", aliasPath},
+			})
 		}
 	}
 
-	// Application menu entry + icons — removed alongside the binary,
-	// best-effort, so no .desktop entry pointing at the removed binary is
-	// left behind as a "ghost" in the menu. Doesn't abort the uninstall if
-	// it fails (removing the binary itself already succeeded). Files that
-	// need root are removed by a single privileged rm, so pkexec asks once
-	// instead of once per icon.
-	menuPaths := uninstallMenuPaths()
+	// Application menu entry + icons, so no .desktop entry pointing at the
+	// removed binary is left behind as a "ghost" in the menu. While the
+	// binary still needs the privileged batch, nothing is removed directly:
+	// a canceled password prompt then leaves the binary and its menu entry
+	// together.
 	var privileged []string
-	for _, path := range menuPaths {
+	for _, path := range uninstallMenuPaths() {
+		if binaryNeedsRoot {
+			if _, statErr := os.Lstat(path); statErr == nil {
+				privileged = append(privileged, path)
+			}
+			continue
+		}
 		if rmErr := os.Remove(path); rmErr != nil && !os.IsNotExist(rmErr) {
 			privileged = append(privileged, path)
 		}
 	}
 	if len(privileged) > 0 {
-		steps := []executor.PrivilegedStep{
-			{Name: "rm", Args: append([]string{"-f", "--"}, privileged...)},
+		steps = append(steps,
+			executor.PrivilegedStep{
+				Soft:        true,
+				WarnMessage: "Falha ao remover a entrada do menu de aplicativos.",
+				Name:        "rm",
+				Args:        append([]string{"-f", "--"}, privileged...),
+			},
 			iconCacheStep(), // drop the removed icons from the cache in the same prompt
-		}
+		)
+	}
+
+	if len(steps) > 0 {
 		if sudoErr := exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps); sudoErr != nil {
-			ui.Warning(stdout, "Falha ao remover a entrada do menu de aplicativos: "+sudoErr.Error())
+			if binaryNeedsRoot {
+				return fmt.Errorf("remover binário: %w", sudoErr)
+			}
+			ui.Warning(stdout, "Falha ao remover itens que exigem privilégio: "+sudoErr.Error())
 		}
 	}
 
@@ -107,4 +123,30 @@ func Uninstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, re
 
 	ui.Success(stdout, "PERCI // O GENIAL desinstalado com sucesso.")
 	return ErrUninstalled
+}
+
+// isOurAlias reports whether aliasPath is a symlink pointing at target.
+func isOurAlias(aliasPath, target string) bool {
+	fi, err := os.Lstat(aliasPath)
+	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		return false
+	}
+	dest, err := os.Readlink(aliasPath)
+	if err != nil {
+		return false
+	}
+	if !filepath.IsAbs(dest) {
+		dest = filepath.Join(filepath.Dir(aliasPath), dest)
+	}
+	return resolvedDirPath(dest) == resolvedDirPath(target)
+}
+
+// resolvedDirPath is p with its directory's symlinks resolved; the last
+// element is kept as is, since the file itself may already be removed.
+func resolvedDirPath(p string) string {
+	dir := filepath.Dir(filepath.Clean(p))
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	return filepath.Join(dir, filepath.Base(p))
 }

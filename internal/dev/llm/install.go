@@ -21,33 +21,39 @@ import (
 	"io"
 
 	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/executor"
 )
+
+// codexPackage is the npm package installed for the Codex CLI, pinned to
+// a release.
+const codexPackage = "@openai/codex@0.162.1"
 
 // InstallOne installs a single LLM CLI tool.
 func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, l LLM) error {
 	opts := executor.Options{Stdout: stdout, Stderr: stdout}
+	ctx, cancel := nettimeout.Context(ctx)
+	defer cancel()
 	switch l.Cmd {
 	case "claude":
-		if err := exe.Run(ctx, opts, "bash", "-c", `set -Eeuo pipefail; curl -fsSL https://claude.ai/install.sh | bash`); err != nil {
-			return err
-		}
-		localbin.EnsureInPath(stdout)
-		return nil
+		return runInstaller(ctx, exe, stdout, opts, "https://claude.ai/install.sh")
 	case "agy":
-		if err := exe.Run(ctx, opts, "bash", "-c", `set -Eeuo pipefail; curl -fsSL https://antigravity.google/cli/install.sh | bash`); err != nil {
-			return err
-		}
-		localbin.EnsureInPath(stdout)
-		return nil
+		return runInstaller(ctx, exe, stdout, opts, "https://antigravity.google/cli/install.sh")
 	case "codex":
-		return localbin.RunNPMGlobal(ctx, exe, stdout, "install", "@openai/codex")
+		return localbin.RunNPMGlobal(ctx, exe, stdout, "install", codexPackage)
 	case "opencode":
-		if err := exe.Run(ctx, opts, "bash", "-c", `set -Eeuo pipefail; curl -fsSL https://opencode.ai/install | bash`); err != nil {
-			return err
-		}
-		localbin.EnsureInPath(stdout)
-		return nil
+		return runInstaller(ctx, exe, stdout, opts, "https://opencode.ai/install")
 	}
 	return fmt.Errorf("instalador desconhecido para %s", l.Name)
+}
+
+// runInstaller downloads the vendor install script at url with bounded
+// curl timeouts, runs it with bash and puts ~/.local/bin on PATH.
+func runInstaller(ctx context.Context, exe *executor.Executor, stdout io.Writer, opts executor.Options, url string) error {
+	script := `set -Eeuo pipefail; curl -fsSL ` + nettimeout.CurlShellFlags + ` ` + executor.ShellQuote(url) + ` | bash`
+	if err := exe.Run(ctx, opts, "bash", "-c", script); err != nil {
+		return err
+	}
+	localbin.EnsureInPath(stdout)
+	return nil
 }

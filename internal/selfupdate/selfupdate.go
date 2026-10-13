@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,10 +89,21 @@ var (
 var executablePath = os.Executable
 
 // Release holds information about a GitHub release.
+//
+// ChecksumsURL is the release's checksums.txt (empty when the release has
+// none). ChecksumSHA256 is empty until it is resolved from ChecksumsURL —
+// LatestRelease does not download the file, so a plain version check stays a
+// single API request; Apply resolves it and refuses to go on without it.
 type Release struct {
 	Version        string
 	DownloadURL    string
+	ChecksumsURL   string
 	ChecksumSHA256 string
+}
+
+// assetName is the release asset for the running architecture.
+func assetName() string {
+	return fmt.Sprintf("prci-linux-%s", runtime.GOARCH)
 }
 
 // Run checks for a newer version and applies the update if one is available.
@@ -101,6 +113,10 @@ func Run(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 
 	ui.PrintHeader(stdout, "Atualizar PERCI // O GENIAL", distro.DisplayName())
 	ui.Info(stdout, "Versão atual: "+version.Version)
+
+	if version.Version == "dev" {
+		return errors.New("esta é uma build de desenvolvimento — a atualização automática está desativada")
+	}
 
 	rel, err := LatestRelease(ctx)
 	if err != nil {
@@ -156,7 +172,7 @@ func LatestRelease(ctx context.Context) (*Release, error) {
 	}
 
 	v := strings.TrimPrefix(payload.TagName, "v")
-	assetName := fmt.Sprintf("prci-linux-%s", runtime.GOARCH)
+	assetName := assetName()
 
 	var downloadURL, checksumsURL string
 	for _, a := range payload.Assets {
@@ -170,22 +186,38 @@ func LatestRelease(ctx context.Context) (*Release, error) {
 	if downloadURL == "" {
 		return nil, fmt.Errorf("asset '%s' não encontrado na release %s", assetName, payload.TagName)
 	}
-	if checksumsURL == "" {
-		return nil, fmt.Errorf("'%s' não encontrado na release %s — atualização recusada por segurança (sem checksum para verificar o binário)", checksumsAssetName, payload.TagName)
-	}
 	if err := validateDownloadURL(downloadURL); err != nil {
 		return nil, err
 	}
-	if err := validateDownloadURL(checksumsURL); err != nil {
-		return nil, err
+	if checksumsURL != "" {
+		if err := validateDownloadURL(checksumsURL); err != nil {
+			return nil, err
+		}
 	}
 
-	checksum, err := fetchChecksum(ctx, checksumsURL, assetName)
+	return &Release{Version: "v" + v, DownloadURL: downloadURL, ChecksumsURL: checksumsURL}, nil
+}
+
+// resolveChecksum fills rel.ChecksumSHA256 from the release's checksums.txt
+// when it is not set yet. A release without checksums.txt is refused: there
+// would be nothing to verify the binary against.
+func resolveChecksum(ctx context.Context, rel *Release) error {
+	if rel.ChecksumSHA256 != "" {
+		return nil
+	}
+	if rel.ChecksumsURL == "" {
+		return fmt.Errorf("'%s' não encontrado na release %s — atualização recusada por segurança (sem checksum para verificar o binário)", checksumsAssetName, rel.Version)
+	}
+	if err := validateDownloadURL(rel.ChecksumsURL); err != nil {
+		return err
+	}
+	name := assetName()
+	checksum, err := fetchChecksum(ctx, rel.ChecksumsURL, name)
 	if err != nil {
-		return nil, fmt.Errorf("obter checksum de %s: %w", assetName, err)
+		return fmt.Errorf("obter checksum de %s: %w", name, err)
 	}
-
-	return &Release{Version: "v" + v, DownloadURL: downloadURL, ChecksumSHA256: checksum}, nil
+	rel.ChecksumSHA256 = checksum
+	return nil
 }
 
 // validateDownloadURL rejects anything that isn't an https URL on github.com
@@ -238,8 +270,13 @@ func fetchChecksum(ctx context.Context, checksumsURL, assetName string) (string,
 	return "", fmt.Errorf("nenhuma entrada para '%s' em %s", assetName, checksumsAssetName)
 }
 
-// Apply downloads the new binary and replaces the current one.
+// Apply downloads the new binary and replaces the current one. It resolves
+// and verifies the release checksum first and refuses to continue without it.
 func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, rel *Release) (err error) {
+	if err := resolveChecksum(ctx, rel); err != nil {
+		return err
+	}
+
 	currentExe, err := executablePath()
 	if err != nil {
 		return fmt.Errorf("localizar binário atual: %w", err)

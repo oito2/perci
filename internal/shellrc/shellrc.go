@@ -120,6 +120,9 @@ func AppendIfMissing(path, comment, entry string) (appended bool, err error) {
 		}
 	}
 
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return false, err
@@ -144,8 +147,10 @@ type RemoveResult struct {
 }
 
 // RemoveEntry strips the comment and entry lines (when present, matched as
-// whole lines) from each rc file in candidates, rewriting atomically. An
-// empty comment matches nothing. Files that don't exist, or don't contain entry/comment,
+// whole lines) from each rc file in candidates, rewriting atomically. The
+// comment is removed only when the entry line immediately follows it, and the
+// blank line before the block is dropped with it. An empty comment matches
+// nothing. Files that don't exist, or don't contain entry/comment,
 // are skipped and omitted from the returned results — only files actually
 // touched (successfully or not) are reported, so callers can loop over the
 // result to log outcomes however fits their UI. Read, filter and rewrite
@@ -174,9 +179,20 @@ func removeFrom(path, comment, entry string) (RemoveResult, bool) {
 	lines := strings.Split(string(data), "\n")
 	out := make([]string, 0, len(lines))
 	changed := false
-	for _, l := range lines {
-		if l == entry || (comment != "" && l == comment) {
+	for i, l := range lines {
+		isEntry := l == entry
+		// A comment is part of the block only when the entry follows it
+		// directly; any other line equal to the comment is left alone.
+		isComment := comment != "" && l == comment && i+1 < len(lines) && lines[i+1] == entry
+		if isEntry || isComment {
 			changed = true
+			// Drop the blank separator AppendIfMissing put before the block
+			// (before its first line: the comment, or the entry alone).
+			if isComment || comment == "" || i == 0 || lines[i-1] != comment {
+				if n := len(out); n > 0 && out[n-1] == "" {
+					out = out[:n-1]
+				}
+			}
 			continue
 		}
 		out = append(out, l)

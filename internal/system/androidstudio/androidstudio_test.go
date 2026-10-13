@@ -22,6 +22,8 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -173,5 +175,73 @@ func TestUninstall_DryRun(t *testing.T) {
 	}
 	if _, err := os.Stat(entry); !os.IsNotExist(err) {
 		t.Error("desktop entry not removed")
+	}
+}
+
+// runPrepare runs prepareScript on a temp tree: install is the previous
+// install dir, old the backup dir, each created with the given files.
+func runPrepare(t *testing.T, install, old map[string]string) (instDir, oldDir string) {
+	t.Helper()
+	root := t.TempDir()
+	instDir, oldDir = filepath.Join(root, "android-studio"), filepath.Join(root, "android-studio.old")
+	fill := func(dir string, files map[string]string) {
+		if files == nil {
+			return
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range files {
+			p := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(content), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	fill(instDir, install)
+	fill(oldDir, old)
+	u, err := user.Current()
+	if err != nil {
+		t.Skip("no current user")
+	}
+	if out, err := exec.Command("sh", "-c", prepareScript, "sh", instDir, oldDir, u.Username).CombinedOutput(); err != nil {
+		t.Fatalf("prepareScript: %v\n%s", err, out)
+	}
+	return instDir, oldDir
+}
+
+func exists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// A complete previous install becomes the backup.
+func TestPrepareScript_CompleteInstallBecomesBackup(t *testing.T) {
+	inst, old := runPrepare(t, map[string]string{"bin/studio.sh": "new"}, map[string]string{"bin/studio.sh": "older"})
+	if b, _ := os.ReadFile(filepath.Join(old, "bin", "studio.sh")); string(b) != "new" {
+		t.Errorf("backup = %q, want the previous install", b)
+	}
+	if entries, _ := os.ReadDir(inst); len(entries) != 0 {
+		t.Errorf("the install dir must start empty: %v", entries)
+	}
+}
+
+// A partial install left by a failed extraction never replaces the backup
+// of the last good one.
+func TestPrepareScript_PartialInstallKeepsBackup(t *testing.T) {
+	inst, old := runPrepare(t, map[string]string{"lib/half.jar": "x"}, map[string]string{"bin/studio.sh": "good"})
+	if b, _ := os.ReadFile(filepath.Join(old, "bin", "studio.sh")); string(b) != "good" {
+		t.Errorf("the good backup was destroyed: %q", b)
+	}
+	if exists(filepath.Join(inst, "lib")) {
+		t.Error("the partial install must be discarded")
+	}
+}
+
+// With no backup yet, even a partial install is kept aside.
+func TestPrepareScript_NoBackupYet(t *testing.T) {
+	_, old := runPrepare(t, map[string]string{"lib/half.jar": "x"}, nil)
+	if !exists(filepath.Join(old, "lib", "half.jar")) {
+		t.Error("expected the previous directory moved to the backup")
 	}
 }

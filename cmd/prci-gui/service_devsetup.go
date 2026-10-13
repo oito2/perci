@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/oito2/perci/internal/dev/ide"
@@ -32,6 +33,7 @@ import (
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/system/androidstudio"
 	"github.com/oito2/perci/internal/system/antigravityide"
+	"github.com/oito2/perci/internal/ui"
 )
 
 // DevSetupService binds the "Desenvolvimento" category: Pré-requisitos,
@@ -40,64 +42,148 @@ type DevSetupService struct {
 	serviceBase
 }
 
-// ── Pré-requisitos (checklist simples) ──────────────────────────────────────
+// ── Tabelas com ações por item (Pré-requisitos, Linguagens e SDKs) ──────────
 
-// prereqsChecklist builds prereqs.Catalogue's checklistCatalog, setting
-// descOf (p.Description).
-func (d *DevSetupService) prereqsChecklist() checklistCatalog[prereqs.Prereq] {
-	return checklistCatalog[prereqs.Prereq]{
-		items:   prereqs.Catalogue,
-		idOf:    func(p prereqs.Prereq) string { return p.Name },
-		labelOf: func(p prereqs.Prereq) string { return p.Name },
-		descOf:  func(p prereqs.Prereq) string { return p.Description },
-		warnOf:  func(p prereqs.Prereq) string { return p.RemoveWarning },
-		installed: func() map[string]bool {
-			return prereqs.InstalledMap(context.Background(), d.exe)
-		},
-		apply: func(stdout io.Writer, toInstall, toRemove []string) error {
-			return prereqs.Apply(context.Background(), d.exe, stdout, toInstall, toRemove)
-		},
+// ManagedItemInfo is one row of a table screen whose items each have their
+// own Instalar/Atualizar/Desinstalar buttons.
+type ManagedItemInfo struct {
+	ID          string `json:"id"` // the item's Name
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Installed   bool   `json:"installed"`
+	// Missing lists the requirements not installed yet — while it isn't
+	// empty the item can't be installed.
+	Missing []string `json:"missing,omitempty"`
+	// RemoveWarning is shown in the uninstall confirmation.
+	RemoveWarning string `json:"removeWarning,omitempty"`
+}
+
+// managedItem is what runManagedItemAction needs from one item.
+type managedItem struct {
+	name      string
+	installed func() bool
+	missing   func() []string
+	// install, update and uninstall run the operation, writing to stdout.
+	install, update, uninstall func(stdout io.Writer) error
+}
+
+// runManagedItemAction runs op ("install", "update" or "uninstall") on the
+// item lookup finds for name. The state is checked again here: install is
+// refused for an installed item or one with missing requirements, update
+// and uninstall for an item that isn't installed.
+func runManagedItemAction(b *serviceBase, name, op string, lookup func(name string) (managedItem, bool)) error {
+	return b.runAction(func(stdout io.Writer) error {
+		it, ok := lookup(name)
+		if !ok {
+			return fmt.Errorf("item desconhecido: %q", name)
+		}
+		var run func(io.Writer) error
+		var label string
+		switch op {
+		case "install":
+			if it.installed() {
+				return fmt.Errorf("%s já está instalado", it.name)
+			}
+			if missing := it.missing(); len(missing) > 0 {
+				return fmt.Errorf("%s requer: %s", it.name, strings.Join(missing, ", "))
+			}
+			run, label = it.install, "Instalando "
+		case "update", "uninstall":
+			if !it.installed() {
+				return fmt.Errorf("%s não está instalado", it.name)
+			}
+			run, label = it.update, "Atualizando "
+			if op == "uninstall" {
+				run, label = it.uninstall, "Desinstalando "
+			}
+		default:
+			return fmt.Errorf("operação desconhecida: %q", op)
+		}
+		ui.Step(stdout, 1, 1, label+it.name)
+		return run(stdout)
+	})
+}
+
+// ── Pré-requisitos ──────────────────────────────────────────────────────────
+
+// GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs),
+// in its order, with each item's installed state and missing requirements.
+func (d *DevSetupService) GetPrereqsInfo() []ManagedItemInfo {
+	ctx := context.Background()
+	installed := prereqs.InstalledMap(ctx, d.exe)
+	items := make([]ManagedItemInfo, len(prereqs.Catalogue))
+	for i, p := range prereqs.Catalogue {
+		items[i] = ManagedItemInfo{
+			ID: p.Name, Label: p.Name, Description: p.Description,
+			Installed:     installed[p.Name],
+			Missing:       prereqs.MissingRequirements(ctx, d.exe, p, installed),
+			RemoveWarning: p.RemoveWarning,
+		}
 	}
+	return items
 }
 
-// GetPrereqsInfo lists the prerequisite catalogue (internal/dev/prereqs)
-// with its current installed state.
-func (d *DevSetupService) GetPrereqsInfo() []MultiSelectItemInfo {
-	return getChecklistInfo(d.prereqsChecklist())
+// RunPrereqAction runs op ("install", "update" or "uninstall") on the
+// prerequisite named name.
+func (d *DevSetupService) RunPrereqAction(name, op string) error {
+	ctx := context.Background()
+	return runManagedItemAction(&d.serviceBase, name, op, func(name string) (managedItem, bool) {
+		idx := slices.IndexFunc(prereqs.Catalogue, func(p prereqs.Prereq) bool { return p.Name == name })
+		if idx < 0 {
+			return managedItem{}, false
+		}
+		p := prereqs.Catalogue[idx]
+		return managedItem{
+			name:      p.Name,
+			installed: func() bool { return prereqs.Installed(ctx, d.exe, p.Name) },
+			missing: func() []string {
+				return prereqs.MissingRequirements(ctx, d.exe, p, prereqs.InstalledMap(ctx, d.exe))
+			},
+			install:   func(w io.Writer) error { return prereqs.InstallOne(ctx, d.exe, w, p) },
+			update:    func(w io.Writer) error { return prereqs.UpdateOne(ctx, d.exe, w, p) },
+			uninstall: func(w io.Writer) error { return prereqs.UninstallOne(ctx, d.exe, w, p) },
+		}, true
+	})
 }
 
-// RunPrereqs installs newly checked prerequisites and removes newly
-// unchecked ones — same diff (internal/sets.Diff) RunFonts uses.
-func (d *DevSetupService) RunPrereqs(selectedNames []string) error {
-	return runChecklist(&d.serviceBase, d.prereqsChecklist(), selectedNames)
-}
-
-// ── Linguagens e SDKs (checklist simples) ───────────────────────────────────
-
-// sdksChecklist builds sdks.Catalogue's checklistCatalog.
-func (d *DevSetupService) sdksChecklist() checklistCatalog[sdks.SDK] {
-	return checklistCatalog[sdks.SDK]{
-		items:   sdks.Catalogue,
-		idOf:    func(s sdks.SDK) string { return s.Name },
-		labelOf: func(s sdks.SDK) string { return s.Name },
-		installed: func() map[string]bool {
-			return sdks.InstalledMap(context.Background(), d.exe)
-		},
-		apply: func(stdout io.Writer, toInstall, toRemove []string) error {
-			return sdks.Apply(context.Background(), d.exe, stdout, toInstall, toRemove)
-		},
-	}
-}
+// ── Linguagens e SDKs ───────────────────────────────────────────────────────
 
 // GetSDKsInfo lists the SDK catalogue (internal/dev/sdks: Go + Flutter)
-// with its current installed state.
-func (d *DevSetupService) GetSDKsInfo() []MultiSelectItemInfo {
-	return getChecklistInfo(d.sdksChecklist())
+// with each item's installed state and missing requirements.
+func (d *DevSetupService) GetSDKsInfo() []ManagedItemInfo {
+	ctx := context.Background()
+	installed := sdks.InstalledMap(ctx, d.exe)
+	items := make([]ManagedItemInfo, len(sdks.Catalogue))
+	for i, s := range sdks.Catalogue {
+		items[i] = ManagedItemInfo{
+			ID: s.Name, Label: s.Name, Description: s.Description,
+			Installed:     installed[s.Name],
+			Missing:       sdks.MissingRequirements(ctx, d.exe, s),
+			RemoveWarning: s.RemoveWarning,
+		}
+	}
+	return items
 }
 
-// RunSDKs installs newly checked SDKs and removes newly unchecked ones.
-func (d *DevSetupService) RunSDKs(selectedNames []string) error {
-	return runChecklist(&d.serviceBase, d.sdksChecklist(), selectedNames)
+// RunSDKAction runs op ("install", "update" or "uninstall") on the SDK
+// named name.
+func (d *DevSetupService) RunSDKAction(name, op string) error {
+	ctx := context.Background()
+	return runManagedItemAction(&d.serviceBase, name, op, func(name string) (managedItem, bool) {
+		idx := slices.IndexFunc(sdks.Catalogue, func(s sdks.SDK) bool { return s.Name == name })
+		if idx < 0 {
+			return managedItem{}, false
+		}
+		s := sdks.Catalogue[idx]
+		return managedItem{
+			name:      s.Name,
+			installed: func() bool { return sdks.InstalledMap(ctx, d.exe)[s.Name] },
+			missing:   func() []string { return sdks.MissingRequirements(ctx, d.exe, s) },
+			install:   func(w io.Writer) error { return sdks.InstallOne(ctx, d.exe, w, s) },
+			update:    func(w io.Writer) error { return sdks.UpdateOne(ctx, d.exe, w, s) },
+			uninstall: func(w io.Writer) error { return sdks.UninstallOne(ctx, d.exe, w, s) },
+		}, true
+	})
 }
 
 // ── Aplicativos: IA (checklist simples) ─────────────────────────────────────

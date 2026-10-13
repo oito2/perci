@@ -147,8 +147,8 @@ export function PickWorkspaceFolder() {
  * 
  *   - backupPath != "": exports cfg.Docker to that path first (appstack.
  *     ExportConfig) — reimportable later via "Importar configurações". A
- *     failure here (e.g. nothing registered yet) is logged as a warning
- *     but doesn't abort the uninstall itself.
+ *     failed backup aborts the uninstall before anything is removed; only
+ *     "nothing to export" (appstack.ErrNothingToExport) is a warning.
  *   - removeDocker: removes every registered container (apps, then
  *     MariaDB, then Nginx — apps first so nothing routes through infra
  *     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/

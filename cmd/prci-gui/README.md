@@ -110,7 +110,7 @@ Isso requer o CLI `wails3` instalado uma vez (mesma versão pinada em
 `go.mod`):
 
 ```
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.22
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
 ```
 
 ## Testar sem tocar no sistema real

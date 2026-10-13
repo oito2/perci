@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/oito2/perci/internal/config"
 )
@@ -339,6 +340,30 @@ func TestPruneMissingRepoFolders(t *testing.T) {
 	}
 	if want := []string{existing}; len(got.RepoFolders) != len(want) || got.RepoFolders[0] != want[0] {
 		t.Errorf("RepoFolders after prune = %v, want %v", got.RepoFolders, want)
+	}
+}
+
+// With every folder still present, the prune leaves config.yaml untouched.
+func TestPruneMissingRepoFolders_NoChangeNoWrite(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := saveConfig(&config.Config{RepoFolders: []string{t.TempDir()}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	path := filepath.Join(home, ".perci", "config.yaml")
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.PruneMissingRepoFolders(); err != nil {
+		t.Fatalf("PruneMissingRepoFolders: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.ModTime().Equal(old) {
+		t.Error("config.yaml was rewritten although nothing was pruned")
 	}
 }
 

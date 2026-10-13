@@ -53,14 +53,16 @@ clean:
 # not just via the terminal or the system tray. The legacy
 # /usr/share/pixmaps/perci.png is removed, and the icon cache refresh is
 # best-effort.
-ICON_SIZES := 512 256 128 64 48 32
+ICON_ROOT  := packaging/icons/blue/hicolor
+ICON_FILES := $(wildcard $(ICON_ROOT)/*/apps/perci.png)
 HICOLOR    := /usr/share/icons/hicolor
 
 install: build
+	@test -n "$(ICON_FILES)" || { echo "no icons found under $(ICON_ROOT)" >&2; exit 1; }
 	sudo install -m 755 $(BINARY) /usr/local/bin/$(BINARY)
 	sudo ln -sf /usr/local/bin/$(BINARY) /usr/local/bin/perci
-	for s in $(ICON_SIZES); do \
-		sudo install -D -m 644 packaging/icons/blue/hicolor/$${s}x$${s}/apps/perci.png $(HICOLOR)/$${s}x$${s}/apps/perci.png || exit 1; \
+	for f in $(ICON_FILES); do \
+		sudo install -D -m 644 "$$f" "$(HICOLOR)/$${f#$(ICON_ROOT)/}" || exit 1; \
 	done
 	sudo rm -f /usr/share/pixmaps/perci.png
 	-sudo gtk-update-icon-cache -q -t -f $(HICOLOR)
@@ -104,6 +106,6 @@ release:
 # LinuxService/DevSetupService/DockerService/DevToolsService/TrayService)
 # via the `wails3` CLI. Not part of build/release: the generated files are
 # versioned on disk. Requires the `wails3` CLI installed once:
-# `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.22`.
+# `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28`.
 generate-bindings:
 	cd $(CMD) && wails3 generate bindings -names -b -d frontend/dist/bindings ./...

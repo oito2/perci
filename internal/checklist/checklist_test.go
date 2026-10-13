@@ -45,3 +45,18 @@ func TestApply_ReportsFailuresWithoutStopping(t *testing.T) {
 		t.Errorf("all successes must return nil, got %v", err)
 	}
 }
+
+// Names that are not in the catalogue do not count towards the total shown
+// in each step.
+func TestApply_TotalCountsOnlyCatalogueItems(t *testing.T) {
+	var out strings.Builder
+	noop := func(string) error { return nil }
+	err := Apply(&out, []string{"a", "b", "c"}, func(s string) string { return s },
+		[]string{"a", "ghost1", "ghost2"}, []string{"b", "ghost3"}, noop, noop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "2/2") || strings.Contains(out.String(), "/5") {
+		t.Errorf("total should be 2, got output %q", out.String())
+	}
+}

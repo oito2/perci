@@ -28,7 +28,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 
 > Este é um projeto bem pessoal. É o resultado de vários scripts `.sh` que eu já tinha, reunidos num único app Go.
 
-> O objetivo é simples: chegar numa máquina nova e ter tudo o que preciso configurado em minutos. Por isso ele só cobre as distros que eu realmente uso no dia a dia: Linux Mint 22.3 (Cinnamon e XFCE), Ubuntu 26.04, Fedora 44 e ZorinOS 18.1 (Core e Lite).
+> O objetivo é simples: chegar numa máquina nova e ter tudo o que preciso configurado em minutos. Por isso ele só cobre as distros que eu realmente uso no dia a dia: Linux Mint 22.3 (Cinnamon e XFCE), Ubuntu 24.04 e 26.04 (GNOME e Budgie), Fedora 44 (GNOME, KDE Plasma e Budgie), ZorinOS 18.1 (Core e Lite) e Pop!_OS 24.04 (COSMIC).
 
 > Sinta-se à vontade para usar e adaptar como quiser — mas é bom saber que ele resolve problemas bem específicos meus, não é uma ferramenta genérica pra qualquer setup.
 
@@ -37,7 +37,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 Uma interface gráfica de desktop (Go + [Wails](https://wails.io)), cinco categorias na barra lateral, sem daemon, sem banco de dados — só `~/.perci/config.yaml`:
 
 - **Home** — visão geral do seu sistema, atualizar/desinstalar o próprio Perci, configurações (tema, mascote da barra lateral, workspace, escopo Flatpak, bandeja do sistema).
-- **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak, Linux Toys, MegaSync.
+- **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak, MegaSync.
 - **Desenvolvimento** — pré-requisitos de build, SDKs Go/Flutter, aplicativos de IA, terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — stack Docker por projeto (contêineres Nginx/MariaDB/PHP/Node/PHP+Node, com roteamento Moodle), criar e gerenciar contêineres.
 - **Dev Tools** — pastas de desenvolvimento de plugins montadas nos contêineres Moodle, controle de repositórios Git, geração de contexto de IA (`AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`), skills de agente de IA, registro de servidores MCP.
@@ -50,7 +50,7 @@ Um ícone opcional na bandeja do sistema dá acesso rápido a contêineres, repo
 
 | SO | Status | Distribuições | Dependências de execução |
 |---|---|---|---|
-| Linux (`amd64`) | Suportado | Baseadas em Debian/Ubuntu e Fedora — experiência completa no Linux Mint 22.3, Ubuntu 26.04, Fedora 44, Zorin OS 18.1 | GTK4, WebKitGTK 6.0 |
+| Linux (`amd64`) | Suportado | Baseadas em Debian/Ubuntu e Fedora — experiência completa no Linux Mint 22.3, Ubuntu 24.04/26.04 (inclusive Ubuntu Budgie), Fedora 44 (inclusive Budgie), Zorin OS 18.1, Pop!_OS 24.04 | GTK4, WebKitGTK 6.0 |
 | Windows | Não suportado | — | — |
 | macOS | Não suportado | — | — |
 
@@ -94,7 +94,7 @@ Instalação manual do binário, artefatos de release e arquiteturas suportadas:
 O instalador de uma linha baixa a release mais recente, verifica o checksum SHA-256, instala em `/usr/local/bin/prci` com o alias `perci` e adiciona a entrada no menu de aplicativos:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
 ```
 
 Requer `curl`, `jq`, `sha256sum` e `tar`.
@@ -103,7 +103,7 @@ Requer `curl`, `jq`, `sha256sum` e `tar`.
 
 ## Atualização e manutenção
 
-- **Instalado a partir de uma release:** abra o Perci e use **Home → Visão Geral → Atualizar Perci** — ele consulta a release mais recente no GitHub, verifica o checksum e substitui o binário.
+- **Instalado a partir de uma release:** abra o Perci e use **Home → Visão Geral → Atualizar Perci** — ele consulta a release mais recente no GitHub, verifica o checksum e substitui o binário. Uma build de desenvolvimento (`make build` sem versão de release) se recusa a se atualizar.
 - **Instalado a partir do código-fonte:** atualize e reinstale:
   ```bash
   git pull && make install

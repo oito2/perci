@@ -31,7 +31,7 @@ readonly INSTALL_DIR="/usr/local/bin"
 readonly MENU_ASSET="perci-menu.tar.gz"
 readonly HICOLOR_DIR="/usr/share/icons/hicolor"
 readonly LEGACY_ICON="/usr/share/pixmaps/perci.png"
-readonly CURL=(curl --proto '=https' --tlsv1.2 -fsSL)
+readonly CURL=(curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL)
 
 trap 'printf "\n\033[0;31mError at %s:%d\033[0m\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
 trap '[[ -n "${_tmpdir:-}" ]] && rm -rf -- "$_tmpdir"' EXIT
@@ -84,6 +84,29 @@ checksum_for() {
     awk -v n="$2" '{ f = $2; sub(/^\*/, "", f) } f == n { print $1; exit }' <<<"$1" || true
 }
 
+# Succeeds only for an https URL on github.com or a *.githubusercontent.com
+# host — the only hosts release assets are served from.
+trusted_url() {
+    [[ "$1" =~ ^https://(github\.com|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.githubusercontent\.com)(/|$) ]]
+}
+
+# Fails unless the URL $1 (asset $2) passes trusted_url.
+require_trusted_url() {
+    trusted_url "$1" || die "Untrusted download URL for '$2': $1"
+}
+
+# Verifies the build provenance attestation of file $1 with the GitHub CLI
+# when it is installed and authenticated; fails the installation when the
+# attestation does not match. Without a usable gh the check is skipped.
+verify_attestation() {
+    if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null; then
+        info "GitHub CLI not available or not logged in — skipping attestation check."
+        return 0
+    fi
+    gh attestation verify "$1" --repo "$REPO" &>/dev/null || die "Attestation verification failed for $(basename -- "$1"). Aborting installation."
+    success "Attestation verified for $(basename -- "$1")."
+}
+
 # Fails unless file $1 has SHA-256 $2.
 verify_sha256() {
     local actual
@@ -104,8 +127,7 @@ privileged_install() {
         staged="$2.perci-new"
         install -T -m 0600 -o root -g root -- "$1" "$staged"
         printf "%s  %s\n" "$3" "$staged" | sha256sum -c --status - || { rm -f -- "$staged"; echo "checksum mismatch: $2" >&2; exit 1; }
-        chmod "$4" -- "$staged"
-        mv -f -T -- "$staged" "$2"
+        chmod "$4" -- "$staged" && mv -f -T -- "$staged" "$2" || { rm -f -- "$staged"; exit 1; }
     ' sh "$1" "$2" "$3" "$4"
 }
 
@@ -150,6 +172,9 @@ main() {
     checksums_url=$(asset_url "$release" "checksums.txt")
     [[ -n "$checksums_url" && "$checksums_url" != "null" ]] || die "Release asset 'checksums.txt' not found in the latest release. Aborting for safety."
 
+    require_trusted_url "$binary_url" "$asset_name"
+    require_trusted_url "$checksums_url" "checksums.txt"
+
     _tmpdir=$(mktemp -d -t perci-install-XXXXXX)
 
     info "Downloading release asset..."
@@ -161,6 +186,7 @@ main() {
     [[ -n "$binary_sum" ]] || die "Checksum entry for '$asset_name' not found in checksums.txt. Aborting for safety."
     verify_sha256 "$_tmpdir/$asset_name" "$binary_sum"
     success "Checksum verified."
+    verify_attestation "$_tmpdir/$asset_name"
 
     dest="${INSTALL_DIR}/${BINARY_NAME}"
     info "Installing binary to $dest..."
@@ -185,6 +211,8 @@ main() {
     menu_sum=$(checksum_for "$checksums" "$MENU_ASSET")
     if [[ -z "$menu_url" || "$menu_url" == "null" || -z "$menu_sum" ]]; then
         err "This release has no verified '$MENU_ASSET' — skipping the menu entry (Perci still works via '$BINARY_NAME'/'perci' in the terminal)."
+    elif ! trusted_url "$menu_url"; then
+        err "Untrusted download URL for '$MENU_ASSET' — skipping the menu entry (Perci still works via '$BINARY_NAME'/'perci' in the terminal)."
     elif ! "${CURL[@]}" -o "$_tmpdir/$MENU_ASSET" "$menu_url"; then
         err "Failed to download '$MENU_ASSET' — skipping the menu entry (Perci still works via '$BINARY_NAME'/'perci' in the terminal)."
     elif ! install_menu_entry "$_tmpdir/$MENU_ASSET" "$menu_sum"; then

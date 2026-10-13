@@ -40,7 +40,10 @@ func (t *DevToolsService) PickAIContextFolder() (string, error) {
 // file is already present under folder/.instructions/, as the
 // MultiSelectItemInfo {id,label,installed} shape.
 func (t *DevToolsService) GetAIContextItems(folder string) []MultiSelectItemInfo {
-	detected := managerai.DetectActiveModels(folder)
+	var detected map[string]bool
+	if requireKnownFolder(folder) == nil {
+		detected = managerai.DetectActiveModels(folder)
+	}
 	all := managerai.Models()
 	items := make([]MultiSelectItemInfo, len(all))
 	for i, m := range all {
@@ -57,7 +60,7 @@ func (t *DevToolsService) GetAIContextItems(folder string) []MultiSelectItemInfo
 // itself the confirmation, same convention as every non-interactive GUI
 // action.
 func (t *DevToolsService) ApplyAIContext(folder string, selectedNames []string) error {
-	if err := requireFolder(folder); err != nil {
+	if err := requireKnownFolder(folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {

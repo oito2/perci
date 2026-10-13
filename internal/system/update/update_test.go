@@ -18,6 +18,9 @@ package update
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -58,9 +61,12 @@ func TestPackageSteps_Debian(t *testing.T) {
 
 	var names []string
 	for _, s := range steps {
-		names = append(names, s.Name+" "+strings.Join(s.Args, " "))
+		names = append(names, s.Name+" "+strings.Join(s.Args[len(distro.AptNonInteractiveOpts):], " "))
 		if len(s.Env) == 0 || s.Env[0] != "DEBIAN_FRONTEND=noninteractive" {
 			t.Errorf("apt-get step %q must set DEBIAN_FRONTEND=noninteractive, got Env=%v", s.Announce, s.Env)
+		}
+		if !strings.Contains(strings.Join(s.Args, " "), "Dpkg::Options::=--force-confold") {
+			t.Errorf("apt-get step %q must keep edited conffiles (--force-confold), got %v", s.Announce, s.Args)
 		}
 	}
 	joined := strings.Join(names, " | ")
@@ -101,8 +107,8 @@ func TestPackageSteps_Fedora(t *testing.T) {
 	if steps[0].Soft {
 		t.Error("dnf upgrade must not be Soft — a failed upgrade must abort the batch")
 	}
-	if !steps[1].Soft {
-		t.Error("dnf autoremove must be Soft — matches the old ui.Warning-not-return behavior")
+	if !steps[1].Soft || !steps[1].SoftReport {
+		t.Error("dnf autoremove must be Soft+SoftReport — it does not abort the batch but is not reported as success")
 	}
 	joined := steps[0].Name + " " + strings.Join(steps[0].Args, " ") + " | " + steps[1].Name + " " + strings.Join(steps[1].Args, " ")
 	sequentialIndexes(t, joined, []string{
@@ -130,8 +136,8 @@ func TestSystemFlatpakSteps(t *testing.T) {
 		if got := s.Name + " " + strings.Join(s.Args, " "); got != want[i] {
 			t.Errorf("step[%d] = %q, want %q", i, got, want[i])
 		}
-		if !s.Soft {
-			t.Errorf("step[%d] must be Soft: a Flatpak failure must not abort the system update", i)
+		if !s.Soft || !s.SoftReport {
+			t.Errorf("step[%d] must be Soft+SoftReport: a Flatpak failure must not abort the update nor be reported as success", i)
 		}
 	}
 
@@ -246,5 +252,58 @@ func TestRun_CleanupsAreOptIn(t *testing.T) {
 		if strings.Contains(buf.String(), s) {
 			t.Errorf("%s ran without its option:\n%s", s, buf.String())
 		}
+	}
+}
+
+// writeFakeFlatpak puts a flatpak script that exits with code on PATH.
+func writeFakeFlatpak(t *testing.T, body string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "flatpak"), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// A failing user Flatpak update, or a failing unused-runtime cleanup, is an
+// error the caller reports as a completion with warnings.
+func TestUpdateUserFlatpak_FailuresAreReturned(t *testing.T) {
+	var buf bytes.Buffer
+	exe := &executor.Executor{Stdout: &buf, Stderr: &buf}
+
+	writeFakeFlatpak(t, "exit 1")
+	if err := updateUserFlatpak(context.Background(), exe, &buf, false); err == nil {
+		t.Error("a failing flatpak update must return an error")
+	}
+
+	writeFakeFlatpak(t, `[ "$1" = update ] && exit 0; exit 1`)
+	if err := updateUserFlatpak(context.Background(), exe, &buf, true); err == nil {
+		t.Error("a failing unused-runtime cleanup must return an error")
+	}
+	if err := updateUserFlatpak(context.Background(), exe, &buf, false); err != nil {
+		t.Errorf("update alone succeeds: %v", err)
+	}
+}
+
+// Every Soft step of the batch (snap, system Flatpak, journal) reports its
+// failure through the batch's exit status, so none can end in plain success.
+func TestRun_SoftStepsReportFailures(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Run(context.Background(), dryRunExecutor(&buf), &buf, Options{CleanJournal: true, Autoremove: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(buf.String(), "rc=97"); got < 4 {
+		t.Errorf("want snap, 2 system Flatpak steps and journal reporting (>= 4), got %d:\n%s", got, buf.String())
+	}
+}
+
+// Warnings are never reported as plain success.
+func TestFinish(t *testing.T) {
+	var buf bytes.Buffer
+	if err := finish(&buf, false); err != nil {
+		t.Errorf("clean run: %v", err)
+	}
+	if err := finish(&buf, true); !errors.Is(err, executor.ErrCompletedWithWarnings) {
+		t.Errorf("warned run: got %v, want ErrCompletedWithWarnings", err)
 	}
 }

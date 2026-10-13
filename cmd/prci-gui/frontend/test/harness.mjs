@@ -50,10 +50,10 @@ export class FakeElement {
   constructor(tag = "div") {
     this.tagName = tag.toUpperCase();
     this.children = [];
+    this._html = "";
     this.parentNode = null;
     this.dataset = {};
     this.textContent = "";
-    this.innerHTML = "";
     this.attributes = {};
     this.listeners = {};
     this.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
@@ -66,6 +66,13 @@ export class FakeElement {
         return makeInert();
       },
     });
+  }
+  // Setting innerHTML drops the children, like the DOM does.
+  get innerHTML() { return this._html ?? ""; }
+  set innerHTML(value) {
+    this._html = String(value);
+    this.children.forEach((c) => { c.parentNode = null; });
+    this.children = [];
   }
   get firstChild() { return this.children[0] || null; }
   get nextSibling() {
@@ -94,12 +101,17 @@ export class FakeElement {
   }
   setAttribute(k, v) { this.attributes[k] = String(v); }
   getAttribute(k) { return this.attributes[k] ?? null; }
+  removeAttribute(k) { delete this.attributes[k]; }
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
 }
 
 // loadScripts runs files (relative to the scripts folder), in order, in one
 // context. calls records every App.<method>(args); fixtures maps a method name to
-// the value its promise resolves to.
+// the value its promise resolves to — or, when it is a function, is called
+// with the arguments and its result (a value or a promise) is used.
+// Events.On stores the handlers: emit(name, data) delivers { data } to them,
+// like the Wails runtime. query(selector, elements) sets what
+// document.querySelectorAll(selector) returns.
 export function loadScripts(files, { fixtures = {} } = {}) {
   const calls = [];
   const byId = new Map();
@@ -108,18 +120,24 @@ export function loadScripts(files, { fixtures = {} } = {}) {
     return byId.get(id);
   };
   const inert = makeInert();
+  const handlers = {};
+  const queries = {};
   const App = new Proxy({}, {
     get(_, name) {
       return (...args) => {
         calls.push({ name, args });
-        return Promise.resolve(name in fixtures ? fixtures[name] : []);
+        if (name in fixtures) {
+          const fixture = fixtures[name];
+          return Promise.resolve(typeof fixture === "function" ? fixture(...args) : fixture);
+        }
+        return Promise.resolve([]);
       };
     },
   });
   const context = {
     console, URLSearchParams, setTimeout, clearTimeout, Promise,
     App,
-    Events: { On() {}, Emit() {} },
+    Events: { On(name, fn) { (handlers[name] ||= []).push(fn); }, Emit() {} },
     Browser: { OpenURL() {} },
     Terminal: class { constructor() { return inert; } },
     FitAddon: { FitAddon: class { fit() {} } },
@@ -132,7 +150,7 @@ export function loadScripts(files, { fixtures = {} } = {}) {
     document: {
       getElementById: element,
       querySelector: () => new FakeElement(),
-      querySelectorAll: () => [],
+      querySelectorAll: (sel) => queries[sel] || [],
       createElement: (tag) => new FakeElement(tag),
       addEventListener() {},
       documentElement: new FakeElement("html"),
@@ -144,7 +162,9 @@ export function loadScripts(files, { fixtures = {} } = {}) {
   for (const f of files) {
     vm.runInContext(fs.readFileSync(path.join(jsDir, f), "utf8"), context, { filename: f });
   }
-  return { ctx: context, calls, element };
+  const emit = (name, data) => (handlers[name] || []).forEach((fn) => fn({ data }));
+  const query = (selector, elements) => { queries[selector] = elements; };
+  return { ctx: context, calls, element, emit, query };
 }
 
 // Every classic script, in page load order.

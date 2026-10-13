@@ -20,9 +20,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/system/apps"
 	"github.com/oito2/perci/internal/ui"
@@ -35,14 +38,14 @@ func step(ctx context.Context, exe *executor.Executor, stdout io.Writer, msg, na
 }
 
 // aptInstall installs one or more apt packages with sudo, non-interactively
-// (aptBaseOpts).
+// (distro.AptNonInteractiveOpts).
 func aptInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, pkgs ...string) error {
-	args := append(append(append([]string{}, aptBaseOpts...), "install", "-y", "--"), pkgs...)
+	args := distro.AptArgs(append([]string{"install", "-y", "--"}, pkgs...)...)
 	return exe.Run(ctx, executor.Options{
 		RequiresSudo: true,
 		Stdout:       stdout,
 		Stderr:       stdout,
-		Env:          []string{"DEBIAN_FRONTEND=noninteractive"},
+		Env:          distro.AptEnv,
 	}, "apt-get", args...)
 }
 
@@ -118,38 +121,120 @@ sysctl -p %s
 func acceptEulaAndAptInstall(ctx context.Context, exe *executor.Executor, stdout io.Writer, pkgs ...string) error {
 	const eulaSelection = "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true"
 	pipeEula := "printf '%s\\n' " + executor.ShellQuote(eulaSelection) + " | debconf-set-selections"
-	installArgs := append(append(append([]string{}, aptBaseOpts...), "install", "-y", "--"), pkgs...)
+	installArgs := distro.AptArgs(append([]string{"install", "-y", "--"}, pkgs...)...)
 	return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, []executor.PrivilegedStep{
 		{Announce: "Pré-aceitando EULA das fontes Microsoft...", Name: "bash", Args: []string{"-c", pipeEula}},
 		{
 			Announce: "Instalando " + strings.Join(pkgs, ", ") + "...",
-			Env:      []string{"DEBIAN_FRONTEND=noninteractive"},
+			Env:      distro.AptEnv,
 			Name:     "apt-get", Args: installArgs,
 		},
 	})
 }
 
-// aptComponentEnabled reports whether the given apt component (e.g. "universe")
-// is already present in at least one enabled source. Checks both legacy .list
-// and DEB822 .sources formats. Returns false on any read error (safe to retry).
-func aptComponentEnabled(ctx context.Context, exe *executor.Executor, component string) bool {
-	out, _ := exe.Output(ctx, executor.Options{},
-		"bash", "-c",
-		"grep -rEh '^deb[^-]|^Components:' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null")
-	for _, line := range strings.Split(out, "\n") {
-		for _, field := range strings.Fields(line) {
-			if field == component {
-				return true
+// Locations of the apt sources read by aptComponents; variables so tests can
+// point them at a temporary tree.
+var (
+	aptSourcesList = "/etc/apt/sources.list"
+	aptSourcesDir  = "/etc/apt/sources.list.d"
+)
+
+// aptComponents returns the set of components (e.g. "universe") that at
+// least one enabled "deb" source uses. It reads the legacy one-line files
+// (*.list) and the DEB822 files (*.sources) once; an unreadable file is
+// skipped, so a read error only ever makes a component look disabled.
+func aptComponents() map[string]bool {
+	components := make(map[string]bool)
+	files := []string{aptSourcesList}
+	for _, pattern := range []string{"*.list", "*.sources"} {
+		if m, err := filepath.Glob(filepath.Join(aptSourcesDir, pattern)); err == nil {
+			files = append(files, m...)
+		}
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		if strings.HasSuffix(f, ".sources") {
+			parseDeb822Components(string(data), components)
+		} else {
+			parseListComponents(string(data), components)
+		}
+	}
+	return components
+}
+
+// parseListComponents adds to out the components of every "deb" line of a
+// one-line-style sources file ("deb [opts] uri suite comp1 comp2...").
+func parseListComponents(text string, out map[string]bool) {
+	for _, line := range strings.Split(text, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || fields[0] != "deb" {
+			continue
+		}
+		fields = fields[1:]
+		if len(fields) > 0 && strings.HasPrefix(fields[0], "[") {
+			for len(fields) > 0 && !strings.HasSuffix(fields[0], "]") {
+				fields = fields[1:]
+			}
+			if len(fields) > 0 {
+				fields = fields[1:]
+			}
+		}
+		if len(fields) > 2 { // uri, suite, then the components
+			for _, c := range fields[2:] {
+				if strings.HasPrefix(c, "#") {
+					break
+				}
+				out[c] = true
 			}
 		}
 	}
-	return false
 }
 
-// rpmFusionEnabled reports whether the rpmfusion-free-release package is installed.
-func rpmFusionEnabled(ctx context.Context, exe *executor.Executor) bool {
-	_, err := exe.Output(ctx, executor.Options{}, "rpm", "-q", "rpmfusion-free-release")
-	return err == nil
+// parseDeb822Components adds to out the components of every enabled
+// stanza of a DEB822 sources file whose Types include "deb".
+func parseDeb822Components(text string, out map[string]bool) {
+	for _, stanza := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n\n") {
+		var types, comps []string
+		enabled := true
+		for _, line := range strings.Split(stanza, "\n") {
+			key, value, ok := strings.Cut(line, ":")
+			if !ok || strings.HasPrefix(line, "#") {
+				continue
+			}
+			value = strings.TrimSpace(value)
+			switch strings.ToLower(strings.TrimSpace(key)) {
+			case "types":
+				types = strings.Fields(value)
+			case "components":
+				comps = strings.Fields(value)
+			case "enabled":
+				switch strings.ToLower(value) {
+				case "no", "false", "0":
+					enabled = false
+				}
+			}
+		}
+		if enabled && slices.Contains(types, "deb") {
+			for _, c := range comps {
+				out[c] = true
+			}
+		}
+	}
+}
+
+// rpmFusionMissing returns the RPM Fusion release packages (free, nonfree)
+// that are not installed yet.
+func rpmFusionMissing(ctx context.Context, exe *executor.Executor) []string {
+	var missing []string
+	for _, flavor := range []string{"free", "nonfree"} {
+		if _, err := exe.Output(ctx, executor.Options{}, "rpm", "-q", "--", "rpmfusion-"+flavor+"-release"); err != nil {
+			missing = append(missing, flavor)
+		}
+	}
+	return missing
 }
 
 func stripNewline(s string) string {
@@ -161,26 +246,22 @@ func stripNewline(s string) string {
 
 // setupSwapfile creates a 4 GB swapfile at /swapfile and persists it in
 // /etc/fstab, unless the system already has any active swap. On btrfs the
-// file is made with `btrfs filesystem mkswapfile`, and a swapon failure
-// removes the file, so a later run is not fooled into "already exists".
-// Non-fatal: shows warnings on failure.
-func setupSwapfile(ctx context.Context, exe *executor.Executor, stdout io.Writer) {
+// file is made with `btrfs filesystem mkswapfile`. A failure at any point
+// removes the file again (and deactivates it), so a later run is not fooled
+// into "already exists", and is returned as an error.
+func setupSwapfile(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
 	ui.Info(stdout, "Configurando swapfile...")
-
-	if fi, err := os.Lstat("/swapfile"); err == nil && fi.Mode()&os.ModeSymlink != 0 {
-		ui.Warning(stdout, "/swapfile é um link simbólico — abortando por segurança.")
-		return
-	}
-
-	if err := exe.Run(ctx, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}, "bash", "-c", swapfileScript); err != nil {
-		ui.Warning(stdout, "Falha ao configurar swapfile: "+err.Error())
-		return
-	}
+	return exe.Run(ctx, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}, "bash", "-c", swapfileScript)
 }
 
 // swapfileScript is setupSwapfile's privileged part — one password prompt.
-// The fstab entry is matched only as an uncommented first field.
+// The fstab entry is matched only as an uncommented first field; when it
+// cannot be written the swap is deactivated and the file removed.
 const swapfileScript = `set -Eeuo pipefail
+if [ -L /swapfile ]; then
+  echo "/swapfile é um link simbólico — abortando." >&2
+  exit 1
+fi
 if [ -n "$(swapon --noheadings --show=NAME 2>/dev/null)" ]; then
   echo "O sistema já tem swap ativo — nada a fazer."
   exit 0
@@ -197,6 +278,7 @@ else
   mkswap /swapfile || { echo "Falha ao formatar swapfile." >&2; rm -f -- /swapfile; exit 1; }
 fi
 swapon /swapfile || { echo "Falha ao ativar swapfile." >&2; rm -f -- /swapfile; exit 1; }
-grep -qE '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab || printf '/swapfile none swap sw 0 0\n' >> /etc/fstab || echo "Falha ao atualizar /etc/fstab." >&2
+grep -qE '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab || printf '/swapfile none swap sw 0 0\n' >> /etc/fstab \
+  || { echo "Falha ao atualizar /etc/fstab." >&2; swapoff /swapfile || true; rm -f -- /swapfile; exit 1; }
 echo "Swapfile de 4 GB criado e ativado."
 `

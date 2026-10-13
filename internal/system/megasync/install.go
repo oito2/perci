@@ -98,18 +98,46 @@ func installFromAPT(ctx context.Context, exe *executor.Executor, sudo executor.O
 	return exe.Run(ctx, sudo, "bash", "-c", aptInstallScript(path))
 }
 
+// megaKeyFingerprint is the fingerprint of the primary key MEGA signs its
+// repositories with; any other key downloaded from the repository is
+// refused.
+const megaKeyFingerprint = "B01C811880480C854C73EC7E1A664B787094A482"
+
+// rpmKeyFile is where installFromDNF keeps the verified MEGA key, which the
+// repository file references instead of a network URL.
+const rpmKeyFile = "/etc/pki/rpm-gpg/RPM-GPG-KEY-megasync"
+
+// keyCheckScript defines verify_mega_key, which fails unless the first key
+// of the given file has megaKeyFingerprint. gpg runs with a throwaway home so
+// no keyring of the invoking user is touched.
+const keyCheckScript = `GNUPGHOME=$(mktemp -d)
+export GNUPGHOME
+verify_mega_key() {
+  local got
+  got=$(gpg --batch --show-keys --with-colons -- "$1" | awk -F: '$1=="fpr"{print $10; exit}') || got=""
+  if [ "$got" != "` + megaKeyFingerprint + `" ]; then
+    echo "chave do repositório MEGA inesperada: ${got:-nenhuma}" >&2
+    exit 1
+  fi
+}
+`
+
 func aptInstallScript(path string) string {
 	return fmt.Sprintf(`
 set -Eeuo pipefail
-install -d -m 0755 %[2]s
+%[5]s
 tmp=$(mktemp)
-trap 'rm -f -- "$tmp"' EXIT
-curl -fsSL --connect-timeout 10 --max-time 600 "https://mega.nz/linux/repo/%[1]s/Release.key" | gpg --batch --yes --dearmor -o "$tmp"
-install -m 0644 -- "$tmp" %[3]s
+trap 'rm -rf -- "$tmp" "$tmp.gpg" "$GNUPGHOME"' EXIT
+install -d -m 0755 %[2]s
+curl -fsSL --connect-timeout 10 --max-time 600 -o "$tmp" "https://mega.nz/linux/repo/%[1]s/Release.key"
+verify_mega_key "$tmp"
+gpg --batch --yes --dearmor -o "$tmp.gpg" "$tmp"
+install -m 0644 -- "$tmp.gpg" %[3]s
 echo "deb [arch=amd64 signed-by=%[3]s] https://mega.nz/linux/repo/%[1]s/ ./" > %[4]s
-apt-get update -qq
-apt-get install -y megasync
-`, path, aptKeyringDir, aptKeyring, aptSourceList)
+export DEBIAN_FRONTEND=noninteractive
+apt-get %[6]s update -qq
+apt-get %[6]s install -y megasync
+`, path, aptKeyringDir, aptKeyring, aptSourceList, keyCheckScript, strings.Join(distro.AptNonInteractiveOpts, " "))
 }
 
 // installFromDNF adds MEGA's signed YUM/DNF repository for the given path
@@ -121,10 +149,16 @@ func installFromDNF(ctx context.Context, exe *executor.Executor, sudo executor.O
 func dnfInstallScript(path string) string {
 	return fmt.Sprintf(`
 set -Eeuo pipefail
-rpm --import "https://mega.nz/linux/repo/%s/repodata/repomd.xml.key"
-printf '[MEGAsync]\nname=MEGAsync\nbaseurl=https://mega.nz/linux/repo/%s/\ngpgkey=https://mega.nz/linux/repo/%s/repodata/repomd.xml.key\ngpgcheck=1\nenabled=1\n' > %s
+%[4]s
+tmp=$(mktemp)
+trap 'rm -rf -- "$tmp" "$GNUPGHOME"' EXIT
+curl -fsSL --connect-timeout 10 --max-time 600 -o "$tmp" "https://mega.nz/linux/repo/%[1]s/repodata/repomd.xml.key"
+verify_mega_key "$tmp"
+install -m 0644 -- "$tmp" %[3]s
+rpm --import %[3]s
+printf '[MEGAsync]\nname=MEGAsync\nbaseurl=https://mega.nz/linux/repo/%[1]s/\ngpgkey=file://%[3]s\ngpgcheck=1\nenabled=1\n' > %[2]s
 dnf install -y megasync
-`, path, path, path, dnfRepoFile)
+`, path, dnfRepoFile, rpmKeyFile, keyCheckScript)
 }
 
 // resolveRepo maps the given distro id and version to MEGA's repository

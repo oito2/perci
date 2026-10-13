@@ -392,3 +392,17 @@ func TestCurrentUser(t *testing.T) {
 		t.Errorf("CurrentUser() = %q, want %q (SUDO_USER takes precedence)", got, "original-user")
 	}
 }
+
+func TestRunSudoSequence_RejectsOptsEnv(t *testing.T) {
+	var buf bytes.Buffer
+	exe := executor.New(&buf, &buf)
+	exe.DryRun = true
+	err := exe.RunSudoSequence(context.Background(), executor.Options{Env: []string{"A=1"}},
+		[]executor.PrivilegedStep{{Name: "true"}})
+	if err == nil {
+		t.Fatal("opts.Env must be rejected")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("nothing should run, got %q", buf.String())
+	}
+}

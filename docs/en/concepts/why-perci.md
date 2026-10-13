@@ -6,7 +6,7 @@
 
 This is a pretty personal project. It's the result of a bunch of `.sh` scripts the author already had lying around, gathered into a single Go binary.
 
-The goal is simple: land on a fresh machine and have everything needed configured in minutes. That's why it only covers the distros actually used day to day — Linux Mint 22.3 (Cinnamon and XFCE), Ubuntu 26.04, Fedora 44, and Zorin OS 18.1 (Core and Lite) — instead of trying to be a generic, universal setup tool.
+The goal is simple: land on a fresh machine and have everything needed configured in minutes. That's why it only covers the distros actually used day to day — Linux Mint 22.3 (Cinnamon and XFCE), Ubuntu 24.04 and 26.04 (GNOME and Budgie), Fedora 44 (GNOME, KDE Plasma and Budgie), Zorin OS 18.1 (Core and Lite), and Pop!_OS 24.04 (COSMIC) — instead of trying to be a generic, universal setup tool.
 
 ## The Problem
 

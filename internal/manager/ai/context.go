@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/ui"
 )
 
@@ -175,7 +176,7 @@ func detectMoodleVars(projectDir string) (vars map[string]string, ok bool) {
 	return map[string]string{
 		"MOODLE_VERSION":     majorMinor,
 		"MOODLE_FULLVERSION": string(versionMatch[1]),
-		"MOODLE_PATH":        projectDir,
+		"MOODLE_PATH":        ".",
 		"WORKSPACE_PATH":     workspacePath(),
 	}, true
 }
@@ -278,21 +279,33 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 		{"AGENTS.md", agentsContent},
 	}
 	for _, f := range files {
+		// A CLAUDE.md that already resolves to AGENTS.md gives Claude Code
+		// the rules as is; writing the stub through it would replace
+		// AGENTS.md.
+		if f.filename == "CLAUDE.md" && sameFile(filepath.Join(dir, "CLAUDE.md"), filepath.Join(dir, "AGENTS.md")) {
+			ui.Info(stdout, "CLAUDE.md é um link para AGENTS.md — mantido.")
+			continue
+		}
 		if err := WriteFile(filepath.Join(dir, f.filename), f.content, overwrite, stdout); err != nil {
 			return err
 		}
 	}
 
-	// Ignore files (shared, always regenerated). .geminiignore is not
-	// generated.
+	// Ignore file for the agents that read it (.geminiignore is not
+	// generated), and Claude Code's equivalent read rules, which live in
+	// its settings: it does not read an ignore file at all.
 	aiexclude, err := readTpl("templates/.aiexclude")
 	if err != nil {
 		return err
 	}
-	for _, name := range []string{".aiexclude", ".claudeignore"} {
-		if err := WriteFile(filepath.Join(dir, name), aiexclude, overwrite, stdout); err != nil {
-			return err
-		}
+	if err := WriteFile(filepath.Join(dir, ".aiexclude"), aiexclude, overwrite, stdout); err != nil {
+		return err
+	}
+	if err := writeClaudeSettings(dir, denyRules(aiexclude), stdout); err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claudeignore")); err == nil {
+		ui.Warning(stdout, ".claudeignore não tem efeito no Claude Code — as regras de leitura equivalentes estão em .claude/settings.json. Remova o arquivo se foi gerado por uma versão anterior do Perci.")
 	}
 
 	// Remove instruction files for models that were active before this run
@@ -328,13 +341,24 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 	return nil
 }
 
+// sameFile reports whether a and b exist and are the same file after
+// following links.
+func sameFile(a, b string) bool {
+	ia, errA := os.Stat(a)
+	ib, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(ia, ib)
+}
+
 // WriteFile writes content to path, returning an error if it fails.
 // If overwrite is false and the file exists, it skips writing it and does not error.
+// Otherwise it goes through fsutil.WriteGenerated: written atomically
+// through a symlink at path, with a .perci-bak of a different previous
+// version.
 func WriteFile(path, content string, overwrite bool, stdout io.Writer) error {
 	if _, err := os.Stat(path); err == nil && !overwrite {
 		return nil
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := fsutil.WriteGenerated(path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("escrever %s: %w", path, err)
 	}
 	ui.Info(stdout, "Criado: "+path)

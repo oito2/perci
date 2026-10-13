@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -56,7 +57,7 @@ func TestSyncContextMenuEntries(t *testing.T) {
 	}{
 		{nautilusScriptPath(kitty, home), 0o755},
 		{nemoScriptPath(kitty, home), 0o755},
-		{dolphinMenuPath(kitty, home), 0o644},
+		{dolphinMenuPath(kitty, home), 0o755},
 	} {
 		info, err := os.Stat(c.path)
 		if err != nil {
@@ -120,6 +121,38 @@ func TestContextMenuScriptsAreValidBash(t *testing.T) {
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Errorf("%s: bash -n failed: %v\n%s", term.Name, err, out)
 			}
+		}
+	}
+}
+
+// An older 0644 Dolphin entry is rewritten executable, and an edited entry
+// is kept as .perci-bak (which Remove also cleans up).
+func TestAddContextMenuEntries_RewritesModeAndKeepsEdits(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	kitty := findTerminal(t, "Kitty")
+	path := dolphinMenuPath(kitty, home)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("[Desktop Entry]\n# edited by hand\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	AddContextMenuEntries(kitty, io.Discard)
+
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o755 {
+		t.Errorf("mode = %v (err=%v), want 0755", info.Mode().Perm(), err)
+	}
+	bak, err := os.ReadFile(path + ".perci-bak")
+	if err != nil || !strings.Contains(string(bak), "edited by hand") {
+		t.Errorf("backup = %q, %v", bak, err)
+	}
+
+	RemoveContextMenuEntries(kitty, io.Discard)
+	for _, p := range []string{path, path + ".perci-bak"} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s should be removed (err=%v)", p, err)
 		}
 	}
 }

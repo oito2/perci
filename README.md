@@ -28,7 +28,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 
 > This is a pretty personal project. It's the result of a bunch of `.sh` scripts I already had, gathered into a single Go app.
 
-> The goal is simple: land on a fresh machine and have everything I need configured in minutes. That's why it only covers the distros I actually use day to day: Linux Mint 22.3 (Cinnamon and XFCE), Ubuntu 26.04, Fedora 44, and ZorinOS 18.1 (Core and Lite).
+> The goal is simple: land on a fresh machine and have everything I need configured in minutes. That's why it only covers the distros I actually use day to day: Linux Mint 22.3 (Cinnamon and XFCE), Ubuntu 24.04 and 26.04 (GNOME and Budgie), Fedora 44 (GNOME, KDE Plasma and Budgie), ZorinOS 18.1 (Core and Lite), and Pop!_OS 24.04 (COSMIC).
 
 > Feel free to use and adapt it however you like — just know it solves pretty specific problems of mine, it's not meant to be a generic setup tool.
 
@@ -37,7 +37,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 A desktop GUI (Go + [Wails](https://wails.io)), five sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
 
 - **Home** — an overview of your system, update/uninstall Perci itself, settings (theme, sidebar mascot, workspace, Flatpak scope, system tray).
-- **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps, Linux Toys, MegaSync.
+- **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps, MegaSync.
 - **Desenvolvimento** — build prerequisites, Go/Flutter SDKs, AI apps, terminals, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — a per-project Docker application stack (Nginx/MariaDB/PHP/Node/PHP+Node containers, with Moodle routing), create and manage containers.
 - **Dev Tools** — Moodle plugin development folders mounted into Moodle containers, Git repository control, AI context generation (`AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`), AI agent skills, MCP server registration.
@@ -50,7 +50,7 @@ An optional system tray icon gives quick access to containers, repositories, and
 
 | OS | Status | Distributions | Runtime dependencies |
 |---|---|---|---|
-| Linux (`amd64`) | Supported | Debian/Ubuntu-based and Fedora — full experience on Linux Mint 22.3, Ubuntu 26.04, Fedora 44, Zorin OS 18.1 | GTK4, WebKitGTK 6.0 |
+| Linux (`amd64`) | Supported | Debian/Ubuntu-based and Fedora — full experience on Linux Mint 22.3, Ubuntu 24.04/26.04 (incl. Ubuntu Budgie), Fedora 44 (incl. Budgie), Zorin OS 18.1, Pop!_OS 24.04 | GTK4, WebKitGTK 6.0 |
 | Windows | Not supported | — | — |
 | macOS | Not supported | — | — |
 
@@ -94,7 +94,7 @@ Manual binary install, release artifacts, and supported architectures: **[Instal
 The one-line installer downloads the latest release, verifies its SHA-256 checksum, installs it to `/usr/local/bin/prci` with the `perci` alias, and adds the application menu entry:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
 ```
 
 Requires `curl`, `jq`, `sha256sum` and `tar`.
@@ -103,7 +103,7 @@ Requires `curl`, `jq`, `sha256sum` and `tar`.
 
 ## Update & Maintenance
 
-- **Installed from a release:** open Perci and use **Home → Visão Geral → Atualizar Perci** — it checks the latest GitHub release, verifies its checksum, and replaces the binary.
+- **Installed from a release:** open Perci and use **Home → Visão Geral → Atualizar Perci** — it checks the latest GitHub release, verifies its checksum, and replaces the binary. A development build (`make build` without a release version) refuses to update itself.
 - **Installed from source:** pull and reinstall:
   ```bash
   git pull && make install

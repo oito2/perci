@@ -16,6 +16,7 @@
 package flutter
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/xml"
@@ -24,15 +25,24 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oito2/perci/internal/dev/localbin"
+	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/distro"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/shellrc"
 	"github.com/oito2/perci/internal/ui"
 )
+
+// AndroidTermsURL is where Google publishes the Android SDK terms and
+// conditions, whose licenses the installation accepts.
+const AndroidTermsURL = "https://developer.android.com/studio/terms"
 
 const (
 	flutterRepo     = "https://github.com/flutter/flutter.git"
@@ -92,22 +102,58 @@ func InstallPrereqs(ctx context.Context, exe *executor.Executor, stdout io.Write
 }
 
 func installPrereqsFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
-	ui.Info(stdout, "Instalando pré-requisitos do Flutter...")
+	return installPrereqsWith(ctx, exe, stdout, family, !javaUsable(ctx, exe))
+}
+
+// installPrereqsWith installs the Flutter prerequisites, plus the JDK in
+// the same privileged batch when needJDK is set.
+func installPrereqsWith(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string, needJDK bool) error {
 	switch family {
 	case distro.Debian:
-		return distro.InstallPkgs(ctx, exe, stdout, family,
-			"curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa",
-			"clang", "cmake", "ninja-build", "pkg-config", "libgtk-3-dev")
+		pkgs := []string{"curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa",
+			"clang", "cmake", "ninja-build", "pkg-config", "libgtk-3-dev"}
+		if needJDK {
+			ui.Info(stdout, "Instalando pré-requisitos do Flutter e o Java 21 (necessário para o Android SDK)...")
+			pkgs = append(pkgs, "openjdk-21-jdk")
+		} else {
+			ui.Info(stdout, "Instalando pré-requisitos do Flutter...")
+		}
+		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
 	case distro.Fedora:
-		return distro.InstallPkgs(ctx, exe, stdout, family,
-			// Fedora package names: xz (Debian's xz-utils) and mesa-libGLU
-			// (Debian's libglu1-mesa).
-			"curl", "git", "unzip", "xz", "zip", "mesa-libGLU",
-			"clang", "cmake", "ninja-build", "pkgconf-pkg-config", "gtk3-devel")
+		// Fedora package names: xz (Debian's xz-utils) and mesa-libGLU
+		// (Debian's libglu1-mesa).
+		pkgs := []string{"curl", "git", "unzip", "xz", "zip", "mesa-libGLU",
+			"clang", "cmake", "ninja-build", "pkgconf-pkg-config", "gtk3-devel"}
+		if needJDK {
+			ui.Info(stdout, "Instalando pré-requisitos do Flutter e o Java 21 (necessário para o Android SDK)...")
+			return installFedoraWithJDK(ctx, exe, stdout, pkgs)
+		}
+		ui.Info(stdout, "Instalando pré-requisitos do Flutter...")
+		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
 	default:
 		ui.Warning(stdout, "Distribuição não suportada para instalação automática de pré-requisitos. Instale manualmente.")
 		return nil
 	}
+}
+
+// installFedoraWithJDK adds Adoptium's signed repository (when missing) and
+// installs pkgs together with the Temurin JDK in one privileged command.
+func installFedoraWithJDK(ctx context.Context, exe *executor.Executor, stdout io.Writer, pkgs []string) error {
+	words := make([]string, 0, len(pkgs)+1)
+	for _, p := range append(slices.Clone(pkgs), temurinRepo.PkgName) {
+		words = append(words, executor.ShellQuote(p))
+	}
+	script := fmt.Sprintf(`set -Eeuo pipefail
+rpm --import %s
+[ -s %s ] || printf '%%s' %s | tee %s > /dev/null
+dnf install -y -- %s
+`,
+		executor.ShellQuote(temurinRepo.KeyURL),
+		executor.ShellQuote(temurinRepo.DnfRepoPath),
+		executor.ShellQuote(temurinRepo.DnfRepoBody),
+		executor.ShellQuote(temurinRepo.DnfRepoPath),
+		strings.Join(words, " "))
+	return exe.Run(ctx, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout}, "bash", "-c", script)
 }
 
 // EnsureAndroidCmdlineTools installs the Android SDK command-line tools.
@@ -167,14 +213,17 @@ func EnsureAndroidCmdlineTools(ctx context.Context, exe *executor.Executor, stdo
 
 	EnsureAndroidEnvInBashrc(stdout, home)
 
-	ui.Info(stdout, "Aceitando licenças do Android SDK...")
+	netCtx, cancel := nettimeout.Context(ctx)
+	defer cancel()
+
+	ui.Info(stdout, "Aceitando as licenças do Android SDK (termos em "+AndroidTermsURL+")...")
 	licenseScript := "yes | " + executor.ShellQuote(sdkmanagerBin) + " --licenses >/dev/null"
-	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", licenseScript); err != nil {
+	if err := exe.Run(netCtx, executor.Options{Stdout: stdout, Stderr: stdout}, "bash", "-c", licenseScript); err != nil {
 		return fmt.Errorf("aceitar licenças: %w", err)
 	}
 
 	ui.Info(stdout, "Instalando platform-tools...")
-	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, sdkmanagerBin, "platform-tools"); err != nil {
+	if err := exe.Run(netCtx, executor.Options{Stdout: stdout, Stderr: stdout}, sdkmanagerBin, "platform-tools"); err != nil {
 		return fmt.Errorf("instalar platform-tools: %w", err)
 	}
 
@@ -248,8 +297,36 @@ var temurinRepo = distro.SignedRepo{
 	PkgName:     "temurin-21-jdk",
 }
 
+// minJavaMajor is the oldest Java major version the Android command-line
+// tools run on.
+const minJavaMajor = 17
+
+// javaVersionRe captures the version string `java -version` prints.
+var javaVersionRe = regexp.MustCompile(`version "(\d+)(?:\.(\d+))?`)
+
+// javaMajor returns the major Java version in `java -version` output
+// ("21.0.4" is 21, the legacy "1.8.0_392" is 8), or 0 when none is found.
+func javaMajor(output string) int {
+	m := javaVersionRe.FindStringSubmatch(output)
+	if m == nil {
+		return 0
+	}
+	major, _ := strconv.Atoi(m[1])
+	if major == 1 && m[2] != "" {
+		major, _ = strconv.Atoi(m[2])
+	}
+	return major
+}
+
+// javaUsable reports whether a java of at least minJavaMajor is on PATH.
+func javaUsable(ctx context.Context, exe *executor.Executor) bool {
+	var stderr bytes.Buffer
+	out, err := exe.Output(ctx, executor.Options{Stderr: &stderr}, "java", "-version")
+	return err == nil && javaMajor(stderr.String()+out) >= minJavaMajor
+}
+
 func ensureJava(ctx context.Context, exe *executor.Executor, stdout io.Writer, family string) error {
-	if _, err := exe.Output(ctx, executor.Options{}, "java", "-version"); err == nil {
+	if javaUsable(ctx, exe) {
 		return nil
 	}
 	return ensureJavaInstall(ctx, exe, stdout, family)
@@ -324,7 +401,7 @@ func EnsureChromeWrapper(ctx context.Context, exe *executor.Executor, stdout io.
 	}
 
 	script := "#!/usr/bin/env bash\nexec flatpak run " + chromeFlatpakID + " \"$@\"\n"
-	if err := os.WriteFile(wrapperPath, []byte(script), 0o755); err != nil {
+	if err := fsutil.WriteGenerated(wrapperPath, []byte(script), 0o755); err != nil {
 		return fmt.Errorf("criar wrapper do Chrome: %w", err)
 	}
 
@@ -357,9 +434,12 @@ func CloneFlutter(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 	}
 
 	ui.Info(stdout, "Clonando "+flutterRepo+" (branch stable)...")
+	// The full history is large: instead of a total time limit, git aborts
+	// when the transfer stays below 1 KB/s for 2 minutes.
 	if err := exe.Run(ctx,
 		executor.Options{Stdout: stdout, Stderr: stdout},
-		"git", "clone", "--branch", "stable", flutterRepo, flutterDir,
+		"git", "-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=120",
+		"clone", "--branch", "stable", flutterRepo, flutterDir,
 	); err != nil {
 		return fmt.Errorf("git clone: %w", err)
 	}

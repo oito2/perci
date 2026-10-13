@@ -16,9 +16,11 @@
 package appstack
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/oito2/perci/internal/executor"
@@ -90,9 +92,12 @@ func removeContainer(ctx context.Context, exe *executor.Executor, stdout io.Writ
 }
 
 // StartContainer, StopContainer and RestartContainer work identically for
-// Nginx, MariaDB and any Container Aplicativo: plain `docker
-// start/stop/restart` by name.
+// Nginx, MariaDB and any registered Container Aplicativo: plain `docker
+// start/stop/restart` by name. Any other container name is refused.
 func StartContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, name string) error {
+	if err := requireStackContainer(name); err != nil {
+		return err
+	}
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", "start", "--", name); err != nil {
 		return fmt.Errorf("iniciar %s: %w", name, err)
 	}
@@ -100,6 +105,9 @@ func StartContainer(ctx context.Context, exe *executor.Executor, stdout io.Write
 }
 
 func StopContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, name string) error {
+	if err := requireStackContainer(name); err != nil {
+		return err
+	}
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", "stop", "--", name); err != nil {
 		return fmt.Errorf("parar %s: %w", name, err)
 	}
@@ -107,8 +115,23 @@ func StopContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer
 }
 
 func RestartContainer(ctx context.Context, exe *executor.Executor, stdout io.Writer, name string) error {
+	if err := requireStackContainer(name); err != nil {
+		return err
+	}
 	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", "restart", "--", name); err != nil {
 		return fmt.Errorf("reiniciar %s: %w", name, err)
 	}
 	return nil
+}
+
+// ContainerLogs returns the last tail lines of the logs of name (stdout
+// and stderr together), for Nginx, MariaDB or a registered Container
+// Aplicativo; any other container name is refused.
+func ContainerLogs(ctx context.Context, exe *executor.Executor, name string, tail int) (string, error) {
+	if err := requireStackContainer(name); err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err := exe.Run(ctx, executor.Options{Stdout: &buf, Stderr: &buf}, "docker", "logs", "--tail", strconv.Itoa(tail), "--", name)
+	return buf.String(), err
 }

@@ -39,7 +39,7 @@ sudo dnf install -y gtk4 webkitgtk6.0
 ## Instalador Automático (Recomendado)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
 ```
 
 O `install.sh`:
@@ -47,7 +47,7 @@ O `install.sh`:
 1. Detecta a arquitetura de CPU — só `amd64` é suportado; o script sai com um erro claro em `arm64` (veja "Arquiteturas Suportadas" abaixo).
 2. Busca a tag da última release via a API do GitHub (só HTTPS), recusando uma tag que não tenha o formato `vX.Y.Z`.
 3. Baixa o asset `prci-linux-amd64` e o `checksums.txt` da release.
-4. Verifica o SHA-256 do binário baixado contra o `checksums.txt`, abortando em caso de divergência.
+4. Verifica o SHA-256 do binário baixado contra o `checksums.txt`, abortando em caso de divergência. Todo download usa só HTTPS (inclusive nos redirecionamentos), com limites de tempo de conexão e total, e só de `github.com` ou `*.githubusercontent.com`. Quando o GitHub CLI (`gh`) está instalado **e** autenticado, a attestation de procedência do binário também é verificada e uma falha aborta a instalação; sem um `gh` autenticado essa verificação é pulada com um aviso.
 5. Instala em `/usr/local/bin/prci`. Quando o diretório não é gravável pelo usuário, o `sudo` copia o binário para um arquivo temporário do root, verifica o checksum de novo nessa cópia e só então o move para o lugar como `root:root` 0755 — o arquivo baixado em `/tmp` nunca é confiado depois do pedido de senha.
 6. Cria `perci` como um symlink alias de `prci` — os dois comandos funcionam de forma intercambiável.
 7. Adiciona uma entrada no menu de aplicativos (`/usr/share/applications/perci.desktop` + o conjunto de ícones em `/usr/share/icons/hicolor/<tamanho>/apps/perci.png`, nos tamanhos 512, 256, 128, 64, 48 e 32), pro Perci aparecer no menu/launcher do seu ambiente de desktop — não só via `prci`/`perci` no terminal. Os arquivos vêm do `perci-menu.tar.gz` da release, verificado contra o `checksums.txt` como o binário (e verificado de novo pelo root antes de extrair). Instala sempre o ícone azul; escolher outra cor em **Home → Configurações → Ícone do Aplicativo** reinstala o conjunto (pedindo a senha de administrador uma vez). Um `/usr/share/pixmaps/perci.png` que tenha sobrado de instalações antigas é removido. Esse passo é best-effort: se falhar (ex. sem rede, ou uma release anterior a esta mudança, sem `perci-menu.tar.gz`), a instalação continua com sucesso, só sem a entrada no menu.
@@ -101,7 +101,7 @@ Ou, usando o `Makefile` disponível:
 ```bash
 make build              # compila ./prci com VERSION=dev
 make build VERSION=v1.0.0
-make install            # compila e instala em /usr/local/bin com o alias perci
+make install            # compila e instala em /usr/local/bin com o alias perci; os tamanhos de ícone vêm da árvore de empacotamento
 ```
 
 ## Artefatos de Release
@@ -112,9 +112,9 @@ Cada release no GitHub publica exatamente três arquivos, gerados por `make rele
 |---|---|
 | `prci-linux-amd64` | O binário da GUI em si — nenhum pacote instalador (`.deb`, `.rpm`, AppImage, Flatpak) é gerado. |
 | `perci-menu.tar.gz` | A entrada no menu de aplicativos que o `install.sh` instala: `share/applications/perci.desktop` + `share/icons/hicolor/*/apps/perci.png` (azul), extraídos em `/usr`. Gerado de forma reproduzível. |
-| `checksums.txt` | SHA-256 dos dois arquivos acima, verificado pelo `install.sh` e (para o binário) por **Home → Atualizar Perci**. |
+| `checksums.txt` | SHA-256 dos dois arquivos acima, verificado pelo `install.sh` e (para o binário) por **Home → Atualizar Perci**. Uma release sem `checksums.txt` aparece na lista, mas a atualização é recusada. |
 
-Os três têm attestation de procedência assinada (`gh attestation verify <arquivo> --repo oito2/perci`). O workflow compila e testa com um token só de leitura; só o job separado de publicação consegue escrever na release.
+Os três têm attestation de procedência assinada (`gh attestation verify <arquivo> --repo oito2/perci`). O workflow de release roda antes o workflow de CI (lint, testes, ShellCheck do `install.sh`), depois compila com um token só de leitura; só o job separado de publicação consegue escrever na release.
 
 Para gerá-los localmente:
 
@@ -133,9 +133,11 @@ Os recursos de pós-instalação e sensíveis a ambiente de desktop do perci.gnl
 | Distribuição | Ambiente de Desktop |
 |---|---|
 | Linux Mint 22.3 | Cinnamon, XFCE |
-| Ubuntu 26.04 | GNOME (padrão) |
-| Fedora 44 | GNOME (padrão) |
+| Ubuntu 24.04, 26.04 | GNOME (padrão) |
+| Ubuntu Budgie 24.04, 26.04 | Budgie |
+| Fedora 44 | GNOME (padrão), KDE Plasma, Budgie |
 | Zorin OS 18.1 | Core (GNOME), Lite (XFCE) |
+| Pop!_OS 24.04 | COSMIC |
 
 Distros da família Arch não são suportadas — o `internal/distro` só detecta as famílias Debian e Fedora.
 

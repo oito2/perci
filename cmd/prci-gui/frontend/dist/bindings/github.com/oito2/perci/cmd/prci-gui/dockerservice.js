@@ -75,9 +75,9 @@ export function GetContainerForEdit(kind, folder) {
 
 /**
  * GetContainerLogsSnapshot fetches the last 200 lines once (docker logs
- * --tail 200, no -f) — an instant modal, not a live stream (appstack.
- * ContainerLogs uses -f, meant for continuous stdout, which doesn't fit
- * here). The modal's "Atualizar" button just calls this method again.
+ * --tail 200, no -f) — an instant modal, not a live stream. Only the logs of
+ * Nginx, MariaDB or a registered Container Aplicativo are returned. The
+ * modal's "Atualizar" button just calls this method again.
  * @param {string} folder
  * @returns {$CancellablePromise<string>}
  */

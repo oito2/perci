@@ -17,6 +17,7 @@
 package fsutil
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,4 +55,33 @@ func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 		return fmt.Errorf("renomear: %w", err)
 	}
 	return nil
+}
+
+// WriteGenerated writes a generated file: through a symlink at path (the
+// link's target is written, the link kept), atomically, and when a
+// different version already exists it is first saved as path + ".perci-bak".
+func WriteGenerated(path string, data []byte, mode os.FileMode) error {
+	path = resolveLink(path)
+	if old, err := os.ReadFile(path); err == nil && !bytes.Equal(old, data) {
+		if err := WriteFileAtomic(path+".perci-bak", old, mode); err != nil {
+			return err
+		}
+	}
+	return WriteFileAtomic(path, data, mode)
+}
+
+// WriteThroughLink writes data atomically to path, or to the target of a
+// symlink at path (the link is kept), without keeping a backup — for files
+// that may hold secrets.
+func WriteThroughLink(path string, data []byte, mode os.FileMode) error {
+	return WriteFileAtomic(resolveLink(path), data, mode)
+}
+
+// resolveLink returns path with its symlinks resolved, or path itself when
+// it does not resolve (e.g. it does not exist yet).
+func resolveLink(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
 }

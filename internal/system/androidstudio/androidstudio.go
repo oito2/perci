@@ -39,17 +39,29 @@ import (
 
 const installDir = "/opt/android-studio"
 
+// prepareScript is the privileged part of Install ($1 install dir, $2 backup
+// dir, $3 user). A previous install replaces the backup only when it is
+// complete (it has bin/studio.sh) or there is no backup yet; a partial
+// directory left by a failed extraction is discarded and the backup of the
+// last good install is kept.
+const prepareScript = `set -e
+if [ -e "$1" ]; then
+  if [ -x "$1/bin/studio.sh" ] || [ ! -e "$2" ]; then rm -rf -- "$2"; mv -- "$1" "$2"; else rm -rf -- "$1"; fi
+fi
+mkdir -m 0755 -- "$1"
+chown -- "$3:" "$1"`
+
 // desktopFile is the .desktop file Android Studio's own "Create Desktop
 // Entry" step writes. It is not created here; Uninstall removes it.
 func desktopFile(home string) string {
 	return filepath.Join(home, ".local", "share", "applications", "jetbrains-studio.desktop")
 }
 
-// Installed reports whether Android Studio is currently installed, using a
-// plain os.Stat on the install directory.
+// Installed reports whether a complete Android Studio is installed: the
+// install directory holds bin/studio.sh (a partial extraction doesn't).
 func Installed() bool {
-	info, err := os.Stat(installDir)
-	return err == nil && info.IsDir()
+	info, err := os.Stat(filepath.Join(installDir, "bin", "studio.sh"))
+	return err == nil && info.Mode().IsRegular()
 }
 
 // Install extracts tarballPath into /opt/android-studio, owned by the
@@ -79,14 +91,10 @@ func Install(ctx context.Context, exe *executor.Executor, stdout io.Writer, tarb
 	}
 
 	oldDir := installDir + ".old"
-	prepare := `set -e
-if [ -e "$1" ]; then rm -rf -- "$2"; mv -- "$1" "$2"; fi
-mkdir -m 0755 -- "$1"
-chown -- "$3:" "$1"`
 	steps := []executor.PrivilegedStep{{
 		Announce: "Preparando " + installDir + " para " + user + "...",
 		Name:     "sh",
-		Args:     []string{"-c", prepare, "sh", installDir, oldDir, user},
+		Args:     []string{"-c", prepareScript, "sh", installDir, oldDir, user},
 	}}
 	if err := exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps); err != nil {
 		return fmt.Errorf("preparar %s: %w", installDir, err)

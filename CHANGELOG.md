@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-13
+
+### Added
+- Ubuntu Budgie 24.04/26.04 and Fedora Budgie 44 support in Linux → Pós-instalação. Ubuntu Budgie has its own profiles without the GNOME-only packages (GNOME Tweaks, and the Flatpak plugin that would install GNOME Software); on 26.04, which already ships VLC, the Flatpak step installs only the web-app manager. Fedora Budgie uses the Fedora actions, shown as "Fedora 44 Budgie".
+- Dev Tools → IA: SKILLs and IA: MCPs show "parcial: …" when some agents rejected an item, listing the ones that accepted it.
+- Docker → Importar configurações lists the commands the imported apps will run before asking for confirmation.
+
+### Changed
+- Linux → Pós-instalação: each item now has its own **Aplicar** button instead of one checklist run, so the administrator password is asked only for the item being applied. An item already in place (detected on the system, or recorded after a successful run when it leaves nothing to detect) shows a disabled **Aplicado** button; an item whose prerequisite isn't applied yet shows "Requer: <item>". Recorded items are tied to the machine (`/etc/machine-id`), so after reinstalling the OS they can be applied again; held packages count as installed.
+- Desenvolvimento → Pré-requisitos: a table with **Instalar**, **Atualizar** and **Desinstalar** buttons on each item instead of a checklist. **Atualizar** is new: it upgrades the item's own packages, moves Node.js to the latest LTS (keeping its global npm packages) and reinstalls the pinned Wails3 CLI and AppImageTool. Items others need (Curl, Flatpak) come first, and an item whose requirement isn't installed (Curl, Flatpak, or Go for the Wails3 CLI) can't be installed yet and shows "Requer: …". Uninstalling always asks for confirmation.
+- Desenvolvimento → Linguagens e SDKs: the same table as Pré-requisitos — **Instalar**, **Atualizar** and **Desinstalar** on Go and Flutter. **Atualizar** installs the latest stable Go when it is newer than the installed one and runs `flutter upgrade` for Flutter. Go requires Curl and Flutter requires Git (both from Pré-requisitos), shown as "Requer: …" until installed. Uninstalling always asks for confirmation.
+- Removing a prerequisite (and Alacritty, GNOME Console, VS Code, VSCodium, GitHub CLI) is refused when the package manager would also remove other packages, naming them; "Libsecret Tools" no longer removes the shared library. On Fedora it also installs `git-credential-libsecret`.
+- Dev Tools → IA: SKILLs: skills are pinned to a commit, **Atualizar** reinstalls them at that commit for the same agents, the skills CLI runs with telemetry disabled, and the screen notes that skills are third-party content.
+- Dev Tools → IA: Contextos: `.claudeignore` is no longer generated (Claude Code ignores it); the read restrictions go to `.claude/settings.json` as `permissions.deny` rules, merged with the existing file. Generated files are written through symlinks and the previous different version is kept as `<file>.perci-bak`. The generated `MOODLE.md` refers to the project as `.` instead of its absolute path.
+- Folders and MCP parameters sent by the screens must have been picked in the file dialog (or registered earlier); adding a repository folder requires the dialog.
+- Closing the window (with the tray off) or **Sair** in the tray while an action runs no longer quits Perci: the window running the action shows its Execução tab with a notice.
+- Linux → Atualizar Sistema finishes "concluído com avisos" when snap, Flatpak, journal or autoremove steps fail, instead of reporting plain success.
+- Docker: app containers use `--mount` instead of `-v` (the workspace path may not contain `,` or `"`), get `host.docker.internal` (Xdebug can reach the IDE after **Recriar**), and `moodledata` is created with mode 0750. **Editar**/**Recriar** build the image before removing the running container. When Nginx is stopped, its configuration is tested with `nginx -t` before being written. The `mkcert` certificate is renewed when it is less than 30 days from expiring.
+- Docker images pin Composer, the redis and xdebug PECL extensions, and take Node.js from the official `node` image; PHP 7.4 and 8.0 images (Debian bullseye, out of support) take their packages from archive.debian.org. Every Perci image rebuilds once.
+- Fonts downloaded by Linux → Gerenciar Fontes go to `~/.local/share/fonts/perci/<font>` and are removed completely; removing a packaged font on Debian/Ubuntu is refused when another package depends on it.
+- Installers pin nvm (v0.40.8) and the Codex CLI (0.162.1), and every network download or tool run without privileges has a time limit that also stops the processes it started, so a stalled connection no longer blocks Perci until restart. The Flutter clone is instead stopped only when the transfer stalls.
+- Terminal output reaches the Execução tab in batches of about 30 ms, keeping long actions smooth.
+- Uninstalling Perci asks for the password once and removes the `perci` alias only when it points to `prci`; a development build no longer updates itself.
+- Wails updated to v3.0.0-beta.28: on Linux, right-clicking the system tray icon no longer runs the left-click action as well, on top of opening the menu.
+- Release pipeline: lint, tests and ShellCheck run in their own job before the build.
+
+### Removed
+- Linux → Aplicativos: Linux Toys (it ran a remote installer as root without integrity checks). An installation made by an earlier version stays; remove it with the package manager if needed.
+- Linux → Aplicativos: Flatpak: Resources, Google Chrome, Vivaldi, Minecraft, Minecraft Java, Ente Auth, Font Downloader and FreeTube are no longer in the list. Copies already installed stay installed; remove them with `flatpak uninstall` or the software center if needed.
+
+### Fixed
+- Linux → Atualizar Sistema no longer fails on Debian/Ubuntu when a package's configuration file was edited by the user.
+- Linux → Pós-instalação: "Habilitar RPM Fusion" installs whichever repository is missing instead of staying "Aplicar" forever; the swapfile item reports failures and undoes a half-done setup; Fedora codecs only count as applied with the multimedia group installed.
+- Uninstalling Perci with a backup requested removes nothing when the backup fails.
+- Docker → MariaDB backup no longer destroys the previous backup file when the dump fails; importing a configuration keeps the local MariaDB root and data passwords and checks the credentials before removing anything; Recriar MariaDB refuses diverging credentials without removing the database.
+- Dev Tools → Plugins Moodle: a failed mount undoes the unit, the record and the folder; removing keeps the unit while the folder is still mounted; folder names with `%` work; the screen opens with far fewer Docker calls.
+- Reinstalling Android Studio or Antigravity no longer destroys the previous installation when the new one fails.
+- Checklists no longer run the previous screen's action while the new one loads; IDE screens refresh their buttons after an action; screens no longer show data from a previous folder or scope when answers arrive late; errors are shown instead of a permanent "Verificando...".
+- Removing Go, Flutter or Node.js entries from the shell rc no longer deletes unrelated lines or leaves blank lines, and works on fish without `~/.config/fish`; uninstalling Node.js removes the nvm lines.
+- An existing `credential.helper` (gh, GCM) is kept; a warning is shown when only the `cache` helper is available.
+- Flutter requires Java 17 or newer and installs the JDK in the same password prompt as its other prerequisites; installing Kitty no longer opens a Kitty window; Kitty, Starship and Zed make sure `~/.local/bin` is on the PATH; uninstalling Zed removes its menu entry.
+- The KDE Dolphin "Abrir no <terminal>" menu entry is executable, so Dolphin no longer asks to trust it.
+- Dev Tools → IA: Contextos keeps a `CLAUDE.md` that is a link to `AGENTS.md` instead of writing the Claude stub through it over `AGENTS.md`.
+- Docker → Recriar Nginx renews the certificate before removing the running container, so a renewal failure leaves Nginx running.
+- An action started right after the previous one finished could be refused with "outra ação já está em execução": the end of an action is now announced only after it releases the lock.
+- Docker → Criar Container: the first-time `mkcert` warning is shown at the top of the screen, above the form, instead of breaking the form layout.
+- Opening Perci again while it is already running (e.g. from the distro menu with the tray enabled) no longer starts a second copy with another tray icon; it brings the running window to the front.
+
+### Security
+- Commands run with administrator rights are resolved to absolute paths in system directories, never through the user's `PATH`.
+- Dev Tools → Plugins Moodle refuses mount destinations outside the Moodle folder (including through symbolic links or a modified `components.json`).
+- Docker quick actions and logs only accept Perci's own containers; a second Nginx or MariaDB container is refused.
+- MCP servers, Claude Code and Codex registrations never overwrite or remove a same-name entry Perci didn't create; the Filesystem and SQLite servers are refused when `npx`/`uvx` is missing.
+- Signed repositories (VS Code, VSCodium, MegaSync) are configured non-interactively, never add a second apt source when one exists, require HTTPS redirects, and the MEGA key is checked against its pinned fingerprint.
+- `install.sh` only downloads from GitHub hosts, refuses redirects to HTTP, has timeouts, and verifies the release's build attestation when the GitHub CLI is installed and logged in.
+- The self-update no longer downloads `checksums.txt` to check for a new version, but still requires and verifies it before installing.
+- The Docker Engine prerequisite description warns that the `docker` group grants administrator-equivalent access; the Flutter description states that the Android SDK licenses are accepted during installation.
+
 ## [1.1.0] - 2026-10-09
 
 ### Added
@@ -52,7 +110,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/oito2/perci/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oito2/perci/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/oito2/perci/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/oito2/perci/releases/tag/v1.0.0

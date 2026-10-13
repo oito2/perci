@@ -67,9 +67,10 @@ func TestAppRunArgs_NoData(t *testing.T) {
 	for _, w := range []string{
 		"--name", "meuapp",
 		"--network", NetworkName,
-		"/ws/localhost/html/meuapp:/var/www/html",
-		"/ws/localhost/logs/meuapp:/var/log/php",
-		"/perci/php-conf/meuapp/zz-perci-overrides.ini:" + phpConfMount + ":ro",
+		"--mount type=bind,source=/ws/localhost/html/meuapp,target=/var/www/html",
+		"--add-host host.docker.internal:host-gateway",
+		"--mount type=bind,source=/ws/localhost/logs/meuapp,target=/var/log/php",
+		"--mount type=bind,source=/perci/php-conf/meuapp/zz-perci-overrides.ini,target=" + phpConfMount + ",readonly",
 		"perci-php82",
 	} {
 		if !strings.Contains(joined, w) {
@@ -89,7 +90,7 @@ func TestAppRunArgs_WithDataAndDBEnv(t *testing.T) {
 		[]string{"DB_HOST=mariadb", "DB_USER=dev_user", "DB_PASS=s3cr3t"})
 
 	joined := strings.Join(got, " ")
-	if !strings.Contains(joined, "/ws/data/curso1:/var/www/data") {
+	if !strings.Contains(joined, "source=/ws/data/curso1,target=/var/www/data") {
 		t.Errorf("expected data volume when dataDir is set, got:\n%v", got)
 	}
 	// Names only: docker copies the values from its client env, so the
@@ -110,7 +111,7 @@ func TestNodeAppRunArgs(t *testing.T) {
 		"--name", "frontend",
 		"--network", NetworkName,
 		"--user", "node",
-		"/ws/html/frontend:/app",
+		"--mount type=bind,source=/ws/html/frontend,target=/app",
 		"perci-node24",
 	} {
 		if !strings.Contains(joined, w) {
@@ -136,10 +137,11 @@ func TestComboAppRunArgs(t *testing.T) {
 	for _, w := range []string{
 		"--name", "projeto",
 		"--network", NetworkName,
-		"/ws/html/projeto/api:/var/www/html",
-		"/ws/html/projeto/app:/app",
-		"/ws/logs/projeto:/var/log/php",
-		"/perci/php-conf/projeto/zz-perci-overrides.ini:" + phpConfMount + ":ro",
+		"--mount type=bind,source=/ws/html/projeto/api,target=/var/www/html",
+		"--add-host host.docker.internal:host-gateway",
+		"--mount type=bind,source=/ws/html/projeto/app,target=/app",
+		"--mount type=bind,source=/ws/logs/projeto,target=/var/log/php",
+		"--mount type=bind,source=/perci/php-conf/projeto/zz-perci-overrides.ini,target=" + phpConfMount + ",readonly",
 		"-e DEV_COMMAND=npm run dev",
 		"-e WORKER_COMMAND=php bin/console messenger:consume async",
 		"-e DB_HOST -e DB_USER",

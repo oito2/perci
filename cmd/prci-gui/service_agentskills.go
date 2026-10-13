@@ -16,13 +16,14 @@
 package main
 
 // Bound methods for "Dev Tools :: IA: SKILLs" — a thin layer over
-// internal/dev/agentskills (`npx skills add/remove/update`). config.yaml's
+// internal/dev/agentskills (`npx skills add/remove`). config.yaml's
 // AgentSkills field records which skills are installed, per scope.
 
 import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/dev/agentskills"
@@ -34,11 +35,15 @@ func (t *DevToolsService) PickAgentSkillsFolder() (string, error) {
 	return t.pickFolder("Selecionar pasta do projeto")
 }
 
-// AgentSkillRow is one row of "Dev Tools :: IA: SKILLs".
+// AgentSkillRow is one row of "Dev Tools :: IA: SKILLs". Agents lists, by
+// name, the agents that accepted the skill (empty for a record written
+// before they were recorded); Partial is set when some agent is missing.
 type AgentSkillRow struct {
-	Slug      string `json:"slug"`
-	Name      string `json:"name"`
-	Installed bool   `json:"installed"`
+	Slug      string   `json:"slug"`
+	Name      string   `json:"name"`
+	Installed bool     `json:"installed"`
+	Partial   bool     `json:"partial"`
+	Agents    []string `json:"agents"`
 }
 
 // findAgentSkillInstall returns the index of cfg.AgentSkills matching
@@ -48,39 +53,71 @@ func findAgentSkillInstall(installs []config.AgentSkillInstall, slug string, glo
 	return indexOfScoped(installs, agentSkillKey, slug, global, folder)
 }
 
+// agentLabels names each agent ID with label.
+func agentLabels(ids []string, label func(string) string) []string {
+	names := make([]string, len(ids))
+	for i, id := range ids {
+		names[i] = label(id)
+	}
+	return names
+}
+
+// isPartial reports whether a record that names its agents lacks any of
+// expected. A record without agents (older than the field) never counts as
+// partial.
+func isPartial(recorded, expected []string) bool {
+	if len(recorded) == 0 {
+		return false
+	}
+	for _, id := range expected {
+		if !slices.Contains(recorded, id) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetAgentSkillsRows lists the whole catalog with its installed state for
 // the given scope (global, or local at folder).
 func (t *DevToolsService) GetAgentSkillsRows(global bool, folder string) ([]AgentSkillRow, error) {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
+		return nil, err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]AgentSkillRow, len(agentskills.Catalogue))
 	for i, sk := range agentskills.Catalogue {
-		installed := findAgentSkillInstall(cfg.AgentSkills, sk.Slug, global, folder) >= 0
-		rows[i] = AgentSkillRow{Slug: sk.Slug, Name: sk.Name, Installed: installed}
+		rows[i] = AgentSkillRow{Slug: sk.Slug, Name: sk.Name, Agents: []string{}}
+		if idx := findAgentSkillInstall(cfg.AgentSkills, sk.Slug, global, folder); idx >= 0 {
+			rec := cfg.AgentSkills[idx]
+			rows[i].Installed = true
+			rows[i].Partial = isPartial(rec.Agents, agentskills.TargetAgents())
+			rows[i].Agents = agentLabels(rec.Agents, agentskills.AgentLabel)
+		}
 	}
 	return rows, nil
 }
 
 // recordAgentSkillInstall updates config.yaml's AgentSkills to reflect
-// whether (slug, global, folder) is now installed — replacing any existing
-// record for that same key.
-func recordAgentSkillInstall(slug string, global bool, folder string, installed bool) error {
+// whether (slug, global, folder) is now installed, and by which agents —
+// replacing any existing record for that same key.
+func recordAgentSkillInstall(slug string, global bool, folder string, agents []string, installed bool) error {
 	return config.Update(func(cfg *config.Config) error {
 		filtered := withoutScoped(cfg.AgentSkills, agentSkillKey, slug, global, folder)
 		if installed {
-			filtered = append(filtered, config.AgentSkillInstall{Slug: slug, Global: global, Folder: folder})
+			filtered = append(filtered, config.AgentSkillInstall{Slug: slug, Global: global, Folder: folder, Agents: agents})
 		}
 		cfg.AgentSkills = filtered
 		return nil
 	})
 }
 
-// InstallAgentSkill runs `npx skills add` for slug and records it in
-// config.yaml on success.
+// InstallAgentSkill runs `npx skills add` for slug and records it, with the
+// agents that accepted it, in config.yaml on success.
 func (t *DevToolsService) InstallAgentSkill(slug string, global bool, folder string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -88,17 +125,18 @@ func (t *DevToolsService) InstallAgentSkill(slug string, global bool, folder str
 		if !ok {
 			return fmt.Errorf("skill desconhecida: %s", slug)
 		}
-		if err := agentskills.Install(context.Background(), t.exe, stdout, sk, global, folder); err != nil {
+		agents, err := agentskills.Install(context.Background(), t.exe, stdout, sk, global, folder)
+		if err != nil {
 			return err
 		}
-		return recordAgentSkillInstall(slug, global, folder, true)
+		return recordAgentSkillInstall(slug, global, folder, agents, true)
 	})
 }
 
 // RemoveAgentSkill runs `npx skills remove` for slug and clears its
 // config.yaml record on success.
 func (t *DevToolsService) RemoveAgentSkill(slug string, global bool, folder string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -109,14 +147,14 @@ func (t *DevToolsService) RemoveAgentSkill(slug string, global bool, folder stri
 		if err := agentskills.Remove(context.Background(), t.exe, stdout, sk, global, folder); err != nil {
 			return err
 		}
-		return recordAgentSkillInstall(slug, global, folder, false)
+		return recordAgentSkillInstall(slug, global, folder, nil, false)
 	})
 }
 
-// UpdateAgentSkill runs `npx skills update` for slug — doesn't touch
-// config.yaml (an update never changes whether it's installed).
+// UpdateAgentSkill reinstalls slug at its pinned commit for the same agents
+// as the install and refreshes the agents recorded for it.
 func (t *DevToolsService) UpdateAgentSkill(slug string, global bool, folder string) error {
-	if err := requireFolderUnlessGlobal(global, folder); err != nil {
+	if err := requireKnownFolderUnlessGlobal(global, folder); err != nil {
 		return err
 	}
 	return t.runAction(func(stdout io.Writer) error {
@@ -124,6 +162,10 @@ func (t *DevToolsService) UpdateAgentSkill(slug string, global bool, folder stri
 		if !ok {
 			return fmt.Errorf("skill desconhecida: %s", slug)
 		}
-		return agentskills.Update(context.Background(), t.exe, stdout, sk, global, folder)
+		agents, err := agentskills.Update(context.Background(), t.exe, stdout, sk, global, folder)
+		if err != nil {
+			return err
+		}
+		return recordAgentSkillInstall(slug, global, folder, agents, true)
 	})
 }

@@ -16,12 +16,14 @@
 package appstack
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -45,6 +47,10 @@ type ExportedConfig struct {
 	Docker        config.DockerConfig `yaml:"docker"`
 }
 
+// ErrNothingToExport is returned by ExportConfig when no Docker container
+// is registered yet.
+var ErrNothingToExport = errors.New("nada para exportar — nenhum contêiner Docker registrado ainda")
+
 // ExportConfig writes the current cfg.Docker plus cfg.WorkspacePath to
 // path, as YAML. MariaDB credentials are included in plaintext.
 func ExportConfig(path string) error {
@@ -53,7 +59,7 @@ func ExportConfig(path string) error {
 		return fmt.Errorf("carregar config: %w", err)
 	}
 	if !cfg.Docker.NginxCreated && cfg.Docker.MariaDB.DBUser == "" && len(cfg.Docker.Apps) == 0 {
-		return fmt.Errorf("nada para exportar — nenhum contêiner Docker registrado ainda")
+		return ErrNothingToExport
 	}
 
 	exported := ExportedConfig{
@@ -100,13 +106,29 @@ func validateExported(e ExportedConfig) error {
 	if e.WorkspacePath != "" && !filepath.IsAbs(e.WorkspacePath) {
 		return fmt.Errorf("workspace_path deve ser um caminho absoluto: %q", e.WorkspacePath)
 	}
-	if u := e.Docker.MariaDB.DBUser; u != "" && !ValidDBIdentifier.MatchString(u) {
+	if u := e.Docker.MariaDB.DBUser; u != "" {
+		if !ValidDBIdentifier.MatchString(u) {
+			return fmt.Errorf("usuário do banco inválido: %q", u)
+		}
+		if err := validateDBPassword(e.Docker.MariaDB.DBPass); err != nil {
+			return err
+		}
+	}
+	for _, p := range []string{e.Docker.MariaDB.DBRootPass, e.Docker.MariaDB.DataPass} {
+		if strings.ContainsAny(p, "\r\n") {
+			return fmt.Errorf("senha do banco inválida: não pode conter quebra de linha")
+		}
+	}
+	if u := e.Docker.MariaDB.DataUser; u != "" && !ValidDBIdentifier.MatchString(u) {
 		return fmt.Errorf("usuário do banco inválido: %q", u)
 	}
 	folders := map[string]bool{}
 	for _, app := range e.Docker.Apps {
 		if err := ValidateApp(app); err != nil {
 			return fmt.Errorf("aplicativo %q: %w", app.Folder, err)
+		}
+		if strings.ContainsAny(app.DevCommand+app.WorkerCommand, "\r\n") {
+			return fmt.Errorf("aplicativo %q: os comandos não podem conter quebra de linha", app.Folder)
 		}
 		if folders[app.Folder] {
 			return fmt.Errorf("aplicativo %q aparece mais de uma vez", app.Folder)
@@ -165,6 +187,25 @@ func ImportConfig(ctx context.Context, exe *executor.Executor, stdin io.Reader, 
 		return err
 	}
 
+	checkCfg := *cfg
+	checkCfg.WorkspacePath = workspacePath
+	checkWorkspace, err := resolveWorkspace(&checkCfg)
+	if err != nil {
+		return err
+	}
+	// localData: the MariaDB data directory under the imported workspace
+	// already exists, so the local secrets are the ones it was created with.
+	localData := mariadbDataInitialized(MariaDBDataDir(checkWorkspace))
+
+	// The imported database credentials are checked against the local data
+	// directory before anything is saved or removed: a file from another
+	// machine must not strand the database already on disk.
+	if u := exported.Docker.MariaDB.DBUser; u != "" {
+		if err := checkMariaDBCredentials(stdout, &checkCfg, checkWorkspace, u, exported.Docker.MariaDB.DBPass); err != nil {
+			return err
+		}
+	}
+
 	for _, local := range cfg.Docker.Apps {
 		if _, kept := FindAppByFolder(exported.Docker.Apps, local.Folder); !kept {
 			ui.Warning(stdout, "O aplicativo "+local.Folder+" não está no arquivo importado: sai da lista do Perci, mas o contêiner "+
@@ -174,7 +215,21 @@ func ImportConfig(ctx context.Context, exe *executor.Executor, stdin io.Reader, 
 
 	if err := config.Update(func(cfg *config.Config) error {
 		cfg.WorkspacePath = workspacePath
+		// With an existing local data directory, the local root and data
+		// secrets win (they are the ones it was created with); otherwise the
+		// file's win. Missing values are never blanked.
+		m, local := exported.Docker.MariaDB, cfg.Docker.MariaDB
+		if localData {
+			m.DBRootPass = cmp.Or(local.DBRootPass, m.DBRootPass)
+			m.DataUser = cmp.Or(local.DataUser, m.DataUser)
+			m.DataPass = cmp.Or(local.DataPass, m.DataPass)
+		} else {
+			m.DBRootPass = cmp.Or(m.DBRootPass, local.DBRootPass)
+			m.DataUser = cmp.Or(m.DataUser, local.DataUser)
+			m.DataPass = cmp.Or(m.DataPass, local.DataPass)
+		}
 		cfg.Docker = exported.Docker
+		cfg.Docker.MariaDB = m
 		return nil
 	}); err != nil {
 		return fmt.Errorf("salvar config: %w", err)
@@ -182,7 +237,7 @@ func ImportConfig(ctx context.Context, exe *executor.Executor, stdin io.Reader, 
 
 	if exported.Docker.NginxCreated {
 		ui.Info(stdout, "Recriando Contêiner Nginx...")
-		if _, err := RecreateNginx(ctx, exe, stdin, stdout); err != nil {
+		if _, err := recreateNginx(ctx, exe, stdin, stdout, false); err != nil {
 			return fmt.Errorf("recriar nginx: %w", err)
 		}
 	}

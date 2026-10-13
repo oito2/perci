@@ -234,8 +234,9 @@ func TestFile(t *testing.T) {
 	}
 }
 
-// An empty comment matches nothing, so no blank line is ever deleted.
-func TestRemoveEntry_EmptyCommentKeepsBlankLines(t *testing.T) {
+// An empty comment matches nothing: only the entry and the one blank line
+// right before it go; earlier blank lines stay.
+func TestRemoveEntry_EmptyCommentKeepsEarlierBlankLines(t *testing.T) {
 	rc := filepath.Join(t.TempDir(), ".bashrc")
 	content := "alias a=1\n\nalias b=2\n\neval \"$(starship init bash)\"\n"
 	if err := os.WriteFile(rc, []byte(content), 0o644); err != nil {
@@ -243,7 +244,7 @@ func TestRemoveEntry_EmptyCommentKeepsBlankLines(t *testing.T) {
 	}
 	RemoveEntry([]string{rc}, "", `eval "$(starship init bash)"`)
 	got, _ := os.ReadFile(rc)
-	if want := "alias a=1\n\nalias b=2\n\n"; string(got) != want {
+	if want := "alias a=1\n\nalias b=2\n"; string(got) != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
@@ -278,5 +279,51 @@ func TestAppendAndRemove_KeepSymlink(t *testing.T) {
 	got, _ := os.ReadFile(target)
 	if !strings.Contains(string(got), "export B=2") || strings.Contains(string(got), "export A=1") {
 		t.Errorf("edits didn't reach the symlink target: %q", got)
+	}
+}
+
+// A line equal to the comment that is not directly followed by the entry
+// belongs to the user and must survive.
+func TestRemoveEntry_KeepsUnrelatedCommentLine(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), ".bashrc")
+	entry := `export PATH=$PATH:/usr/local/go/bin`
+	content := "# Go\nexport GOFLAGS=-v\n\n# Go\n" + entry + "\n"
+	if err := os.WriteFile(rc, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	RemoveEntry([]string{rc}, "# Go", entry)
+	got, _ := os.ReadFile(rc)
+	if want := "# Go\nexport GOFLAGS=-v\n"; string(got) != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Appending then removing leaves the file as it was: no blank line piles up.
+func TestAppendThenRemove_RestoresFile(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), ".bashrc")
+	orig := "alias a=1\n"
+	if err := os.WriteFile(rc, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if _, err := AppendIfMissing(rc, "# Go", "export X=1"); err != nil {
+			t.Fatal(err)
+		}
+		RemoveEntry([]string{rc}, "# Go", "export X=1")
+	}
+	got, _ := os.ReadFile(rc)
+	if string(got) != orig {
+		t.Errorf("got %q, want %q", got, orig)
+	}
+}
+
+// The rc file's directory (fish's ~/.config/fish) is created when missing.
+func TestAppendIfMissing_CreatesParentDirectory(t *testing.T) {
+	rc := filepath.Join(t.TempDir(), ".config", "fish", "config.fish")
+	if ok, err := AppendIfMissing(rc, "", "set -x A 1"); err != nil || !ok {
+		t.Fatalf("AppendIfMissing = %v, %v", ok, err)
+	}
+	if _, err := os.Stat(rc); err != nil {
+		t.Fatal(err)
 	}
 }

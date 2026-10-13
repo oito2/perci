@@ -48,7 +48,12 @@ type Font struct {
 	// ChecksumSHA256 is an alternative to ChecksumsURL: a pinned SHA-256
 	// of the download. Only consulted when ChecksumsURL is empty.
 	ChecksumSHA256 string
-	RemoveGlob     string // glob pattern for .ttf files to delete from ~/.local/share/fonts/
+	// Dir names the font's own folder under ~/.local/share/fonts/perci/ for a
+	// downloaded font; removing the font removes that folder.
+	Dir string
+	// RemoveGlob matches the .ttf files an older version copied straight into
+	// ~/.local/share/fonts/; removal still deletes them.
+	RemoveGlob string
 }
 
 // Catalogue lists all fonts managed by perci.gnl.
@@ -58,14 +63,16 @@ var Catalogue = []Font{
 		Check:          "JetBrains Mono",
 		URL:            "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
 		ChecksumSHA256: "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf",
+		Dir:            "jetbrains-mono",
 		RemoveGlob:     "JetBrainsMono-*.ttf",
 	},
 	{
-		Name:         "JetBrains Mono NF",
-		Check:        "JetBrainsMono Nerd Font",
-		URL:          "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.tar.xz",
-		ChecksumsURL: "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/SHA-256.txt",
-		RemoveGlob:   "JetBrainsMonoNerd*.ttf",
+		Name:           "JetBrains Mono NF",
+		Check:          "JetBrainsMono Nerd Font",
+		URL:            "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.tar.xz",
+		ChecksumSHA256: "ef552a3e638f25125c6ad4c51176a6adcdce295ab1d2ffacf0db060caf8c1582",
+		Dir:            "jetbrains-mono-nf",
+		RemoveGlob:     "JetBrainsMonoNerd*.ttf",
 	},
 	// Fonts installed from distribution packages.
 	{Name: "Carlito", Check: "Carlito", AptPkg: "fonts-crosextra-carlito", DnfPkg: "google-carlito-fonts"},
@@ -221,7 +228,8 @@ func Apply(ctx context.Context, exe *executor.Executor, stdout io.Writer, toInst
 // package that provides f on family; ok is false — after a warning — when
 // f has no package there. Removal on Fedora uses rpm -e, which refuses
 // when another package requires the font, instead of dnf remove, which
-// would take those dependents out with it.
+// would take those dependents out with it; Debian uses dpkg --purge for the
+// same reason, instead of apt-get purge.
 func pkgFontStep(stdout io.Writer, f Font, family string, remove bool) (executor.PrivilegedStep, bool) {
 	pkg := f.pkgFor(family)
 	if pkg == "" {
@@ -238,9 +246,9 @@ func pkgFontStep(stdout io.Writer, f Font, family string, remove bool) (executor
 	}
 	switch {
 	case family == distro.Debian && !remove:
-		s.Name, s.Args = "apt-get", []string{"install", "-y", "--", pkg}
+		s.Env, s.Name, s.Args = distro.AptEnv, "apt-get", distro.AptArgs("install", "-y", "--", pkg)
 	case family == distro.Debian:
-		s.Name, s.Args = "apt-get", []string{"purge", "-y", "--", pkg}
+		s.Name, s.Args = "dpkg", []string{"--purge", "--", pkg}
 	case !remove:
 		s.Name, s.Args = "dnf", []string{"install", "-y", "--", pkg}
 	default:
@@ -256,22 +264,36 @@ func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Fo
 	if f.URL == "" {
 		return fmt.Errorf("fonte %q: URL de download não configurada", f.Name)
 	}
+	if f.Dir == "" || strings.ContainsAny(f.Dir, "/.") {
+		return fmt.Errorf("fonte %q: pasta de instalação inválida", f.Name)
+	}
 	return installFromURL(ctx, exe, stdout, f)
 }
+
+// removeScript deletes a downloaded font: its own folder, then the loose
+// files an older version copied straight into the fonts directory (matched
+// by PERCI_GLOB). Both come through the environment, never the script text.
+const removeScript = `set -Eeuo pipefail
+fonts="$HOME/.local/share/fonts"
+rm -rf -- "$fonts/perci/$PERCI_FONT_DIR"
+if [ -n "$PERCI_GLOB" ]; then
+	find "$fonts" -maxdepth 1 -name "$PERCI_GLOB" -delete 2>/dev/null || true
+fi
+`
 
 // remove deletes a downloaded font's files. Packaged fonts are handled by
 // Apply's batch, and the step announcement is Apply's ui.Step call.
 func remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Font) error {
-	// Pass the glob via env variable so that shell metacharacters in future
-	// catalogue entries cannot break or inject into the find command.
+	if f.Dir == "" || strings.ContainsAny(f.Dir, "/.") {
+		return fmt.Errorf("fonte %q: pasta de instalação inválida", f.Name)
+	}
 	return exe.Run(ctx,
 		executor.Options{
 			Stdout: stdout,
 			Stderr: stdout,
-			Env:    []string{"PERCI_GLOB=" + f.RemoveGlob},
+			Env:    []string{"PERCI_FONT_DIR=" + f.Dir, "PERCI_GLOB=" + f.RemoveGlob},
 		},
-		"bash", "-c",
-		`find "$HOME/.local/share/fonts" -name "$PERCI_GLOB" -delete 2>/dev/null; true`,
+		"bash", "-c", removeScript,
 	)
 }
 
@@ -293,7 +315,8 @@ func requireTool(tool string) string {
 
 // installFromURL downloads and installs a font from a .zip or .tar.xz URL,
 // verifying it against f.ChecksumsURL (or f.ChecksumSHA256, when the release
-// has no separate checksums file) first when one is set. The URL and
+// has no separate checksums file) first when one is set, and copies the
+// .ttf files into the font's own folder; an archive with no .ttf fails. The URL and
 // archive name reach the script through Env, never interpolated into the
 // script text, so their content is never parsed by bash.
 func installFromURL(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Font) error {
@@ -311,6 +334,7 @@ func downloadScript(f Font) (script string, env []string) {
 		"PERCI_ARCHIVE=" + archiveName,
 		"PERCI_CHECKSUMS_URL=" + f.ChecksumsURL,
 		"PERCI_EXPECTED_SHA256=" + f.ChecksumSHA256,
+		"PERCI_FONT_DIR=" + f.Dir,
 	}
 
 	var checksumCmd string
@@ -344,12 +368,18 @@ fi
 
 	script = fmt.Sprintf(`
 set -Eeuo pipefail
-mkdir -p "%s"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 curl -fsSL --connect-timeout 10 --max-time 600 "$PERCI_URL" -o "$TMP/$PERCI_ARCHIVE"
 %s%s
-find "$TMP" -maxdepth 3 -name "*.ttf" -exec cp -- {} "%s/" \;
-`, fontDir, checksumCmd, extractCmd, fontDir)
+count=$(find "$TMP" -maxdepth 3 -name "*.ttf" | wc -l)
+if [ "$count" -eq 0 ]; then
+	echo "nenhuma fonte .ttf encontrada em $PERCI_ARCHIVE" >&2
+	exit 1
+fi
+dest="%s/perci/$PERCI_FONT_DIR"
+mkdir -p -- "$dest"
+find "$TMP" -maxdepth 3 -name "*.ttf" -exec cp -- {} "$dest/" \;
+`, checksumCmd, extractCmd, fontDir)
 	return script, env
 }

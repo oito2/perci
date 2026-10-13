@@ -27,6 +27,11 @@ var sha256Hex = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 // mismatch. Positional parameters keep both values out of the script text.
 const verifyStagedScript = `printf '%s  %s\n' "$1" "$2" | sha256sum -c --status - || { rm -f -- "$2"; echo "checksum não confere: $2" >&2; exit 1; }`
 
+// finalizeStagedScript sets mode $1 on the staged file $2 and renames it onto
+// $3; when either command fails, the staged file is deleted so no root-owned
+// leftover stays next to the destination.
+const finalizeStagedScript = `chmod "$1" -- "$2" && mv -f -T -- "$2" "$3" || { rm -f -- "$2"; exit 1; }`
+
 // PrivilegedInstallSteps returns the privileged steps that install src at
 // dest owned by root:root with mode, without trusting src after the prompt.
 //
@@ -47,8 +52,7 @@ func PrivilegedInstallSteps(src, dest, sha256, mode string) ([]PrivilegedStep, e
 	return []PrivilegedStep{
 		{Name: "install", Args: []string{"-T", "-m", "0600", "-o", "root", "-g", "root", "--", src, staged}},
 		{Name: "sh", Args: []string{"-c", verifyStagedScript, "sh", sha256, staged}},
-		{Name: "chmod", Args: []string{mode, "--", staged}},
-		{Name: "mv", Args: []string{"-f", "-T", "--", staged, dest}},
+		{Name: "sh", Args: []string{"-c", finalizeStagedScript, "sh", mode, staged, dest}},
 	}, nil
 }
 

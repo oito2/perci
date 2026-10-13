@@ -25,6 +25,7 @@ export {
     GitIdentity,
     ImportPreview,
     MCPServerRow,
+    ManagedItemInfo,
     MenuCategory,
     MenuItem,
     MoodleAppOption,

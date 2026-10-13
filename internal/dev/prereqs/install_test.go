@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,8 +70,8 @@ func fakeBin(t *testing.T, scripts map[string]string) string {
 	return dir
 }
 
-// Every catalogue item installs and uninstalls on both families without
-// error, asking for the password at most once.
+// Every catalogue item installs, updates and uninstalls on both families
+// without error, asking for the password at most once.
 func TestInstallUninstall_EveryItemAtMostOnePrompt(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	// appimagetool needs its release API; served locally below.
@@ -82,26 +84,31 @@ func TestInstallUninstall_EveryItemAtMostOnePrompt(t *testing.T) {
 
 	for _, family := range []string{distro.Debian, distro.Fedora} {
 		for _, p := range Catalogue {
-			for _, remove := range []bool{false, true} {
+			for op, run := range map[string]func(*executor.Executor, *bytes.Buffer) error{
+				"install": func(exe *executor.Executor, buf *bytes.Buffer) error {
+					return installFor(context.Background(), exe, buf, p, family)
+				},
+				"update": func(exe *executor.Executor, buf *bytes.Buffer) error {
+					return updateFor(context.Background(), exe, buf, p, family)
+				},
+				"uninstall": func(exe *executor.Executor, buf *bytes.Buffer) error {
+					return uninstallFor(context.Background(), exe, buf, p, family)
+				},
+			} {
 				var buf bytes.Buffer
-				exe := dryRun(&buf, "go", "wails3")
-				var err error
-				if remove {
-					err = uninstallFor(context.Background(), exe, &buf, p, family)
-				} else {
-					err = installFor(context.Background(), exe, &buf, p, family)
-				}
-				// appimagetool's install can't pass the checksum gate under
-				// DryRun (nothing is downloaded) — and must stop before root.
-				if p.ID == "appimagetool" && !remove {
+				err := run(dryRun(&buf, "go", "wails3"), &buf)
+				// appimagetool's install/update can't pass the checksum gate
+				// under DryRun (nothing is downloaded) — and must stop before
+				// root.
+				if p.ID == "appimagetool" && op != "uninstall" {
 					if err == nil || !strings.Contains(err.Error(), "integridade") {
-						t.Errorf("%s: err = %v, want the integrity gate", family, err)
+						t.Errorf("%s %s: err = %v, want the integrity gate", family, op, err)
 					}
 				} else if err != nil {
-					t.Errorf("%s %s remove=%v: %v", family, p.ID, remove, err)
+					t.Errorf("%s %s %s: %v", family, p.ID, op, err)
 				}
 				if n := strings.Count(buf.String(), "pkexec"); n > 1 {
-					t.Errorf("%s %s remove=%v: %d password prompts:\n%s", family, p.ID, remove, n, buf.String())
+					t.Errorf("%s %s %s: %d password prompts:\n%s", family, p.ID, op, n, buf.String())
 				}
 			}
 		}
@@ -121,6 +128,84 @@ func TestInstallFor_UnsupportedFamily(t *testing.T) {
 	}
 	if err := uninstallFor(context.Background(), dryRun(&buf), &buf, Prereq{ID: "nope", Name: "Nope"}, distro.Debian); err == nil {
 		t.Error("an unknown prerequisite must fail")
+	}
+	if err := updateFor(context.Background(), dryRun(&buf), &buf, Prereq{ID: "nope", Name: "Nope"}, distro.Debian); err == nil {
+		t.Error("an unknown prerequisite must fail")
+	}
+	if err := updateFor(context.Background(), dryRun(&buf), &buf, Prereq{ID: "git", Name: "Git"}, distro.Unknown); err == nil {
+		t.Error("update on an unknown family must fail")
+	}
+}
+
+// Updating a package item only upgrades its own packages, never installs
+// new ones; on Debian the index refresh shares the same password prompt.
+func TestUpdateFor_UpgradesOnlyTheItemPackages(t *testing.T) {
+	gtk := Prereq{ID: "gtk4dev", Name: "GTK4 Dev Headers"}
+	var deb bytes.Buffer
+	if err := updateFor(context.Background(), dryRun(&deb), &deb, gtk, distro.Debian); err != nil {
+		t.Fatal(err)
+	}
+	if out := deb.String(); !strings.Contains(out, "'install' '--only-upgrade' '-y' '--' 'libgtk-4-dev'") || strings.Count(out, "pkexec") != 1 {
+		t.Errorf("debian update:\n%s", out)
+	}
+	var fed bytes.Buffer
+	if err := updateFor(context.Background(), dryRun(&fed), &fed, gtk, distro.Fedora); err != nil {
+		t.Fatal(err)
+	}
+	if out := fed.String(); !strings.Contains(out, "dnf upgrade -y -- gtk4-devel") {
+		t.Errorf("fedora update:\n%s", out)
+	}
+}
+
+// Node.js updates through nvm with no privilege; the script is valid bash.
+func TestUpdateNode(t *testing.T) {
+	var buf bytes.Buffer
+	if err := updateFor(context.Background(), dryRun(&buf), &buf, Prereq{ID: "node", Name: "Node.js"}, distro.Debian); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); strings.Contains(out, "pkexec") || !strings.Contains(out, "--reinstall-packages-from") {
+		t.Errorf("node update:\n%s", out)
+	}
+	if out, err := exec.Command("bash", "-n", "-c", nodeUpdateScript).CombinedOutput(); err != nil {
+		t.Fatalf("nodeUpdateScript: %v\n%s", err, out)
+	}
+}
+
+// Every requirement exists, and every Catalogue item comes after the
+// Catalogue items it requires.
+func TestCatalogue_RequirementsComeFirst(t *testing.T) {
+	seen := map[string]bool{}
+	for _, p := range Catalogue {
+		for _, req := range p.Requires {
+			if _, external := externalRequirements[req]; external {
+				continue
+			}
+			if !seen[req] {
+				t.Errorf("%s requires %q, which is not listed before it", p.ID, req)
+			}
+		}
+		seen[p.ID] = true
+	}
+}
+
+// Missing requirements are reported by label: Catalogue items by Name,
+// external ones by their label.
+func TestMissingRequirements(t *testing.T) {
+	var buf bytes.Buffer
+	node := Prereq{ID: "node", Name: "Node.js", Requires: []string{"curl"}}
+	wails := Prereq{ID: "wails3", Name: "Wails3 CLI", Requires: []string{"go"}}
+	ctx := context.Background()
+	if got := MissingRequirements(ctx, dryRun(&buf), node, map[string]bool{}); !slices.Equal(got, []string{"Curl"}) {
+		t.Errorf("node without curl: %v", got)
+	}
+	if got := MissingRequirements(ctx, dryRun(&buf), node, map[string]bool{"Curl": true}); len(got) != 0 {
+		t.Errorf("node with curl: %v", got)
+	}
+	if got := MissingRequirements(ctx, dryRun(&buf), wails, nil); !slices.Equal(got, []string{"Go (Linguagens e SDKs)"}) {
+		t.Errorf("wails3 without go: %v", got)
+	}
+	if got := MissingRequirements(ctx, dryRun(&buf, "go"), wails, nil); len(got) != 0 {
+		t.Errorf("wails3 with go: %v", got)
 	}
 }
 
@@ -278,17 +363,5 @@ func TestAppImageToolChecksum(t *testing.T) {
 				t.Fatalf("got %q, %v", got, err)
 			}
 		})
-	}
-}
-
-// Apply goes through the diff with one step per item.
-func TestApply_DryRun(t *testing.T) {
-	var buf bytes.Buffer
-	if err := Apply(context.Background(), dryRun(&buf), &buf, []string{"Git"}, []string{"Curl"}); err != nil {
-		t.Fatal(err)
-	}
-	out := buf.String()
-	if !strings.Contains(out, "[1/2]") || !strings.Contains(out, "[2/2]") {
-		t.Errorf("want two steps:\n%s", out)
 	}
 }

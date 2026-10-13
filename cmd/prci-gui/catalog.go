@@ -124,13 +124,6 @@ var categories = []MenuCategory{
 				// "app único install/desinstalar" mode (#singleapp-container): an
 				// external application, two buttons instead of a checklist or a single
 				// button.
-				Title:    "Aplicativos: Linux Toys",
-				Desc:     "O LinuxToys reúne software útil, manutenção do sistema e ferramentas para repetir sua configuração em um único aplicativo fácil de usar — em dezenas de distribuições Linux.",
-				ActionID: "linuxtoys",
-				Tab:      "Definições",
-			},
-			{
-				// "app único install/desinstalar" mode, same as Linux Toys above.
 				Title:    "Aplicativos: MegaSync",
 				Desc:     "O MEGAsync é o aplicativo oficial do serviço de armazenamento em nuvem MEGA para computadores. Ele permite sincronizar pastas locais com a nuvem de forma automática e gerenciar downloads ou uploads.",
 				ActionID: "megasync",
@@ -142,22 +135,23 @@ var categories = []MenuCategory{
 		Label: "Desenvolvimento",
 		Items: []MenuItem{
 			{
-				// "checklist simples" mode, same as Fontes/Templates/Flatpak
-				// (#multiselect-container).
+				// Item table mode (#itemtable-container): one row per item
+				// with its own Instalar/Atualizar/Desinstalar buttons.
 				Title:    "Pré-requisitos",
-				Desc:     "Selecione os pacotes que deseja instalar. Para desinstalar, remova a seleção.",
+				Desc:     "Instale, atualize ou desinstale cada pré-requisito. Os itens exigidos por outros aparecem primeiro; um item que depende de outro só pode ser instalado depois dele.",
 				ActionID: "prereqs",
 				Tab:      "Definições",
 			},
 			{
-				// "checklist simples" mode, same as above.
+				// Item table mode, same as Pré-requisitos above.
 				Title:    "Linguagens e SDKs",
-				Desc:     "Selecione os pacotes que deseja instalar. Para desinstalar, remova a seleção.",
+				Desc:     "Instale, atualize ou desinstale cada SDK. Um SDK que depende de um pré-requisito só pode ser instalado depois dele.",
 				ActionID: "sdks",
 				Tab:      "Definições",
 			},
 			{
-				// "checklist simples" mode, same as above.
+				// "checklist simples" mode (#multiselect-container), same as
+				// Fontes/Templates/Flatpak.
 				Title:    "Aplicativos: IA",
 				Desc:     "Selecione aplicativos de IA que deseja instalar. Para desinstalar, remova a seleção.",
 				ActionID: "ai-apps",

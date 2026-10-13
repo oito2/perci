@@ -69,6 +69,16 @@ type Config struct {
 	// Moodle containers through the GUI.
 	MoodlePlugins []MoodlePluginMount `yaml:"moodle_plugins,omitempty"`
 
+	// PostinstallApplied lists, per post-install profile ID, the IDs of the
+	// post-install actions without a detectable system state that finished
+	// successfully.
+	PostinstallApplied map[string][]string `yaml:"postinstall_applied,omitempty"`
+
+	// PostinstallMachineID is the /etc/machine-id PostinstallApplied was
+	// recorded on; records from another machine ID (e.g. the OS was
+	// reinstalled keeping $HOME) don't count as applied.
+	PostinstallMachineID string `yaml:"postinstall_machine_id,omitempty"`
+
 	// TrayEnabled turns on the system tray icon. Off by default; the zero
 	// value is the default, so there is no OrDefault helper.
 	TrayEnabled bool `yaml:"tray_enabled,omitempty"`
@@ -92,6 +102,9 @@ type AgentSkillInstall struct {
 	Slug   string `yaml:"slug"`
 	Global bool   `yaml:"global"`
 	Folder string `yaml:"folder,omitempty"`
+	// Agents lists the agents that accepted the skill; empty in records
+	// written before it existed.
+	Agents []string `yaml:"agents,omitempty"`
 }
 
 // MCPServerInstall records one (mcp server, scope) pair, with the same
@@ -103,6 +116,9 @@ type MCPServerInstall struct {
 	Global bool   `yaml:"global"`
 	Folder string `yaml:"folder,omitempty"`
 	Param  string `yaml:"param,omitempty"`
+	// Agents lists the agents that accepted the registration; empty in
+	// records written before it existed.
+	Agents []string `yaml:"agents,omitempty"`
 }
 
 // GUIThemes is the fixed set of daisyUI themes the GUI offers.
@@ -327,6 +343,20 @@ func Update(mutate func(cfg *Config) error) error {
 // longer exists or isn't a directory. Idempotent, with one os.Stat per
 // entry.
 func PruneMissingRepoFolders() error {
+	cfg, err := Load()
+	if err != nil {
+		return err
+	}
+	missing := false
+	for _, p := range cfg.RepoFolders {
+		if info, err := os.Stat(p); err != nil || !info.IsDir() {
+			missing = true
+			break
+		}
+	}
+	if !missing {
+		return nil
+	}
 	return Update(func(cfg *Config) error {
 		kept := make([]string, 0, len(cfg.RepoFolders))
 		for _, p := range cfg.RepoFolders {
