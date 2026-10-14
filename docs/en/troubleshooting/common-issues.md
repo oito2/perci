@@ -52,6 +52,9 @@ Downloaded fonts are installed under `~/.local/share/fonts/perci/<font>`; an arc
 **A new Container Aplicativo isn't reachable at its `*.localhost` URL**
 Check that "Criar Container Nginx" ran first (it's the reverse proxy every app routes through) and that the browser trusts the mkcert wildcard certificate — `mkcert -install` runs automatically the first time the Nginx container is created, but only registers the CA for the invoking user. Also confirm the app's container is actually running (**Docker → Gerenciar Containers**).
 
+**The browser says the `*.localhost` certificate isn't trusted (`SEC_ERROR_UNKNOWN_ISSUER`)**
+The browser doesn't have mkcert's CA. `mkcert -install` covers the system store, Chrome/Chromium and Firefox's own `~/.mozilla/firefox` profiles; for browsers installed as Flatpaks (Firefox, Zen, LibreWolf, Chrome…), Perci registers it when the Nginx container is created or recreated — close the browser and use **Recriar** on the Nginx row in **Docker → Gerenciar Containers**, then open the browser again. To do it by hand, close the browser and run `certutil -A -d "sql:<profile folder>" -t "C,," -n "mkcert development CA" -i "$(mkcert -CAROOT)/rootCA.pem"`, or import `rootCA.pem` from `mkcert -CAROOT` in the browser's certificate settings (Authorities), trusting it to identify websites.
+
 **Creating the Nginx container for the first time hangs or fails silently**
 On first creation, `mkcert -install` may escalate to root on its own (mkcert's own binary, not Perci's privilege mechanism) to register the local CA — something the GUI can't answer, since it has no interactive terminal to type a password into (the "Docker → Criar Container" screen already warns about this when it detects it's the first time). If it happens: open a terminal outside Perci and run `mkcert -install` manually once — after that the certificate already exists and "Criar Container Nginx" never needs to call that part of mkcert again.
 

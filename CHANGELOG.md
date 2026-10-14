@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Docker: browsers installed as Flatpaks (Firefox, Zen, LibreWolf, Chrome…) didn't trust the `*.localhost` certificate (`SEC_ERROR_UNKNOWN_ISSUER`), since `mkcert -install` doesn't look at their profiles. Creating or recreating the Nginx container now registers mkcert's CA in them too.
+
 ## [1.4.0] - 2026-10-14
 
 ### Added

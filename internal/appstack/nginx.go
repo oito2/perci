@@ -708,6 +708,7 @@ func createNginx(ctx context.Context, exe *executor.Executor, stdin io.Reader, s
 	if err != nil {
 		return "", err
 	}
+	trustCAInFlatpakBrowsers(ctx, exe, stdout)
 
 	confPath, err := writeNginxConfFromConfig(lock)
 	if err != nil {
