@@ -55,6 +55,9 @@ Confira se "Criar Container Nginx" já rodou (é o proxy reverso por onde todo a
 **O navegador diz que o certificado `*.localhost` não é confiável (`SEC_ERROR_UNKNOWN_ISSUER`)**
 O navegador não tem a CA do mkcert. O `mkcert -install` cobre o repositório do sistema, o Chrome/Chromium e os perfis do Firefox em `~/.mozilla/firefox`; para navegadores instalados como Flatpak (Firefox, Zen, LibreWolf, Chrome…), o Perci a registra quando o container Nginx é criado ou recriado — feche o navegador e use **Recriar** na linha do Nginx em **Docker → Gerenciar Containers**, depois abra o navegador de novo. Para fazer à mão, feche o navegador e rode `certutil -A -d "sql:<pasta do perfil>" -t "C,," -n "mkcert development CA" -i "$(mkcert -CAROOT)/rootCA.pem"`, ou importe o `rootCA.pem` de `mkcert -CAROOT` nas configurações de certificados do navegador (Autoridades), confiando nele para identificar sites.
 
+**O Firefox ou o Zen dizem `SSL_ERROR_BAD_CERT_DOMAIN` para um app `*.localhost`**
+Os certificados gerados por versões anteriores só nomeavam `*.localhost`, um curinga que o Firefox e os derivados recusam. Use **Recriar** na linha do Nginx em **Docker → Gerenciar Containers**: o certificado é regerado com o nome de cada app.
+
 **Criar o Container Nginx pela primeira vez trava ou falha silenciosamente**
 Na primeira criação, `mkcert -install` pode escalar para root por conta própria (é o próprio binário `mkcert`, não o mecanismo de privilégio do Perci) para registrar a CA local — algo que a GUI não consegue responder, já que não tem um terminal interativo pra digitar a senha (a tela "Docker → Criar Container" já avisa sobre isso quando detecta que é a primeira vez). Se acontecer: abra um terminal fora do Perci e rode `mkcert -install` manualmente uma vez — depois disso o certificado já existe e "Criar Container Nginx" nunca mais precisa chamar essa parte do mkcert de novo.
 

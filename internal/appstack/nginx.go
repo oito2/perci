@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -145,26 +146,64 @@ const certRenewWindow = 30 * 24 * time.Hour
 // within certRenewWindow of now. A file that cannot be read or parsed counts
 // as needing renewal.
 func certNeedsRenewal(certFile string, now time.Time) bool {
-	data, err := os.ReadFile(certFile)
-	if err != nil {
-		return true
-	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return true
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
+	cert, err := readCert(certFile)
 	if err != nil {
 		return true
 	}
 	return now.Add(certRenewWindow).After(cert.NotAfter)
 }
 
-// EnsureWildcardCert makes sure a *.localhost wildcard certificate pair
-// exists at CertsDir(), generating one via mkcert if missing or expiring
-// within 30 days, and returns its (cert, key) paths. An existing pair that
-// is not about to expire is reused as-is, so recreating the Nginx container
-// does not mint a new certificate every time.
+// readCert parses the first PEM certificate in certFile.
+func readCert(certFile string) (*x509.Certificate, error) {
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("%s não tem um certificado PEM", certFile)
+	}
+	return x509.ParseCertificate(block.Bytes)
+}
+
+// certNames returns the names the certificate covers: the *.localhost
+// wildcard, localhost, and every app's URL by name — Firefox and its
+// derivatives refuse a wildcard with a single label after it, such as
+// *.localhost, so each app needs its own name in the certificate.
+func certNames(apps []config.AppContainer) []string {
+	names := []string{"*.localhost", "localhost"}
+	for _, app := range apps {
+		if url := strings.ToLower(strings.TrimSpace(app.URL)); url != "" && !slices.Contains(names, url) {
+			names = append(names, url)
+		}
+	}
+	slices.Sort(names[2:])
+	return names
+}
+
+// certMissingNames returns the names the certificate in certFile doesn't
+// cover (all of them when it can't be read).
+func certMissingNames(certFile string, names []string) []string {
+	cert, err := readCert(certFile)
+	if err != nil {
+		return names
+	}
+	var missing []string
+	for _, name := range names {
+		if !slices.Contains(cert.DNSNames, name) {
+			missing = append(missing, name)
+		}
+	}
+	return missing
+}
+
+// EnsureWildcardCert makes sure the certificate pair at CertsDir() covers
+// *.localhost, localhost and every registered app's URL (certNames),
+// generating it via mkcert when it is missing, expires within 30 days or
+// lacks a name, and returns its (cert, key) paths. A pair that already
+// covers every name and is not about to expire is reused as-is, so
+// recreating the Nginx container does not mint a new certificate every
+// time.
 func EnsureWildcardCert(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer) (certFile, keyFile string, err error) {
 	if !isMkcertInstalled(ctx, exe) {
 		return "", "", fmt.Errorf("mkcert não está instalado — instale em \"Dev Stuff :: Pré-requisitos\" antes de criar o Contêiner Nginx")
@@ -182,12 +221,21 @@ func EnsureWildcardCert(ctx context.Context, exe *executor.Executor, stdin io.Re
 	certFile = filepath.Join(dir, wildcardCertFile)
 	keyFile = filepath.Join(dir, wildcardKeyFile)
 
+	cfg, err := config.Load()
+	if err != nil {
+		return "", "", fmt.Errorf("carregar config: %w", err)
+	}
+	names := certNames(cfg.Docker.Apps)
 	if _, statErr := os.Stat(certFile); statErr == nil {
 		if _, statErr := os.Stat(keyFile); statErr == nil {
-			if !certNeedsRenewal(certFile, time.Now()) {
+			switch missing := certMissingNames(certFile, names); {
+			case certNeedsRenewal(certFile, time.Now()):
+				ui.Info(stdout, "O certificado *.localhost expira em menos de 30 dias — gerando um novo...")
+			case len(missing) > 0:
+				ui.Info(stdout, "O certificado não cobre "+strings.Join(missing, ", ")+" — gerando um novo...")
+			default:
 				return certFile, keyFile, nil
 			}
-			ui.Info(stdout, "O certificado *.localhost expira em menos de 30 dias — gerando um novo...")
 		}
 	}
 
@@ -202,13 +250,44 @@ func EnsureWildcardCert(ctx context.Context, exe *executor.Executor, stdin io.Re
 		return "", "", fmt.Errorf("mkcert -install: %w", err)
 	}
 
-	ui.Info(stdout, "Gerando certificado wildcard para *.localhost...")
-	if err := exe.Run(ctx, executor.Options{Stdin: stdin, Stdout: stdout, Stderr: stdout},
-		"mkcert", "-cert-file", certFile, "-key-file", keyFile, "*.localhost"); err != nil {
-		return "", "", fmt.Errorf("gerar certificado: %w", err)
+	if err := generateCert(ctx, exe, stdin, stdout, certFile, keyFile, names); err != nil {
+		return "", "", err
 	}
-
 	return certFile, keyFile, nil
+}
+
+// generateCert writes a certificate pair for names, signed by mkcert's CA.
+func generateCert(ctx context.Context, exe *executor.Executor, stdin io.Reader, stdout io.Writer, certFile, keyFile string, names []string) error {
+	ui.Info(stdout, "Gerando certificado para "+strings.Join(names, ", ")+"...")
+	args := append([]string{"-cert-file", certFile, "-key-file", keyFile}, names...)
+	if err := exe.Run(ctx, executor.Options{Stdin: stdin, Stdout: stdout, Stderr: stdout}, "mkcert", args...); err != nil {
+		return fmt.Errorf("gerar certificado: %w", err)
+	}
+	return nil
+}
+
+// ensureCertCoversApps regenerates an existing certificate pair that lacks
+// one of apps' names, so the Nginx reload that follows serves it. Without
+// a certificate yet (no Nginx container created) it does nothing; a
+// failure is only a warning, since the routing change still applies.
+func ensureCertCoversApps(ctx context.Context, exe *executor.Executor, stdout io.Writer, apps []config.AppContainer) {
+	if !WildcardCertReady() {
+		return
+	}
+	dir, err := CertsDir()
+	if err != nil {
+		return
+	}
+	certFile, keyFile := filepath.Join(dir, wildcardCertFile), filepath.Join(dir, wildcardKeyFile)
+	names := certNames(apps)
+	missing := certMissingNames(certFile, names)
+	if len(missing) == 0 {
+		return
+	}
+	ui.Info(stdout, "O certificado não cobre "+strings.Join(missing, ", ")+" — gerando um novo...")
+	if err := generateCert(ctx, exe, nil, stdout, certFile, keyFile, names); err != nil {
+		ui.Warning(stdout, "O certificado não foi atualizado ("+err.Error()+"); o navegador pode recusar "+strings.Join(missing, ", ")+".")
+	}
 }
 
 // NginxConfDir returns ~/.perci/appstack/nginx, where default.conf is
@@ -562,6 +641,7 @@ func ReloadNginxConfig(ctx context.Context, exe *executor.Executor, stdout io.Wr
 		return err
 	}
 	path = filepath.Join(path, "default.conf")
+	ensureCertCoversApps(ctx, exe, stdout, apps)
 
 	if !nginxContainerRunning(ctx, exe) {
 		if err := validateNginxConfStandalone(ctx, exe, BuildNginxConf(apps)); err != nil {

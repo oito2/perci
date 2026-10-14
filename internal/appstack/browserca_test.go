@@ -66,21 +66,22 @@ func TestFlatpakNSSDirs(t *testing.T) {
 // a database that already has it is left alone.
 func TestTrustCAInFlatpakBrowsers(t *testing.T) {
 	_, dbs := flatpakHome(t)
+	// Chrome's database already has the CA (under another nickname).
+	writeFile(t, filepath.Join(dbs["com.google.Chrome"], "list"), "mkcert development CA\n", 0o600)
 	caroot := t.TempDir()
 	writeFile(t, filepath.Join(caroot, "rootCA.pem"), "CA", 0o644)
 	log := filepath.Join(t.TempDir(), "certutil.log")
 	stubBin(t, map[string]string{
-		"mkcert": "echo '" + caroot + "'",
-		// -L finds the CA only in Chrome's database.
-		"certutil": `case "$1" in -L) case "$3" in *nssdb) exit 0;; esac; exit 1;; esac; printf '%s\n' "$*" >> '` + log + `'`,
+		"mkcert":   "echo '" + caroot + "'",
+		"certutil": certutilStub(log),
 	})
 	var buf bytes.Buffer
 	trustCAInFlatpakBrowsers(context.Background(), executor.New(&buf, &buf), &buf)
 
 	data, _ := os.ReadFile(log)
 	calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(calls) != 2 {
-		t.Fatalf("certutil -A calls = %q, want 2 (Zen and Firefox)\n%s", calls, buf.String())
+	if len(calls) != 3 {
+		t.Fatalf("certutil -A calls = %q, want one per database\n%s", calls, buf.String())
 	}
 	for _, id := range []string{"app.zen_browser.zen", "org.mozilla.firefox"} {
 		want := "-A -d sql:" + dbs[id] + " -t C,, -n " + mkcertCANickname + " -i " + filepath.Join(caroot, "rootCA.pem")
@@ -122,7 +123,7 @@ func TestCreateAndRecreateNginx_TrustFlatpakBrowsers(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "certutil.log")
 	stubBin(t, map[string]string{
 		"mkcert":   `[ "$1" = -CAROOT ] && { echo '` + caroot + `'; exit 0; }; while [ $# -gt 0 ]; do case "$1" in -cert-file|-key-file) : > "$2"; shift 2 ;; *) shift ;; esac; done`,
-		"certutil": `case "$1" in -L) exit 1;; esac; printf '%s\n' "$*" >> '` + log + `'`,
+		"certutil": certutilStub(log),
 	})
 	exe, buf := testExe()
 	for name, run := range map[string]func() error{
@@ -137,4 +138,14 @@ func TestCreateAndRecreateNginx_TrustFlatpakBrowsers(t *testing.T) {
 			t.Errorf("%s: certutil calls:\n%s", name, data)
 		}
 	}
+}
+
+// certutilStub keeps each database's certificate list in a "list" file
+// next to it: -L prints it, -A logs the call and adds the CA unless the
+// list already has it (as NSS keeps a certificate it already holds).
+func certutilStub(log string) string {
+	return `db="${3#sql:}"; case "$1" in
+-L) cat "$db/list" 2>/dev/null; exit 0;;
+-A) printf '%s\n' "$*" >> '` + log + `'; grep -q mkcert "$db/list" 2>/dev/null || echo "$7" >> "$db/list";;
+esac`
 }

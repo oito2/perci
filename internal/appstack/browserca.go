@@ -73,7 +73,8 @@ func flatpakAppID(home, dir string) string {
 }
 
 // trustCAInFlatpakBrowsers adds mkcert's root CA, trusted for websites, to
-// every Flatpak browser certificate database that doesn't have it yet. It
+// every Flatpak browser certificate database, and reports the ones that
+// didn't have it yet. It
 // only reports problems as warnings: the stack works without it, and the
 // browser can still be fixed by importing the CA by hand.
 func trustCAInFlatpakBrowsers(ctx context.Context, exe *executor.Executor, stdout io.Writer) {
@@ -100,17 +101,24 @@ func trustCAInFlatpakBrowsers(ctx context.Context, exe *executor.Executor, stdou
 		return
 	}
 
+	// certutil -A is idempotent: the CA already in a database (under any
+	// nickname, e.g. imported by hand) is kept as it is, so a database
+	// counts as changed only when its certificate list changed.
+	list := func(db string) string {
+		out, _ := exe.Output(ctx, executor.Options{}, "certutil", "-L", "-d", db)
+		return out
+	}
 	var added []string
 	for _, dir := range dirs {
 		db := "sql:" + dir
-		if _, err := exe.Output(ctx, executor.Options{}, "certutil", "-L", "-d", db, "-n", mkcertCANickname); err == nil && !exe.DryRun {
-			continue
-		}
+		before := list(db)
 		if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "certutil", "-A", "-d", db, "-t", "C,,", "-n", mkcertCANickname, "-i", rootCA); err != nil {
 			ui.Warning(stdout, "Não foi possível registrar a autoridade certificadora em "+dir+": "+err.Error())
 			continue
 		}
-		added = append(added, flatpakAppID(home, dir))
+		if list(db) != before {
+			added = append(added, flatpakAppID(home, dir))
+		}
 	}
 	if len(added) > 0 {
 		slices.Sort(added)
