@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-14
+
 ### Added
 - Linux → Pós-instalação (Ubuntu Budgie 26.04): **Aplicar backports-budgie** adds the Ubuntu Budgie team's `ppa:ubuntubudgie/backports-budgie`, refreshes the package index and upgrades the system, with one password. Not offered on 24.04, which the PPA doesn't build for.
 - Desenvolvimento → Linguagens e SDKs: **Rust (rustup)** for the current user — rustc, cargo, clippy, rustfmt and rust-analyzer, from a version-pinned, checksum-verified rustup installer; Atualizar runs `rustup update`.
@@ -153,7 +155,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/oito2/perci/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/oito2/perci/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/oito2/perci/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/oito2/perci/compare/v1.1.0...v1.2.0
