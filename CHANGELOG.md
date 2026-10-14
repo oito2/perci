@@ -10,12 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Linux → Pós-instalação (Ubuntu Budgie 26.04): **Aplicar backports-budgie** adds the Ubuntu Budgie team's `ppa:ubuntubudgie/backports-budgie`, refreshes the package index and upgrades the system, with one password. Not offered on 24.04, which the PPA doesn't build for.
+- Desenvolvimento → Linguagens e SDKs: **Rust (rustup)** for the current user — rustc, cargo, clippy, rustfmt and rust-analyzer, from a version-pinned, checksum-verified rustup installer; Atualizar runs `rustup update`.
+- Desenvolvimento → Pré-requisitos: **Build Essential** (GCC and make), **WebKitGTK 4.1 Dev Headers**, **Libxdo Dev** and **Flatpak Builder Tools** (`flatpak-node-generator` and `flatpak-cargo-generator.py` at a pinned commit, for offline Flatpak builds) — with OpenSSL and Librsvg Tools below, everything a Tauri v2 app needs to build its AppImage, `.deb` and `.rpm`.
 - Docker → **Exportar/Importar**: its own menu item with **Exportar** and **Importar** tabs. Both list Nginx, MariaDB, each app and each Moodle plugin mount to check one by one; checking an item also checks what it depends on, checking a Moodle checks the plugin mounts on it, and missing dependencies are pointed out.
 - Moodle plugin mounts are part of the export (without this machine's MEGA exclusion). Importing them makes the mounts, their units and the MEGA exclusion with one password; a mount whose development folder or Moodle code doesn't exist on the machine shows as unavailable and is skipped with a warning.
 
 ### Changed
+- Desenvolvimento → Pré-requisitos: **OpenSSL** also installs its development headers (`libssl-dev`/`openssl-devel`) and **Librsvg Tools** the librsvg ones (`librsvg2-dev`/`librsvg2-devel`). Removing OpenSSL removes only the headers.
 - Importing merges: the checked items are added or replace the app with the same folder, and everything else on the machine stays — apps missing from the file no longer leave the stack. Files exported by earlier versions still import.
 - Exportar/Importar left Docker → Gerenciar Contêineres. The uninstall backup also carries the Moodle plugin mounts.
+
+### Fixed
+- Desenvolvimento → Pré-requisitos: OpenSSL, Librsvg Tools and Libsecret Tools showed as installed when only their command was present, so their development headers could never be installed; they now count as installed only with the headers too.
 
 ## [1.3.1] - 2026-10-14
 

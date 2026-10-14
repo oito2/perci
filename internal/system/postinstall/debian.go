@@ -88,6 +88,36 @@ func actAptUpgrade(dependsOn string) Action {
 		}}
 }
 
+const (
+	// backportsBudgiePPA holds the latest stable Budgie components built by
+	// the Ubuntu Budgie team for the supported LTS; backportsBudgieURI is
+	// the path its apt source points at.
+	backportsBudgiePPA = "ppa:ubuntubudgie/backports-budgie"
+	backportsBudgieURI = "/ubuntubudgie/backports-budgie/"
+)
+
+// actBackportsBudgie adds the backports-budgie PPA, refreshes the package
+// index and applies the upgrades, in one privileged batch.
+func actBackportsBudgie(dependsOn string) Action {
+	return Action{ID: "backports-budgie", Label: "Aplicar backports-budgie",
+		Description: "Adiciona o PPA " + backportsBudgiePPA + " (versões estáveis mais recentes dos componentes do Budgie, mantidas pela equipe do Ubuntu Budgie), atualiza a lista de pacotes e aplica as atualizações (apt-get full-upgrade). Troca componentes centrais do desktop, como budgie-extras, labwc e wlroots: crie um snapshot no Timeshift antes.",
+		DependsOn:   dependsOn,
+		Applied:     func(*Probe) bool { return aptSourceEnabled(backportsBudgieURI) },
+		Run:         applyBackportsBudgie}
+}
+
+// applyBackportsBudgie runs add-apt-repository, apt-get update and apt-get
+// full-upgrade in one privileged batch (one password prompt). The upgrade
+// keeps the current configuration files.
+func applyBackportsBudgie(ctx context.Context, exe *executor.Executor, stdout io.Writer) error {
+	steps := []executor.PrivilegedStep{
+		{Announce: "Adicionando o PPA backports-budgie...", Name: "add-apt-repository", Args: []string{"-y", "-n", backportsBudgiePPA}},
+		{Announce: "Atualizando lista de pacotes...", Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs("update")},
+		{Announce: "Aplicando as atualizações do Budgie...", Name: "apt-get", Env: distro.AptEnv, Args: distro.AptArgs("full-upgrade", "-y")},
+	}
+	return exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps)
+}
+
 // actAptInstall installs pkgs; acceptMSFontsEULA pre-accepts the Microsoft
 // fonts license first, for lists that include (or pull in) it.
 func actAptInstall(id, label, description, dependsOn string, acceptMSFontsEULA bool, pkgs ...string) Action {

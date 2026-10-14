@@ -225,6 +225,86 @@ func parseDeb822Components(text string, out map[string]bool) {
 	}
 }
 
+// aptSourceEnabled reports whether an enabled "deb" source (one-line *.list
+// or DEB822 *.sources in aptSourcesDir) has a URI containing fragment.
+func aptSourceEnabled(fragment string) bool {
+	for _, pattern := range []string{"*.list", "*.sources"} {
+		files, _ := filepath.Glob(filepath.Join(aptSourcesDir, pattern))
+		for _, f := range files {
+			data, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			var uris []string
+			if strings.HasSuffix(f, ".sources") {
+				uris = deb822URIs(string(data))
+			} else {
+				uris = listURIs(string(data))
+			}
+			if slices.ContainsFunc(uris, func(u string) bool { return strings.Contains(u, fragment) }) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// listURIs returns the URI of every "deb" line of a one-line-style sources
+// file.
+func listURIs(text string) []string {
+	var uris []string
+	for _, line := range strings.Split(text, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != "deb" {
+			continue
+		}
+		rest := fields[1:]
+		if strings.HasPrefix(rest[0], "[") {
+			for len(rest) > 0 && !strings.HasSuffix(rest[0], "]") {
+				rest = rest[1:]
+			}
+			if len(rest) < 2 {
+				continue
+			}
+			rest = rest[1:]
+		}
+		uris = append(uris, rest[0])
+	}
+	return uris
+}
+
+// deb822URIs returns the URIs of every enabled "deb" stanza of a DEB822
+// sources file.
+func deb822URIs(text string) []string {
+	var uris []string
+	for _, stanza := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n\n") {
+		var types, stanzaURIs []string
+		enabled := true
+		for _, line := range strings.Split(stanza, "\n") {
+			key, value, ok := strings.Cut(line, ":")
+			if !ok || strings.HasPrefix(line, "#") || strings.HasPrefix(line, " ") {
+				continue
+			}
+			value = strings.TrimSpace(value)
+			switch strings.ToLower(strings.TrimSpace(key)) {
+			case "types":
+				types = strings.Fields(value)
+			case "uris":
+				stanzaURIs = strings.Fields(value)
+			case "enabled":
+				switch strings.ToLower(value) {
+				case "no", "false", "0":
+					enabled = false
+				}
+			}
+		}
+		if enabled && slices.Contains(types, "deb") {
+			uris = append(uris, stanzaURIs...)
+		}
+	}
+	return uris
+}
+
 // rpmFusionMissing returns the RPM Fusion release packages (free, nonfree)
 // that are not installed yet.
 func rpmFusionMissing(ctx context.Context, exe *executor.Executor) []string {

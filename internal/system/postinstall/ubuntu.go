@@ -80,12 +80,18 @@ var ubuntuBudgiePackages = slices.DeleteFunc(slices.Clone(ubuntuPackages), func(
 
 // ubuntuBudgieActions is the checklist for Ubuntu Budgie: ubuntuActions
 // with ubuntuBudgiePackages, and flatpakApps as the Flathub apps of the
-// Flatpak step.
-func ubuntuBudgieActions(flatpakApps []string, flatpakDescription string) []Action {
-	return []Action{
+// Flatpak step. backports adds "Aplicar backports-budgie" after the
+// system upgrade, for the releases the PPA publishes to.
+func ubuntuBudgieActions(flatpakApps []string, flatpakDescription string, backports bool) []Action {
+	actions := []Action{
 		actEnableUbuntuComponents(),
 		actUpdateIndex("enable-repos"),
 		actAptUpgrade("update-index"),
+	}
+	if backports {
+		actions = append(actions, actBackportsBudgie("update-index"))
+	}
+	return append(actions,
 		actAptInstall("install-essentials", "Instalar pacotes essenciais e codecs",
 			"Codecs restritos (ubuntu-restricted-extras), ferramentas de compilação, Timeshift e utilitários de linha de comando comuns.",
 			"update-index", true, ubuntuBudgiePackages...),
@@ -96,13 +102,14 @@ func ubuntuBudgieActions(flatpakApps []string, flatpakDescription string) []Acti
 		actAptVAAPIAMD("enable-repos"),
 		actFlatpakApps("Configurar Flatpak", flatpakDescription, flatpakApps...),
 		actUbuntuDrivers("enable-repos"),
-	}
+	)
 }
 
 var ubuntuBudgie2404Profile = Profile{ID: "ubuntu-budgie-2404", Label: "Ubuntu Budgie 24.04",
-	Actions: ubuntuBudgieActions(flatpakEssentialApps, flatpakSetupDescription)}
+	Actions: ubuntuBudgieActions(flatpakEssentialApps, flatpakSetupDescription, false)}
 
 // Ubuntu Budgie 26.04 ships VLC as a distro package, so the Flatpak step
-// installs only the web-app manager.
+// installs only the web-app manager. The backports-budgie PPA publishes to
+// 26.04 (not to 24.04), so only this profile offers it.
 var ubuntuBudgie2604Profile = Profile{ID: "ubuntu-budgie-2604", Label: "Ubuntu Budgie 26.04",
-	Actions: ubuntuBudgieActions(flatpakWebAppsOnly, flatpakWebAppsDescription)}
+	Actions: ubuntuBudgieActions(flatpakWebAppsOnly, flatpakWebAppsDescription, true)}

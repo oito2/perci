@@ -333,3 +333,19 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): its own menu item with Exportar and Importar tabs. Both list Nginx, MariaDB, each app and each plugin mount to check one by one; checking an item checks its dependencies. Only definitions travel (no project files or databases). Import merges: checked items are added or replace the app with the same folder, nothing else leaves. Plugin mounts are imported with one password; one that can't be made on the machine (missing development folder or Moodle code) is skipped with a warning.
 
 **Revisit if**: the files and databases themselves need to travel too.
+
+## 2026-10-14 — Rust and the Tauri v2 build dependencies
+
+**Context**: Developing with Rust + Tauri v2 needs Rust, a C toolchain, the WebKitGTK 4.1/libxdo/OpenSSL/librsvg headers and, for Flathub, the offline source generators; Perci had none of these except GTK3. OpenSSL and Librsvg Tools only installed the command, and were detected by it.
+
+**Decision** (the user's choices): Rust is a Linguagens e SDKs item (rustup, current user, pinned and checksum-verified installer, plus rust-analyzer). The libraries are separate Pré-requisitos items like the existing ones (Build Essential, WebKitGTK 4.1 Dev Headers, Libxdo Dev; OpenSSL and Librsvg Tools gain their headers and are detected by them too). Flatpak Builder Tools is an item pinned to a commit. Not added: `rpm` (Tauri builds the `.rpm` in Rust), `patchelf` (a real `tauri build` produced the AppImage, `.deb` and `.rpm` without it), `libayatana-appindicator3-dev` (only for tray icons), and the Flatpak SDK and extensions (`flatpak-builder --install-deps-from=flathub` installs the ones the manifest names).
+
+**Revisit if**: a Tauri release needs `patchelf` or `rpmbuild` on the build machine, or a project needs a tray icon.
+
+## 2026-10-14 — backports-budgie only on Ubuntu Budgie 26.04
+
+**Context**: The user asked for an "Aplicar backports-budgie" post-install action (`add-apt-repository ppa:ubuntubudgie/backports-budgie`, `apt update`, `apt full-upgrade`). The PPA publishes to 22.04, 26.04 and a newer development series, not to 24.04: its `noble` repository answers 404, so `apt update` would fail there.
+
+**Decision** (the user's choice): offer it only on Ubuntu Budgie 26.04, right after "Atualizar pacotes do sistema", in one privileged batch with the unattended apt options; it counts as applied while an enabled apt source points at the PPA.
+
+**Revisit if**: the PPA starts building for another release Perci supports.
