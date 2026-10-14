@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-14
+
 ### Fixed
 - Docker: browsers installed as Flatpaks (Firefox, Zen, LibreWolf, Chrome…) didn't trust the `*.localhost` certificate (`SEC_ERROR_UNKNOWN_ISSUER`), since `mkcert -install` doesn't look at their profiles. Creating or recreating the Nginx container now registers mkcert's CA in them too.
+- Docker: Firefox and its derivatives refused the `*.localhost` certificate (`SSL_ERROR_BAD_CERT_DOMAIN`), a wildcard they don't accept. The certificate now also names `localhost` and every app, and is regenerated when an app's name is missing — use **Recriar** on Nginx once to update an existing one.
 
 ## [1.4.0] - 2026-10-14
 
@@ -158,7 +161,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/oito2/perci/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/oito2/perci/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/oito2/perci/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/oito2/perci/compare/v1.2.0...v1.3.0
