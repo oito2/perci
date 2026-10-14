@@ -14,7 +14,7 @@ Configurar uma estação de desenvolvimento Linux do zero significa repetir a me
 
 - Limpeza pós-instalação e instalação de codecs/essenciais, que muda por distro e ambiente de desktop.
 - Instalar o mesmo conjunto de fontes, apps Flatpak e ferramentas de terminal.
-- Instalar e manter atualizados alguns SDKs (Go, Flutter), IDEs (VS Code, VSCodium, Zed) e CLIs de LLM/MCP.
+- Instalar e manter atualizados alguns SDKs (Go, Rust, Flutter), IDEs (VS Code, VSCodium, Zed) e CLIs de LLM/MCP.
 - Subir uma stack Docker Nginx + PHP + MariaDB por projeto, especialmente para desenvolvimento Moodle — múltiplas versões de PHP, múltiplas instalações Moodle roteadas pela mesma stack.
 - Gerar arquivos de contexto consistentes para agentes de IA (`AGENTS.md`, `CLAUDE.md`, `.instructions/*.md`) e arquivos de skill para cada projeto novo.
 

@@ -66,7 +66,8 @@ var Catalogue = []Prereq{
 	{Name: "Curl", ID: "curl", Description: "Ferramenta de linha de comando para transferência de dados via URL"},
 	{Name: "Flatpak", ID: "flatpak", Description: "Gerenciador de pacotes e distribuição de aplicativos sandbox"},
 	{Name: "Git", ID: "git", Description: "Sistema de controle de versão distribuído"},
-	{Name: "OpenSSL", ID: "openssl", Description: "Ferramentas e bibliotecas para criptografia SSL/TLS"},
+	{Name: "Build Essential", ID: "build-essential", Description: "Compiladores C/C++ (GCC) e make — usados, por exemplo, pelo Rust para ligar os programas e por bibliotecas com código nativo"},
+	{Name: "OpenSSL", ID: "openssl", Description: "Ferramentas e bibliotecas de desenvolvimento para criptografia SSL/TLS (inclui os cabeçalhos usados, por exemplo, ao compilar apps Tauri)"},
 	{Name: "Lsof", ID: "lsof", Description: "Utilitário para listagem de arquivos abertos pelo sistema"},
 	{Name: "CMake", ID: "cmake", Description: "Gerador de sistemas de compilação cross-platform"},
 	{Name: "Ninja", ID: "ninja", Description: "Sistema de compilação extremamente rápido focado em velocidade"},
@@ -74,10 +75,12 @@ var Catalogue = []Prereq{
 	{Name: "GTK3 Dev Headers", ID: "gtk3dev", Description: "Arquivos de cabeçalho e desenvolvimento para a biblioteca GTK 3 (usado, por exemplo, por apps Flutter Linux desktop)"},
 	{Name: "GTK4 Dev Headers", ID: "gtk4dev", Description: "Arquivos de cabeçalho e desenvolvimento para a biblioteca GTK 4 — necessário para compilar a própria GUI do Perci (Wails v3)"},
 	{Name: "WebKitGTK 6.0 Dev Headers", ID: "webkitgtk6dev", Description: "Arquivos de cabeçalho e desenvolvimento do WebKitGTK 6.0 — necessário, junto com o GTK4, para compilar a própria GUI do Perci (Wails v3)"},
+	{Name: "WebKitGTK 4.1 Dev Headers", ID: "webkitgtk41dev", Description: "Arquivos de cabeçalho e desenvolvimento do WebKitGTK 4.1 (GTK 3) — necessário para compilar apps Tauri v2"},
+	{Name: "Libxdo Dev", ID: "libxdo", Description: "Cabeçalhos da libxdo (simulação de teclado e mouse no X11) — necessário para compilar apps Tauri v2"},
 	{Name: "Wails3 CLI", ID: "wails3", Description: "CLI do Wails v3, instalado via 'go install' — só é necessário para quem for contribuir com a GUI do Perci e precisar regenerar os bindings do frontend (make generate-bindings)",
 		Requires: []string{"go"}},
 	{Name: "Libsecret Tools", ID: "libsecret", Description: "Utilitário para acesso a chaves do sistema via Secret Service API (no Fedora, inclui o git-credential-libsecret, que guarda as senhas do Git no chaveiro)"},
-	{Name: "Librsvg Tools", ID: "librsvg", Description: "Utilitário rsvg-convert para converter imagens SVG em PNG/PDF (usado, por exemplo, na geração de ícones)"},
+	{Name: "Librsvg Tools", ID: "librsvg", Description: "Utilitário rsvg-convert para converter imagens SVG em PNG/PDF (usado, por exemplo, na geração de ícones) e os cabeçalhos da librsvg (usados ao compilar apps Tauri)"},
 	{Name: "GNOME Keyring", ID: "gnome-keyring", Description: "Serviço daemon para armazenamento seguro de senhas e chaves"},
 	{Name: "GitHub CLI (gh)", ID: "gh", Description: "Interface de linha de comando oficial para o GitHub",
 		Requires: []string{"curl"}},
@@ -87,6 +90,9 @@ var Catalogue = []Prereq{
 		RemoveWarning: "Remover o Node.js apaga a pasta ~/.nvm inteira: todas as versões do Node instaladas pelo nvm e todos os pacotes npm globais delas (inclusive o Codex CLI, se instalado por aqui). As linhas do nvm no arquivo de inicialização do shell também são removidas."},
 	{Name: "Flatpak Builder", ID: "flatpak-builder", Description: "Ferramenta para compilação de aplicativos no formato Flatpak",
 		Requires: []string{"flatpak"}},
+	{Name: "Flatpak Builder Tools", ID: "flatpak-builder-tools", Description: "Geradores de fontes offline para empacotar no Flatpak/Flathub: flatpak-node-generator (dependências npm, pelo pipx) e flatpak-cargo-generator.py (dependências Rust), de ~/tools/flatpak-builder-tools num commit fixo",
+		Requires:      []string{"git", "flatpak-builder"},
+		RemoveWarning: "Remove o flatpak-node-generator do pipx e a pasta ~/tools/flatpak-builder-tools. Os pacotes pipx, python3-aiohttp e python3-tomlkit continuam instalados."},
 	{Name: "AppStream", ID: "appstream", Description: "Utilitário para metadados de componentes AppStream, usado por Flatpak/AppImage"},
 	{Name: "Libfuse2", ID: "libfuse2", Description: "Biblioteca de compatibilidade FUSE2, necessária para executar AppImages"},
 	{Name: "AppImageTool", ID: "appimagetool", Description: "Utilitário de empacotamento e geração de arquivos AppImage",
@@ -147,13 +153,19 @@ func Installed(ctx context.Context, exe *executor.Executor, name string) bool {
 
 func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
 	which := func(cmd string) bool { return exe.CommandAvailable(ctx, cmd) }
+	pkgConfig := func(module string) bool {
+		_, err := exe.Output(ctx, executor.Options{}, "pkg-config", "--exists", module)
+		return err == nil
+	}
 	switch id {
 	case "git":
 		return which("git")
 	case "curl":
 		return which("curl")
+	case "build-essential":
+		return which("gcc") && which("g++") && which("make")
 	case "openssl":
-		return which("openssl")
+		return which("openssl") && pkgConfig("openssl")
 	case "lsof":
 		return which("lsof")
 	case "cmake":
@@ -163,13 +175,15 @@ func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
 	case "clang":
 		return which("clang")
 	case "gtk3dev":
-		_, err := exe.Output(ctx, executor.Options{}, "pkg-config", "--exists", "gtk+-3.0")
-		return err == nil
+		return pkgConfig("gtk+-3.0")
 	case "gtk4dev":
-		_, err := exe.Output(ctx, executor.Options{}, "pkg-config", "--exists", "gtk4")
-		return err == nil
+		return pkgConfig("gtk4")
 	case "webkitgtk6dev":
-		_, err := exe.Output(ctx, executor.Options{}, "pkg-config", "--exists", "webkitgtk-6.0")
+		return pkgConfig("webkitgtk-6.0")
+	case "webkitgtk41dev":
+		return pkgConfig("webkit2gtk-4.1")
+	case "libxdo":
+		_, err := os.Stat("/usr/include/xdo.h")
 		return err == nil
 	case "wails3":
 		if which("wails3") {
@@ -182,9 +196,9 @@ func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
 		_, err := os.Stat(filepath.Join(gobin, "wails3"))
 		return err == nil
 	case "libsecret":
-		return which("secret-tool")
+		return which("secret-tool") && pkgConfig("libsecret-1")
 	case "librsvg":
-		return which("rsvg-convert")
+		return which("rsvg-convert") && pkgConfig("librsvg-2.0")
 	case "gnome-keyring":
 		return which("gnome-keyring")
 	case "gh":
@@ -199,6 +213,8 @@ func isInstalled(ctx context.Context, exe *executor.Executor, id string) bool {
 		return which("flatpak")
 	case "flatpak-builder":
 		return which("flatpak-builder")
+	case "flatpak-builder-tools":
+		return flatpakToolsInstalled()
 	case "appstream":
 		return which("appstreamcli")
 	case "libfuse2":
@@ -235,6 +251,8 @@ func installFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p
 		return installNode(ctx, exe, stdout)
 	case "appimagetool":
 		return installAppImageTool(ctx, exe, stdout, opts)
+	case "flatpak-builder-tools":
+		return installFlatpakTools(ctx, exe, stdout, family)
 	}
 	if pkgs := packagesFor(p.ID, family); pkgs != nil {
 		return distro.InstallPkgs(ctx, exe, stdout, family, pkgs...)
@@ -259,6 +277,8 @@ func uninstallFor(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 		return uninstallNode(stdout)
 	case "appimagetool":
 		return exe.Run(ctx, opts, "rm", "-f", "--", appImageToolDest)
+	case "flatpak-builder-tools":
+		return uninstallFlatpakTools(ctx, exe, stdout)
 	}
 	if pkgs := removalPackagesFor(p.ID, family); pkgs != nil {
 		return RemovePackages(ctx, exe, opts, family, pkgs...)
@@ -268,7 +288,8 @@ func uninstallFor(ctx context.Context, exe *executor.Executor, stdout io.Writer,
 
 // UpdateOne updates a single installed prerequisite: its packages through
 // the package manager, Node.js to the latest LTS, and the items pinned to
-// a version (Wails3 CLI, AppImageTool) by reinstalling that version.
+// a version (Wails3 CLI, AppImageTool, Flatpak Builder Tools) by
+// reinstalling that version.
 func UpdateOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, p Prereq) error {
 	return updateFor(ctx, exe, stdout, p, distro.Detect())
 }
@@ -282,6 +303,8 @@ func updateFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p 
 		return updateNode(ctx, exe, stdout)
 	case "appimagetool":
 		return installAppImageTool(ctx, exe, stdout, executor.Options{RequiresSudo: true, Stdout: stdout, Stderr: stdout})
+	case "flatpak-builder-tools":
+		return installFlatpakTools(ctx, exe, stdout, family)
 	}
 	if pkgs := packagesFor(p.ID, family); pkgs != nil {
 		return upgradePkgs(ctx, exe, stdout, family, pkgs...)
@@ -291,7 +314,7 @@ func updateFor(ctx context.Context, exe *executor.Executor, stdout io.Writer, p 
 
 // packagesFor returns the distro packages of item id on family, or nil for
 // the items not made of distro packages (Wails3 CLI, Node.js,
-// AppImageTool).
+// AppImageTool, Flatpak Builder Tools).
 func packagesFor(id, family string) []string {
 	fedora := family == distro.Fedora
 	pick := func(debian, fedoraPkg string) []string {
@@ -301,10 +324,21 @@ func packagesFor(id, family string) []string {
 		return []string{debian}
 	}
 	switch id {
-	case "git", "curl", "openssl", "lsof", "cmake", "clang", "gnome-keyring", "flatpak", "flatpak-builder", "appstream", "gh":
+	case "git", "curl", "lsof", "cmake", "clang", "gnome-keyring", "flatpak", "flatpak-builder", "appstream", "gh":
 		return []string{id}
 	case "ninja":
 		return []string{"ninja-build"}
+	case "build-essential":
+		if fedora {
+			return []string{"gcc", "gcc-c++", "make"}
+		}
+		return []string{"build-essential"}
+	case "openssl":
+		return []string{"openssl", pick("libssl-dev", "openssl-devel")[0]}
+	case "webkitgtk41dev":
+		return pick("libwebkit2gtk-4.1-dev", "webkit2gtk4.1-devel")
+	case "libxdo":
+		return pick("libxdo-dev", "libxdo-devel")
 	case "gtk3dev":
 		return pick("libgtk-3-dev", "gtk3-devel")
 	case "gtk4dev":
@@ -317,7 +351,7 @@ func packagesFor(id, family string) []string {
 		}
 		return []string{"libsecret-1-0", "libsecret-1-dev", "libsecret-tools"}
 	case "librsvg":
-		return []string{librsvgPkg(family)}
+		return []string{librsvgPkg(family), pick("librsvg2-dev", "librsvg2-devel")[0]}
 	case "libfuse2":
 		return []string{libfuse2Pkg(family)}
 	case "mkcert":
@@ -329,12 +363,16 @@ func packagesFor(id, family string) []string {
 }
 
 // removalPackagesFor returns the packages removed with item id on family:
-// packagesFor without the shared runtime library that other software on
-// the system depends on.
+// packagesFor without what other software on the system depends on — the
+// libsecret runtime library and the openssl command, which the system's
+// certificate handling needs.
 func removalPackagesFor(id, family string) []string {
 	pkgs := packagesFor(id, family)
-	if id == "libsecret" && family != distro.Fedora {
+	switch {
+	case id == "libsecret" && family != distro.Fedora:
 		return slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "libsecret-1-0" })
+	case id == "openssl":
+		return slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "openssl" })
 	}
 	return pkgs
 }

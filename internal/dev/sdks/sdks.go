@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package sdks installs, updates and removes the two SDKs managed by
-// perci.gnl — Go and Flutter — one at a time, wrapping the golang and
-// flutter packages.
+// Package sdks installs, updates and removes the SDKs managed by
+// perci.gnl — Go, Rust and Flutter — one at a time, wrapping the golang,
+// rust and flutter packages.
 package sdks
 
 import (
@@ -29,6 +29,7 @@ import (
 	"github.com/oito2/perci/internal/dev/golang"
 	"github.com/oito2/perci/internal/dev/nettimeout"
 	"github.com/oito2/perci/internal/dev/prereqs"
+	"github.com/oito2/perci/internal/dev/rust"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/ui"
 )
@@ -36,7 +37,7 @@ import (
 // SDK describes a language/SDK toolchain managed by perci.gnl.
 type SDK struct {
 	Name        string
-	ID          string // "go" or "flutter"
+	ID          string // "go", "rust" or "flutter"
 	Description string
 	// Requires lists the Names of the prereqs.Catalogue items its installer
 	// needs.
@@ -51,6 +52,10 @@ var Catalogue = []SDK{
 		Description:   "Linguagem Go, na versão estável mais recente, instalada em /usr/local/go",
 		Requires:      []string{"Curl"},
 		RemoveWarning: "Remove /usr/local/go e a linha do Go no PATH do arquivo de inicialização do shell."},
+	{Name: "Rust (rustup)", ID: "rust",
+		Description:   "Linguagem Rust (canal stable) pelo rustup, só para o seu usuário em ~/.cargo e ~/.rustup: rustc, cargo, clippy, rustfmt e rust-analyzer",
+		Requires:      []string{"Curl", "Build Essential"},
+		RemoveWarning: "Remove ~/.cargo (inclusive os programas instalados com cargo install), ~/.rustup com todos os toolchains, e a linha do Rust no PATH do arquivo de inicialização do shell."},
 	{Name: "Flutter + Dart SDK", ID: "flutter",
 		Description:   "Flutter (canal stable) com o Dart, em ~/development/flutter, mais o Android cmdline-tools e o wrapper do Chrome. A instalação aceita as licenças do Android SDK em seu nome; os termos estão em " + flutter.AndroidTermsURL + ".",
 		Requires:      []string{"Git"},
@@ -75,6 +80,7 @@ func InstalledMap(ctx context.Context, exe *executor.Executor) map[string]bool {
 
 	goInstalled, _ := golang.InstalledVersion(ctx, exe)
 	result["Go SDK"] = goInstalled
+	result["Rust (rustup)"] = rust.IsInstalled()
 
 	if _, _, flutterBin, err := paths(); err == nil {
 		result["Flutter + Dart SDK"] = flutter.IsInstalled(flutterBin)
@@ -104,7 +110,8 @@ func InstallOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, s
 }
 
 // UpdateOne updates an installed s: Go to the latest stable release (no-op
-// when it already is), Flutter through "flutter upgrade".
+// when it already is), Rust through "rustup update", Flutter through
+// "flutter upgrade".
 func UpdateOne(ctx context.Context, exe *executor.Executor, stdout io.Writer, s SDK) error {
 	_, _, flutterBin, err := paths()
 	if err != nil {
@@ -137,6 +144,8 @@ func install(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, 
 		// Puts Go's bin directory on PATH in the shell rc file.
 		golang.EnsurePathInBashrc(stdout)
 		return nil
+	case "rust":
+		return rust.Install(ctx, exe, stdout)
 	case "flutter":
 		if err := flutter.CloneFlutter(ctx, exe, stdout, home, flutterDir); err != nil {
 			return err
@@ -178,6 +187,8 @@ func update(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, f
 			return nil
 		}
 		return golang.Install(ctx, exe, stdout, latest, checksum)
+	case "rust":
+		return rust.Update(ctx, exe, stdout)
 	case "flutter":
 		ui.Info(stdout, "Atualizando Flutter (flutter upgrade)...")
 		ctx, cancel := nettimeout.Context(ctx)
@@ -191,6 +202,8 @@ func remove(ctx context.Context, exe *executor.Executor, stdout io.Writer, id, h
 	switch id {
 	case "go":
 		return golang.Uninstall(ctx, exe, stdout)
+	case "rust":
+		return rust.Uninstall(ctx, exe, stdout)
 	case "flutter":
 		return flutter.Uninstall(ctx, exe, stdout, home, flutterDir)
 	}

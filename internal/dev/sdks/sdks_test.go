@@ -21,9 +21,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/oito2/perci/internal/dev/prereqs"
 	"github.com/oito2/perci/internal/executor"
 )
 
@@ -130,7 +132,7 @@ func TestUpdateOne(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := UpdateOne(context.Background(), dryRun(&buf), &buf, Catalogue[1]); err != nil {
+	if err := UpdateOne(context.Background(), dryRun(&buf), &buf, sdkByID(t, "flutter")); err != nil {
 		t.Fatal(err)
 	}
 	if out := buf.String(); !strings.Contains(out, "upgrade") || strings.Contains(out, "pkexec") {
@@ -150,13 +152,13 @@ func TestMissingRequirements(t *testing.T) {
 func TestUnknownSDK(t *testing.T) {
 	home := tempHome(t)
 	exe := &executor.Executor{DryRun: true}
-	if err := install(context.Background(), exe, io.Discard, "rust", home, "", ""); err == nil {
+	if err := install(context.Background(), exe, io.Discard, "nope", home, "", ""); err == nil {
 		t.Error("install: expected an error")
 	}
-	if err := remove(context.Background(), exe, io.Discard, "rust", home, ""); err == nil {
+	if err := remove(context.Background(), exe, io.Discard, "nope", home, ""); err == nil {
 		t.Error("remove: expected an error")
 	}
-	if err := update(context.Background(), exe, io.Discard, "rust", ""); err == nil {
+	if err := update(context.Background(), exe, io.Discard, "nope", ""); err == nil {
 		t.Error("update: expected an error")
 	}
 }
@@ -171,5 +173,31 @@ func TestCatalogue_FlutterDescribesTheLicenseAcceptance(t *testing.T) {
 		if !strings.Contains(sk.Description, "licenças do Android SDK") || !strings.Contains(sk.Description, "https://developer.android.com/studio/terms") {
 			t.Errorf("description = %q", sk.Description)
 		}
+	}
+}
+
+// sdkByID returns the Catalogue entry with id.
+func sdkByID(t *testing.T, id string) SDK {
+	t.Helper()
+	for _, s := range Catalogue {
+		if s.ID == id {
+			return s
+		}
+	}
+	t.Fatalf("no SDK %q", id)
+	return SDK{}
+}
+
+// Rust needs Curl and Build Essential, both from the Pré-requisitos
+// catalogue.
+func TestRustRequirements(t *testing.T) {
+	rust := sdkByID(t, "rust")
+	for _, req := range rust.Requires {
+		if !slices.ContainsFunc(prereqs.Catalogue, func(p prereqs.Prereq) bool { return p.Name == req }) {
+			t.Errorf("requirement %q is not in the Pré-requisitos catalogue", req)
+		}
+	}
+	if !slices.Contains(rust.Requires, "Build Essential") {
+		t.Errorf("Rust requires = %v, want Build Essential (rustc needs a C linker)", rust.Requires)
 	}
 }

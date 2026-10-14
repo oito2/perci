@@ -174,11 +174,23 @@ func TestRemovePackages_FedoraRefusesWithoutPlan(t *testing.T) {
 }
 
 // Uninstalling OpenSSL through the catalogue goes through the simulation.
-func TestUninstallFor_OpenSSLRefusedOnDebian(t *testing.T) {
+// A removal that takes other packages along (here ca-certificates) is
+// refused before anything runs.
+func TestUninstallFor_CascadeRefusedOnDebian(t *testing.T) {
 	removalBin(t, aptSimOpenSSL)
 	err := uninstallFor(context.Background(), executor.New(nil, nil), &bytes.Buffer{}, Prereq{ID: "openssl", Name: "OpenSSL"}, distro.Debian)
 	if err == nil || !strings.Contains(err.Error(), "ca-certificates") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// Removing OpenSSL removes only its development headers: the openssl
+// command stays for the system's certificate handling.
+func TestRemovalPackagesFor_OpenSSLKeepsTheCommand(t *testing.T) {
+	for _, family := range []string{distro.Debian, distro.Fedora} {
+		if got := removalPackagesFor("openssl", family); slices.Contains(got, "openssl") || len(got) != 1 {
+			t.Errorf("%s removal = %v", family, got)
+		}
 	}
 }
 

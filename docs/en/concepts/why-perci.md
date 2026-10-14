@@ -14,7 +14,7 @@ Setting up a Linux development workstation from scratch means repeating the same
 
 - Post-install cleanup and codec/essentials installation, which differs per distro and desktop environment.
 - Installing the same set of fonts, Flatpak apps, and terminal tools.
-- Installing and keeping up to date a handful of SDKs (Go, Flutter), IDEs (VS Code, VSCodium, Zed), and LLM/MCP CLI tools.
+- Installing and keeping up to date a handful of SDKs (Go, Rust, Flutter), IDEs (VS Code, VSCodium, Zed), and LLM/MCP CLI tools.
 - Spinning up a Docker-based Nginx + PHP + MariaDB stack per project, especially for Moodle development — multiple PHP versions, multiple Moodle installs routed through the same stack.
 - Generating consistent AI agent context files (`AGENTS.md`, `CLAUDE.md`, `.instructions/*.md`) and skill files for every new project.
 
