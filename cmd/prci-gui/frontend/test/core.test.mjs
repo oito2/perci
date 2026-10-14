@@ -131,8 +131,16 @@ test("screenFor resolves each family to its container", () => {
   assert.equal(el({ actionId: "prereqs" }), element("itemtable-container"));
   assert.equal(el({ actionId: "system-update" }), element("simple-container"));
   assert.equal(ctx.screenFor({ actionId: "repos" }).alsoShow[0], element("tab-label-repos-list"));
+  assert.equal(ctx.screenFor({ actionId: "moodleplugins" }).alsoShow[0], element("tab-label-mp-mounted"));
   assert.equal(ctx.screenFor({ actionId: "self-config" }).noTerminal, true);
   assert.equal(evalIn(ctx, 'typeof SINGLE_APP_SCREENS["linuxtoys"]'), "undefined");
+});
+
+test("the screen-only tab labels are hidden when another screen is selected", () => {
+  const { ctx, element } = load();
+  const hidden = ctx.screenContainers();
+  assert.ok(hidden.includes(element("tab-label-mp-mounted")));
+  assert.ok(hidden.includes(element("tab-label-repos-list")));
 });
 
 test("quit-blocked: the window running the action opens its Execução tab", () => {

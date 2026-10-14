@@ -115,10 +115,11 @@
   /* Tabs (Definições/Execução): each panel is explicitly shown/hidden
      by the checked radio, since daisyUI's `.tab-content` has no
      `display:none` rule for an inactive tab. */
-  #panel-desc, #panel-terminal, #panel-repos-list { display: none; }
+  #panel-desc, #panel-terminal, #panel-repos-list, #panel-mp-mounted { display: none; }
   .tabs:has(#tab-radio-desc:checked) #panel-desc { display: block; }
   .tabs:has(#tab-radio-terminal:checked) #panel-terminal { display: flex; }
   .tabs:has(#tab-radio-repos-list:checked) #panel-repos-list { display: block; }
+  .tabs:has(#tab-radio-mp-mounted:checked) #panel-mp-mounted { display: block; }
 
   /* Clonar/Iniciar/Identidade Local/Arquivos horizontal menu — disabled
      (visible, but not clickable) until a working folder is chosen. */
@@ -574,8 +575,8 @@
           </div>
 
           <!-- "Dev Tools :: Plugins Moodle": a plugin development folder +
-               a Moodle container + type/name, then the mounted plugins with
-               their status, a restart icon and a remove icon. -->
+               a Moodle container + type/name. The mounted plugins are listed
+               in the top-level tab #panel-mp-mounted. -->
           <div id="moodleplugins-container" class="hidden">
             <p class="opacity-80 mb-4">Monte a pasta de desenvolvimento de um plugin dentro dos contêineres Moodle do Perci. O plugin aparece como uma pasta comum dentro do Moodle, no editor e no contêiner.</p>
 
@@ -607,25 +608,6 @@
             </div>
             <button id="btn-mp-create" class="btn btn-primary" disabled>Criar</button>
             <p class="text-xs opacity-60 mt-2">Criar e remover pedem a senha de administrador. Depois de aplicar, abra Administração do site → Notificações no Moodle para instalar ou atualizar o plugin.</p>
-
-            <div class="divider"></div>
-
-            <h3 class="font-bold mb-2">Plugins montados</h3>
-            <div class="overflow-x-auto">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Plugin</th>
-                    <th>Moodle</th>
-                    <th>Pasta de desenvolvimento</th>
-                    <th>Status</th>
-                    <th class="w-px"></th>
-                  </tr>
-                </thead>
-                <tbody id="mp-rows"></tbody>
-              </table>
-            </div>
-            <p id="mp-empty" class="opacity-70 mt-2 hidden">Nenhum plugin montado ainda.</p>
           </div>
 
           <!-- "Dev Tools :: Repositórios": 2 tabs — "Identidade Global" (the
@@ -783,6 +765,31 @@
           </ul>
 
           <div id="repos-sub-panel"></div>
+        </div>
+
+        <!-- Own top-level tab for "Dev Tools :: Plugins Moodle": the mounted
+             plugins with their status, a restart icon and a remove icon.
+             Only visible when the selected item is "moodleplugins". -->
+        <label id="tab-label-mp-mounted" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-mp-mounted" />
+          <span class="mr-1">🧩</span> Plugins montados
+        </label>
+        <div id="panel-mp-mounted" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Plugin</th>
+                  <th>Moodle</th>
+                  <th>Pasta de desenvolvimento</th>
+                  <th>Status</th>
+                  <th class="w-px"></th>
+                </tr>
+              </thead>
+              <tbody id="mp-rows"></tbody>
+            </table>
+          </div>
+          <p id="mp-empty" class="opacity-70 mt-2 hidden">Nenhum plugin montado ainda.</p>
         </div>
 
         <label id="tab-label-terminal" class="tab flex-none">

@@ -30,7 +30,7 @@ const MP_NO_FOLDER = "Nenhuma pasta selecionada";
 // MP_STATUS maps each mount status to its badge label, color and tooltip.
 const MP_STATUS = {
   applied: ["Aplicado", "badge-success", "O contêiner do Moodle e o Nginx já enxergam o plugin."],
-  pending: ["Reinício pendente", "badge-warning", "Montado no host. Reinicie o contêiner para aplicar."],
+  pending: ["Reinício pendente", "badge-warning", "Montado no host. Use \"Reiniciar contêiner\" nesta linha para aplicar."],
   stopped: ["Contêiner parado", "badge-ghost", "Montado no host. Será aplicado quando o contêiner iniciar."],
   inactive: ["Montagem inativa", "badge-error", "A montagem no host não está ativa. Remova e crie de novo."],
   missing: ["Contêiner não encontrado", "badge-error", "O contêiner deste Moodle não existe mais."],

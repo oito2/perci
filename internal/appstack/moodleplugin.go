@@ -215,7 +215,9 @@ func requireEmptyOrMissing(dest string) error {
 // then installs and starts the mount unit (one password prompt). When the
 // unit cannot be installed or started, the privileged batch removes it
 // again and the record and the new folder are dropped. Containers pick the
-// mount up on their next restart.
+// mount up on their next restart. A destination inside a MEGA-synced folder
+// is first excluded in that sync's .megaignore; the mount is refused when
+// the exclusion cannot be written.
 func AddMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writer, dev, folder, ptype, name string) error {
 	stackMu.Lock()
 	defer stackMu.Unlock()
@@ -228,14 +230,24 @@ func AddMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writ
 		return err
 	}
 
+	// The MEGA exclusion is written before the destination folder exists,
+	// so MEGAsync never scans the folder that is about to be mounted.
+	megaFile, megaRule, err := excludeFromMega(stdout, plan.Dest)
+	if err != nil {
+		return err
+	}
 	_, statErr := os.Lstat(plan.Dest)
 	created := errors.Is(statErr, fs.ErrNotExist)
 	dropDest := func() {
 		if created {
 			_ = os.Remove(plan.Dest)
 		}
+		if megaRule != "" {
+			_ = removeMegaIgnoreRule(megaFile, megaRule)
+		}
 	}
 	if err := os.MkdirAll(plan.Dest, 0o755); err != nil {
+		dropDest()
 		return fmt.Errorf("criar %s: %w", plan.Dest, err)
 	}
 	// Checked again right before the privileged step: the folders created
@@ -245,7 +257,10 @@ func AddMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writ
 		return fmt.Errorf("o destino %s fica fora do Moodle %s", plan.Dest, folder)
 	}
 
-	record := config.MoodlePluginMount{App: plan.App, Component: plan.Component, DevPath: plan.DevPath, RelPath: plan.RelPath}
+	record := config.MoodlePluginMount{
+		App: plan.App, Component: plan.Component, DevPath: plan.DevPath, RelPath: plan.RelPath,
+		MegaIgnore: megaFile, MegaIgnoreRule: megaRule,
+	}
 	if err := config.Update(func(c *config.Config) error {
 		c.MoodlePlugins = append(c.MoodlePlugins, record)
 		return nil
@@ -266,7 +281,7 @@ func AddMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writ
 		dropDest()
 		return err
 	}
-	ui.Success(stdout, fmt.Sprintf("%s montado em %s. Reinicie o contêiner para aplicar.", plan.Component, plan.Dest))
+	ui.Success(stdout, fmt.Sprintf("%s montado em %s. Para aplicar, use \"Reiniciar contêiner\" na aba Plugins montados.", plan.Component, plan.Dest))
 	return nil
 }
 
@@ -450,8 +465,10 @@ func pluginUnits(m config.MoodlePluginMount, dest string) []pluginUnit {
 // RemoveMoodlePlugin stops and removes the mount unit of a recorded mount
 // (one password prompt), removes the destination folder only when it is
 // left empty and unmounted, drops the record and restarts the containers
-// so they stop seeing the plugin. A unit whose mount could not be stopped
-// is kept, and the record with it. The development folder is never touched.
+// so they stop seeing the plugin. A .megaignore rule perci added for the
+// mount is removed after the folder is unmounted. A unit whose mount could
+// not be stopped is kept, and the record with it. The development folder is
+// never touched.
 func RemoveMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writer, folder, relPath string) error {
 	stackMu.Lock()
 	defer stackMu.Unlock()
@@ -496,6 +513,11 @@ func RemoveMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.W
 		}
 		if err := os.Remove(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			ui.Warning(stdout, "A pasta "+dest+" não foi apagada (não está vazia): "+err.Error())
+		}
+	}
+	if m.MegaIgnoreRule != "" {
+		if err := removeMegaIgnoreRule(m.MegaIgnore, m.MegaIgnoreRule); err != nil {
+			ui.Warning(stdout, "A regra "+m.MegaIgnoreRule+" não foi removida de "+m.MegaIgnore+": "+err.Error())
 		}
 	}
 	if err := config.Update(func(c *config.Config) error {

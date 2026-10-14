@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-14
+
+### Changed
+- Dev Tools → Plugins Moodle: the mounted plugins (status, **Reiniciar contêiner**, **Remover**) moved to their own **Plugins montados** tab, and the message shown after mounting points to it.
+
+### Fixed
+- Dev Tools → Plugins Moodle: when the Moodle's `html` folder is synced by MEGAsync, the mount destination is excluded in the nearest `.megaignore` (`-dpG:<path>`) before it is mounted, and the line is removed with **Remover**. Without it, MEGAsync could take the mount for a move between syncs and send the plugin's development files to its `.debris` folder. The mount is refused when the exclusion can't be written.
+
 ## [1.3.0] - 2026-10-13
 
 ### Added
@@ -130,7 +138,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/oito2/perci/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/oito2/perci/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/oito2/perci/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oito2/perci/compare/v1.0.1...v1.1.0

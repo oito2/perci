@@ -320,6 +320,7 @@ const mpLocked = document.getElementById("mp-locked");
 const mpStatus = document.getElementById("mp-status");
 const mpStatusText = document.getElementById("mp-status-text");
 const btnMpCreate = document.getElementById("btn-mp-create");
+const tabLabelMpMounted = document.getElementById("tab-label-mp-mounted");
 const mpRows = document.getElementById("mp-rows");
 const mpEmpty = document.getElementById("mp-empty");
 const reposContainer = document.getElementById("repos-container");

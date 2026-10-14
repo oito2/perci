@@ -92,6 +92,11 @@ type MoodlePluginMount struct {
 	Component string `yaml:"component"` // e.g. "local_example"
 	DevPath   string `yaml:"dev_path"`
 	RelPath   string `yaml:"rel_path"` // e.g. "public/local/example"
+	// MegaIgnore and MegaIgnoreRule are set when perci added MegaIgnoreRule
+	// to the .megaignore file MegaIgnore for this mount; removing the mount
+	// removes that line again.
+	MegaIgnore     string `yaml:"mega_ignore,omitempty" json:"-"`
+	MegaIgnoreRule string `yaml:"mega_ignore_rule,omitempty" json:"-"`
 }
 
 // AgentSkillInstall records one (skill, scope) pair. Global installs are
