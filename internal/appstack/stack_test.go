@@ -217,7 +217,7 @@ func TestImportConfig_AdoptsWorkspaceAndRecreates(t *testing.T) {
 	ws := t.TempDir()
 
 	var buf bytes.Buffer
-	if err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, exportedStack(ws)); err != nil {
+	if err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, exportedStack(ws), SelectAll(exportedStack(ws))); err != nil {
 		t.Fatalf("ImportConfig: %v\n%s", err, buf.String())
 	}
 	cfg, err := config.Load()
@@ -248,7 +248,7 @@ func TestImportConfig_WorkspaceMismatchTouchesNothing(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, exportedStack("/srv/other-ws"))
+	err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, exportedStack("/srv/other-ws"), SelectAll(exportedStack("/srv/other-ws")))
 	if !errors.Is(err, ErrWorkspaceMismatch) {
 		t.Fatalf("err = %v, want ErrWorkspaceMismatch", err)
 	}
@@ -266,7 +266,7 @@ func TestImportConfig_InvalidFileRefused(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	bad := exportedStack("relative/path")
 	var buf bytes.Buffer
-	if err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, bad); err == nil {
+	if err := ImportConfig(context.Background(), executor.New(&buf, &buf), nil, &buf, bad, SelectAll(bad)); err == nil {
 		t.Fatal("expected a validation error")
 	}
 }

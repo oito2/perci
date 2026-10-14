@@ -145,8 +145,9 @@ export function PickWorkspaceFolder() {
  * RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
  * Two steps run first, both optional:
  * 
- *   - backupPath != "": exports cfg.Docker to that path first (appstack.
- *     ExportConfig) — reimportable later via "Importar configurações". A
+ *   - backupPath != "": exports cfg.Docker and the Moodle plugin mounts to
+ *     that path first (appstack.ExportConfig) — reimportable later via
+ *     "Docker :: Exportar/Importar". A
  *     failed backup aborts the uninstall before anything is removed; only
  *     "nothing to export" (appstack.ErrNothingToExport) is a warning.
  *   - removeDocker: removes every registered container (apps, then

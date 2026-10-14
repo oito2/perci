@@ -41,7 +41,7 @@ function openConfirm(title, message, onConfirm) {
 }
 
 // error-modal doubles as a generic message modal (title and color class
-// vary), e.g. for success messages like Exportar configurações, which
+// vary), e.g. for success messages like Exportar/Importar's export, which
 // doesn't go through the Execução tab.
 const errorModalTitleEl = errorModal.querySelector("h3");
 function openMessage(title, message, isError) {

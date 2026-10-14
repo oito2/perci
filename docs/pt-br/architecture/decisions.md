@@ -318,3 +318,19 @@ uma recusa.
 **Decisão** (escolhas do usuário): implementar o plano inteiro antes da release. Remover o Linux Toys por completo, sem desinstalador. Manter o clone completo do Flutter. Limitar o tempo dos comandos de rede sem privilégio (`curl --connect-timeout/--max-time`, limite de 30 minutos); nada interrompe `apt`/`dnf` e não há botão Cancelar. Registrar, por agente, quais agentes aceitaram uma SKILL ou servidor MCP, e mostrar "parcial" quando algum falta. Nunca sobrescrever um `credential.helper` existente; no Fedora o "Libsecret Tools" instala o `git-credential-libsecret`, e a queda para `cache` é avisada. Avisar na descrição do Flutter que as licenças do Android SDK são aceitas. Gerar o `MOODLE_PATH` como o relativo `.`. Vincular o registro da pós-instalação ao `/etc/machine-id`. Fechar ou sair durante uma ação não encerra: a janela principal abre na aba Execução com um aviso. Separar o workflow de release em jobs reutilizáveis `test` e `build` e adicionar o ShellCheck ao CI. Manter os instaladores oficiais, com timeouts, e fixar o nvm (tag), o Codex (versão) e a Nerd Font (SHA-256). Fixar as SKILLs por commit, desligar a telemetria do CLI `skills` e mostrar um aviso de conteúdo de terceiros. Fixar composer/pecl, pegar o Node da imagem oficial do Node em vez do NodeSource e renovar o certificado do mkcert antes de vencer. Deixar de gerar o `.claudeignore` (o Claude Code o ignora): mesclar regras de leitura `permissions.deny` no `.claude/settings.json` e manter o `.aiexclude`. Validar a configuração do Nginx com `nginx -t` num contêiner descartável quando o Nginx está parado. Agrupar a saída do terminal a cada ~30 ms. Usar `--mount` em vez de `-v`, recusando vírgula no caminho do workspace.
 
 **Rever se**: os pacotes do PHP 7.4/8.0 sumirem do `archive.debian.org` (essas imagens teriam de ser descartadas), o CLI `skills` ganhar um lockfile para instalações fixadas, ou um botão Cancelar para ações longas for desejado.
+
+## 2026-10-14 — Montagens de plugins Moodle ficam fora da sincronização do MEGA
+
+**Contexto**: O MEGAsync identifica arquivos pelo inode. Uma montagem de plugin mostra os inodes da pasta de desenvolvimento dentro da pasta `html` do Moodle; com as duas pastas em sincronizações diferentes do MEGA, o MEGAsync tomou a montagem por uma mudança entre sincronizações e mandou os arquivos de desenvolvimento para a pasta `.debris` dele.
+
+**Decisão** (escolha do usuário, em vez de recusar ou só avisar): antes de montar, o Perci grava `-dpG:<destino>` no `.megaignore` mais próximo acima do destino, recusa a montagem quando não consegue e remove a linha junto com a montagem. Uma linha que o usuário já tinha fica como está. Testado com montagens reais, edições pelo caminho do Moodle, reinício do MEGAsync e do computador.
+
+**Rever se**: o MEGAsync deixar de respeitar as regras de caminho do `.megaignore` antes da detecção de mudanças por inode, ou outro cliente de sincronização com o mesmo comportamento precisar de suporte.
+
+## 2026-10-14 — Docker → Exportar/Importar, item a item, mesclando
+
+**Contexto**: O Exportar/Importar ficava em Gerenciar Contêineres, levava sempre a stack Docker inteira, a substituía na importação e deixava de fora as montagens de plugins Moodle.
+
+**Decisão** (escolhas do usuário): item de menu próprio com as abas Exportar e Importar. As duas listam o Nginx, o MariaDB, cada app e cada montagem de plugin para marcar um a um; marcar um item marca as dependências dele. Só as definições viajam (sem arquivos dos projetos nem bancos). A importação mescla: os itens marcados são adicionados ou substituem o app com a mesma pasta, nada mais sai. As montagens de plugin são importadas com uma única senha; uma que não pode ser feita na máquina (pasta de desenvolvimento ou código do Moodle ausentes) é pulada com um aviso.
+
+**Rever se**: os próprios arquivos e bancos precisarem viajar também.

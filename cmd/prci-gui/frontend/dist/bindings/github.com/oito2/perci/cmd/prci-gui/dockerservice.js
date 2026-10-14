@@ -40,14 +40,15 @@ export function CreateDockerContainer(req) {
 }
 
 /**
- * ExportDockerConfig wraps appstack.ExportConfig — a quick operation (just
- * writes a YAML file), runs synchronously (no Execução tab), same
- * treatment as the quick actions above.
+ * ExportDockerConfig writes the selected items to path (only a path chosen
+ * in PickExportConfigPath) — a quick operation (just writes a YAML file),
+ * run synchronously without the Execução tab.
  * @param {string} path
+ * @param {$models.TransferSelection} sel
  * @returns {$CancellablePromise<void>}
  */
-export function ExportDockerConfig(path) {
-    return $Call.ByName("main.DockerService.ExportDockerConfig", path);
+export function ExportDockerConfig(path, sel) {
+    return $Call.ByName("main.DockerService.ExportDockerConfig", path, sel);
 }
 
 /**
@@ -108,6 +109,17 @@ export function GetDockerCreateCatalog() {
 }
 
 /**
+ * GetExportItems lists everything the local config can export (the
+ * Exportar tab's checklist).
+ * @returns {$CancellablePromise<$models.TransferItems>}
+ */
+export function GetExportItems() {
+    return $Call.ByName("main.DockerService.GetExportItems").then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * GetPHPVersionsForMoodleVersion returns the PHP versions valid for a given
  * Moodle version range (appstack.PHPVersionsForMoodleVersion) — the
  * "Versão PHP" select re-fetches this every time "Versão do Moodle"
@@ -117,21 +129,22 @@ export function GetDockerCreateCatalog() {
  */
 export function GetPHPVersionsForMoodleVersion(moodleVersion) {
     return $Call.ByName("main.DockerService.GetPHPVersionsForMoodleVersion", moodleVersion).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
 /**
- * ImportDockerContainerConfig applies the import (appstack.ImportConfig) —
- * overwrites cfg.Docker entirely and recreates Nginx→MariaDB→each App in
- * that order, after validating the whole file (nothing is applied if any
- * entry is invalid), stopping at the first error. Shows the
- * Execução tab — it's effectively a sequence of Recriar calls.
+ * ImportDockerContainerConfig imports the selected items of the export
+ * file at path (appstack.ImportConfig): merges them into the local config,
+ * mounts the selected plugins (one password) and recreates the selected
+ * containers. Shows the Execução tab — it's effectively a sequence of
+ * Recriar calls.
  * @param {string} path
+ * @param {$models.TransferSelection} sel
  * @returns {$CancellablePromise<void>}
  */
-export function ImportDockerContainerConfig(path) {
-    return $Call.ByName("main.DockerService.ImportDockerContainerConfig", path);
+export function ImportDockerContainerConfig(path, sel) {
+    return $Call.ByName("main.DockerService.ImportDockerContainerConfig", path, sel);
 }
 
 /**
@@ -144,8 +157,8 @@ export function PickBackupPath() {
 }
 
 /**
- * PickExportConfigPath opens the native "Salvar Como" dialog for "Exportar
- * configurações" — folder AND filename in a single window.
+ * PickExportConfigPath opens the native "Salvar Como" dialog for
+ * "Exportar" — folder AND filename in a single window.
  * @returns {$CancellablePromise<string>}
  */
 export function PickExportConfigPath() {
@@ -154,7 +167,7 @@ export function PickExportConfigPath() {
 
 /**
  * PickImportConfigPath opens the native "Selecionar arquivo" dialog for
- * "Importar configurações".
+ * "Importar".
  * @returns {$CancellablePromise<string>}
  */
 export function PickImportConfigPath() {
@@ -181,15 +194,15 @@ export function PickRestorePath() {
 }
 
 /**
- * PreviewImportConfig reads and parses path (appstack.LoadExportedConfig)
- * without applying anything — the frontend shows this in the confirmation
- * modal before calling ImportDockerConfig.
+ * PreviewImportConfig reads, validates and lists the items of the export
+ * file at path (only a path chosen in PickImportConfigPath) against this
+ * machine, without applying anything: the Importar tab's checklist.
  * @param {string} path
- * @returns {$CancellablePromise<$models.ImportPreview>}
+ * @returns {$CancellablePromise<$models.TransferItems>}
  */
 export function PreviewImportConfig(path) {
     return $Call.ByName("main.DockerService.PreviewImportConfig", path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType4($result);
     }));
 }
 
@@ -282,5 +295,5 @@ const $$createType0 = $models.ContainerFormRequest.createFrom;
 const $$createType1 = $models.ContainerRow.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = $models.DockerCreateCatalog.createFrom;
-const $$createType4 = $Create.Array($Create.Any);
-const $$createType5 = $models.ImportPreview.createFrom;
+const $$createType4 = $models.TransferItems.createFrom;
+const $$createType5 = $Create.Array($Create.Any);

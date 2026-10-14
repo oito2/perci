@@ -387,48 +387,86 @@ func (s *DockerService) SaveTextFile(path, content string) error {
 	return fsutil.WriteFileAtomic(path, []byte(content), 0o600)
 }
 
-// ── Exportar/Importar configurações ──────────────────────────────────────
+// ── Exportar/Importar ─────────────────────────────────────────────────────
 
-// PickExportConfigPath opens the native "Salvar Como" dialog for "Exportar
-// configurações" — folder AND filename in a single window.
-func (s *DockerService) PickExportConfigPath() (string, error) {
-	return approvePath(s.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
-		Title:    "Exportar configurações do Docker",
-		Filename: "docker-export.yaml",
-		Filters:  []application.FileFilter{{DisplayName: "YAML (*.yaml)", Pattern: "*.yaml;*.yml"}},
-	}).PromptForSingleSelection())
+// TransferSelection is the frontend's choice of items on Docker →
+// Exportar/Importar: the Nginx and MariaDB containers, apps by folder and
+// plugin mounts by key ("<app>/<rel_path>").
+type TransferSelection struct {
+	Nginx   bool     `json:"nginx"`
+	MariaDB bool     `json:"mariadb"`
+	Apps    []string `json:"apps"`
+	Plugins []string `json:"plugins"`
 }
 
-// ExportDockerConfig wraps appstack.ExportConfig — a quick operation (just
-// writes a YAML file), runs synchronously (no Execução tab), same
-// treatment as the quick actions above.
-func (s *DockerService) ExportDockerConfig(path string) error {
-	if err := requireApprovedPath(path); err != nil {
-		return err
+// domain converts s to the appstack selection.
+func (s TransferSelection) domain() appstack.TransferSelection {
+	return appstack.TransferSelection{Nginx: s.Nginx, MariaDB: s.MariaDB, Apps: s.Apps, Plugins: s.Plugins}
+}
+
+// TransferApp is one Container Aplicativo listed on Exportar/Importar.
+// Exists (import only) means an app with the same folder is already
+// registered here and would be replaced.
+type TransferApp struct {
+	Folder   string `json:"folder"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	URL      string `json:"url"`
+	DBAccess bool   `json:"dbAccess"`
+	Exists   bool   `json:"exists"`
+}
+
+// TransferPlugin is one plugin mount listed on Exportar/Importar. On
+// import, Mounted means the same mount already exists here and Reason
+// says why it can't be mounted on this machine (empty when it can).
+type TransferPlugin struct {
+	Key       string `json:"key"`
+	Component string `json:"component"`
+	App       string `json:"app"`
+	DevPath   string `json:"devPath"`
+	Mounted   bool   `json:"mounted"`
+	Reason    string `json:"reason"`
+}
+
+// TransferItems lists the items of the local config (Exportar) or of an
+// export file (Importar). Nginx and MariaDB tell whether each is present;
+// LocalNginx, LocalMariaDB and Commands are filled for an import only:
+// what already exists here, and one "<pasta>: <comando>" entry per start
+// command and "<pasta> (worker): <comando>" per worker command the
+// file's apps run.
+type TransferItems struct {
+	WorkspacePath string           `json:"workspacePath"`
+	Nginx         bool             `json:"nginx"`
+	MariaDB       bool             `json:"mariadb"`
+	Apps          []TransferApp    `json:"apps"`
+	Plugins       []TransferPlugin `json:"plugins"`
+	LocalNginx    bool             `json:"localNginx"`
+	LocalMariaDB  bool             `json:"localMariaDb"`
+	Commands      []string         `json:"commands"`
+}
+
+// transferItems lists the items of e; local, when not nil, marks the apps
+// that already exist in it.
+func transferItems(e appstack.ExportedConfig, local *config.Config) TransferItems {
+	items := TransferItems{
+		WorkspacePath: e.WorkspacePath,
+		Nginx:         e.Docker.NginxCreated,
+		MariaDB:       e.Docker.MariaDB.DBUser != "",
+		Apps:          []TransferApp{},
+		Plugins:       []TransferPlugin{},
+		Commands:      importCommands(e),
 	}
-	return appstack.ExportConfig(path)
-}
-
-// PickImportConfigPath opens the native "Selecionar arquivo" dialog for
-// "Importar configurações".
-func (s *DockerService) PickImportConfigPath() (string, error) {
-	return approvePath(s.wailsApp.Dialog.OpenFile().
-		SetTitle("Selecionar arquivo de configurações do Docker").
-		AddFilter("YAML (*.yaml)", "*.yaml;*.yml").
-		PromptForSingleSelection())
-}
-
-// ImportPreview is the pre-import summary shown in the confirmation modal
-// (workspace, Nginx, MariaDB, app count, and every command the apps will
-// run) — nothing is applied yet. Commands holds one "<pasta>: <comando>"
-// entry per start command and "<pasta> (worker): <comando>" per worker
-// command in the file.
-type ImportPreview struct {
-	WorkspacePath string   `json:"workspacePath"`
-	HasNginx      bool     `json:"hasNginx"`
-	HasMariaDB    bool     `json:"hasMariaDb"`
-	AppsCount     int      `json:"appsCount"`
-	Commands      []string `json:"commands"`
+	for _, app := range e.Docker.Apps {
+		row := TransferApp{Folder: app.Folder, Name: app.Name, Type: app.Type, URL: app.URL, DBAccess: app.DBAccess}
+		if local != nil {
+			_, row.Exists = appstack.FindAppByFolder(local.Docker.Apps, app.Folder)
+		}
+		items.Apps = append(items.Apps, row)
+	}
+	for _, m := range e.MoodlePlugins {
+		items.Plugins = append(items.Plugins, TransferPlugin{Key: appstack.PluginKey(m), Component: m.Component, App: m.App, DevPath: m.DevPath})
+	}
+	return items
 }
 
 // importCommands lists the commands the apps in exported would run inside
@@ -446,32 +484,85 @@ func importCommands(exported appstack.ExportedConfig) []string {
 	return commands
 }
 
-// PreviewImportConfig reads and parses path (appstack.LoadExportedConfig)
-// without applying anything — the frontend shows this in the confirmation
-// modal before calling ImportDockerConfig.
-func (s *DockerService) PreviewImportConfig(path string) (ImportPreview, error) {
+// GetExportItems lists everything the local config can export (the
+// Exportar tab's checklist).
+func (s *DockerService) GetExportItems() (TransferItems, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return TransferItems{}, err
+	}
+	items := transferItems(appstack.Exportable(cfg), nil)
+	items.Commands = []string{}
+	return items, nil
+}
+
+// PickExportConfigPath opens the native "Salvar Como" dialog for
+// "Exportar" — folder AND filename in a single window.
+func (s *DockerService) PickExportConfigPath() (string, error) {
+	return approvePath(s.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:    "Exportar configurações",
+		Filename: "perci-export.yaml",
+		Filters:  []application.FileFilter{{DisplayName: "YAML (*.yaml)", Pattern: "*.yaml;*.yml"}},
+	}).PromptForSingleSelection())
+}
+
+// ExportDockerConfig writes the selected items to path (only a path chosen
+// in PickExportConfigPath) — a quick operation (just writes a YAML file),
+// run synchronously without the Execução tab.
+func (s *DockerService) ExportDockerConfig(path string, sel TransferSelection) error {
 	if err := requireApprovedPath(path); err != nil {
-		return ImportPreview{}, err
+		return err
+	}
+	return appstack.ExportSelected(path, sel.domain())
+}
+
+// PickImportConfigPath opens the native "Selecionar arquivo" dialog for
+// "Importar".
+func (s *DockerService) PickImportConfigPath() (string, error) {
+	return approvePath(s.wailsApp.Dialog.OpenFile().
+		SetTitle("Selecionar arquivo de configurações").
+		AddFilter("YAML (*.yaml)", "*.yaml;*.yml").
+		PromptForSingleSelection())
+}
+
+// PreviewImportConfig reads, validates and lists the items of the export
+// file at path (only a path chosen in PickImportConfigPath) against this
+// machine, without applying anything: the Importar tab's checklist.
+func (s *DockerService) PreviewImportConfig(path string) (TransferItems, error) {
+	if err := requireApprovedPath(path); err != nil {
+		return TransferItems{}, err
 	}
 	exported, err := appstack.LoadExportedConfig(path)
 	if err != nil {
-		return ImportPreview{}, err
+		return TransferItems{}, err
 	}
-	return ImportPreview{
-		WorkspacePath: exported.WorkspacePath,
-		HasNginx:      exported.Docker.NginxCreated,
-		HasMariaDB:    exported.Docker.MariaDB.DBUser != "",
-		AppsCount:     len(exported.Docker.Apps),
-		Commands:      importCommands(exported),
-	}, nil
+	if err := exported.Validate(); err != nil {
+		return TransferItems{}, fmt.Errorf("arquivo de configurações inválido: %w", err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return TransferItems{}, err
+	}
+	states, err := appstack.PluginImportStates(exported)
+	if err != nil {
+		return TransferItems{}, err
+	}
+	items := transferItems(exported, cfg)
+	items.LocalNginx = cfg.Docker.NginxCreated
+	items.LocalMariaDB = cfg.Docker.MariaDB.DBUser != ""
+	for i, st := range states {
+		items.Plugins[i].Mounted = st.Mounted
+		items.Plugins[i].Reason = st.Reason
+	}
+	return items, nil
 }
 
-// ImportDockerContainerConfig applies the import (appstack.ImportConfig) —
-// overwrites cfg.Docker entirely and recreates Nginx→MariaDB→each App in
-// that order, after validating the whole file (nothing is applied if any
-// entry is invalid), stopping at the first error. Shows the
-// Execução tab — it's effectively a sequence of Recriar calls.
-func (s *DockerService) ImportDockerContainerConfig(path string) error {
+// ImportDockerContainerConfig imports the selected items of the export
+// file at path (appstack.ImportConfig): merges them into the local config,
+// mounts the selected plugins (one password) and recreates the selected
+// containers. Shows the Execução tab — it's effectively a sequence of
+// Recriar calls.
+func (s *DockerService) ImportDockerContainerConfig(path string, sel TransferSelection) error {
 	return s.runAction(func(stdout io.Writer) error {
 		if err := requireApprovedPath(path); err != nil {
 			return err
@@ -480,7 +571,7 @@ func (s *DockerService) ImportDockerContainerConfig(path string) error {
 		if err != nil {
 			return err
 		}
-		return appstack.ImportConfig(context.Background(), s.exe, nil, stdout, exported)
+		return appstack.ImportConfig(context.Background(), s.exe, nil, stdout, exported, sel.domain())
 	})
 }
 

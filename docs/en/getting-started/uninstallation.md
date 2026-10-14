@@ -10,7 +10,7 @@ Open Perci, go to **Home → Visão Geral**, and use the **Desinstalar Perci** s
 
 | Option | What it does |
 |---|---|
-| Back up configuration | Exports the Docker stack definition (Nginx, MariaDB credentials, every app) to a YAML file you pick — the same format as **Docker → Exportar configurações**, so it can be imported on a new install. If the backup fails, **nothing** is removed and the uninstall stops; only "nothing to export" (no container registered yet) is a warning. |
+| Back up configuration | Exports the Docker stack definition (Nginx, MariaDB credentials, every app) and the Moodle plugin mounts to a YAML file you pick — the same format as **Docker → Exportar/Importar**, so it can be imported on a new install. If the backup fails, **nothing** is removed and the uninstall stops; only "nothing to export" (no container or plugin mount registered yet) is a warning. |
 | Remove Docker containers | Removes every registered container (apps first, then MariaDB, then Nginx). Project data on disk is **not** touched. |
 | Remove `~/.perci` | Deletes Perci's configuration directory. |
 

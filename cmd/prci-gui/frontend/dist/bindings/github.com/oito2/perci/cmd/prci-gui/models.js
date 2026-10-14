@@ -474,73 +474,6 @@ export class GitIdentity {
 }
 
 /**
- * ImportPreview is the pre-import summary shown in the confirmation modal
- * (workspace, Nginx, MariaDB, app count, and every command the apps will
- * run) — nothing is applied yet. Commands holds one "<pasta>: <comando>"
- * entry per start command and "<pasta> (worker): <comando>" per worker
- * command in the file.
- */
-export class ImportPreview {
-    /**
-     * Creates a new ImportPreview instance.
-     * @param {Partial<ImportPreview>} [$$source = {}] - The source object to create the ImportPreview.
-     */
-    constructor($$source = {}) {
-        if (!("workspacePath" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["workspacePath"] = "";
-        }
-        if (!("hasNginx" in $$source)) {
-            /**
-             * @member
-             * @type {boolean}
-             */
-            this["hasNginx"] = false;
-        }
-        if (!("hasMariaDb" in $$source)) {
-            /**
-             * @member
-             * @type {boolean}
-             */
-            this["hasMariaDb"] = false;
-        }
-        if (!("appsCount" in $$source)) {
-            /**
-             * @member
-             * @type {number}
-             */
-            this["appsCount"] = 0;
-        }
-        if (!("commands" in $$source)) {
-            /**
-             * @member
-             * @type {string[]}
-             */
-            this["commands"] = [];
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new ImportPreview instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {ImportPreview}
-     */
-    static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("commands" in $$parsedSource) {
-            $$parsedSource["commands"] = $$createField4_0($$parsedSource["commands"]);
-        }
-        return new ImportPreview(/** @type {Partial<ImportPreview>} */($$parsedSource));
-    }
-}
-
-/**
  * MCPServerRow is one row of "Dev Tools :: IA: MCPs". Agents lists, by
  * name, the agents that accepted the registration (empty for a record
  * written before they were recorded); Partial is set when some agent that
@@ -1517,6 +1450,301 @@ export class SingleAppInfo {
     }
 }
 
+/**
+ * TransferApp is one Container Aplicativo listed on Exportar/Importar.
+ * Exists (import only) means an app with the same folder is already
+ * registered here and would be replaced.
+ */
+export class TransferApp {
+    /**
+     * Creates a new TransferApp instance.
+     * @param {Partial<TransferApp>} [$$source = {}] - The source object to create the TransferApp.
+     */
+    constructor($$source = {}) {
+        if (!("folder" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["folder"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("url" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["url"] = "";
+        }
+        if (!("dbAccess" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["dbAccess"] = false;
+        }
+        if (!("exists" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["exists"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransferApp instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TransferApp}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransferApp(/** @type {Partial<TransferApp>} */($$parsedSource));
+    }
+}
+
+/**
+ * TransferItems lists the items of the local config (Exportar) or of an
+ * export file (Importar). Nginx and MariaDB tell whether each is present;
+ * LocalNginx, LocalMariaDB and Commands are filled for an import only:
+ * what already exists here, and one "<pasta>: <comando>" entry per start
+ * command and "<pasta> (worker): <comando>" per worker command the
+ * file's apps run.
+ */
+export class TransferItems {
+    /**
+     * Creates a new TransferItems instance.
+     * @param {Partial<TransferItems>} [$$source = {}] - The source object to create the TransferItems.
+     */
+    constructor($$source = {}) {
+        if (!("workspacePath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["workspacePath"] = "";
+        }
+        if (!("nginx" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["nginx"] = false;
+        }
+        if (!("mariadb" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["mariadb"] = false;
+        }
+        if (!("apps" in $$source)) {
+            /**
+             * @member
+             * @type {TransferApp[]}
+             */
+            this["apps"] = [];
+        }
+        if (!("plugins" in $$source)) {
+            /**
+             * @member
+             * @type {TransferPlugin[]}
+             */
+            this["plugins"] = [];
+        }
+        if (!("localNginx" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["localNginx"] = false;
+        }
+        if (!("localMariaDb" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["localMariaDb"] = false;
+        }
+        if (!("commands" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["commands"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransferItems instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TransferItems}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType10;
+        const $$createField4_0 = $$createType12;
+        const $$createField7_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("apps" in $$parsedSource) {
+            $$parsedSource["apps"] = $$createField3_0($$parsedSource["apps"]);
+        }
+        if ("plugins" in $$parsedSource) {
+            $$parsedSource["plugins"] = $$createField4_0($$parsedSource["plugins"]);
+        }
+        if ("commands" in $$parsedSource) {
+            $$parsedSource["commands"] = $$createField7_0($$parsedSource["commands"]);
+        }
+        return new TransferItems(/** @type {Partial<TransferItems>} */($$parsedSource));
+    }
+}
+
+/**
+ * TransferPlugin is one plugin mount listed on Exportar/Importar. On
+ * import, Mounted means the same mount already exists here and Reason
+ * says why it can't be mounted on this machine (empty when it can).
+ */
+export class TransferPlugin {
+    /**
+     * Creates a new TransferPlugin instance.
+     * @param {Partial<TransferPlugin>} [$$source = {}] - The source object to create the TransferPlugin.
+     */
+    constructor($$source = {}) {
+        if (!("key" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["key"] = "";
+        }
+        if (!("component" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["component"] = "";
+        }
+        if (!("app" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["app"] = "";
+        }
+        if (!("devPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["devPath"] = "";
+        }
+        if (!("mounted" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["mounted"] = false;
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransferPlugin instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TransferPlugin}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TransferPlugin(/** @type {Partial<TransferPlugin>} */($$parsedSource));
+    }
+}
+
+/**
+ * TransferSelection is the frontend's choice of items on Docker →
+ * Exportar/Importar: the Nginx and MariaDB containers, apps by folder and
+ * plugin mounts by key ("<app>/<rel_path>").
+ */
+export class TransferSelection {
+    /**
+     * Creates a new TransferSelection instance.
+     * @param {Partial<TransferSelection>} [$$source = {}] - The source object to create the TransferSelection.
+     */
+    constructor($$source = {}) {
+        if (!("nginx" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["nginx"] = false;
+        }
+        if (!("mariadb" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["mariadb"] = false;
+        }
+        if (!("apps" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["apps"] = [];
+        }
+        if (!("plugins" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["plugins"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TransferSelection instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TransferSelection}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType0;
+        const $$createField3_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("apps" in $$parsedSource) {
+            $$parsedSource["apps"] = $$createField2_0($$parsedSource["apps"]);
+        }
+        if ("plugins" in $$parsedSource) {
+            $$parsedSource["plugins"] = $$createField3_0($$parsedSource["plugins"]);
+        }
+        return new TransferSelection(/** @type {Partial<TransferSelection>} */($$parsedSource));
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = MenuItem.createFrom;
@@ -1527,3 +1755,7 @@ const $$createType5 = MoodlePluginRow.createFrom;
 const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = PostinstallActionInfo.createFrom;
 const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = TransferApp.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = TransferPlugin.createFrom;
+const $$createType12 = $Create.Array($$createType11);

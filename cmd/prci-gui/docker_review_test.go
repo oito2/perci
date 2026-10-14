@@ -186,8 +186,8 @@ func TestPreviewImportConfig_ListsCommands(t *testing.T) {
 	if !slices.Equal(preview.Commands, want) {
 		t.Errorf("Commands = %v, want %v", preview.Commands, want)
 	}
-	if preview.AppsCount != 3 {
-		t.Errorf("AppsCount = %d", preview.AppsCount)
+	if len(preview.Apps) != 3 || preview.Apps[0].Folder != "spa" || preview.Apps[0].Exists {
+		t.Errorf("Apps = %+v", preview.Apps)
 	}
 
 	empty, _ := yaml.Marshal(appstack.ExportedConfig{WorkspacePath: "/ws"})
@@ -198,5 +198,52 @@ func TestPreviewImportConfig_ListsCommands(t *testing.T) {
 	_, _ = approvePath(emptyPath, nil)
 	if p, err := svc.PreviewImportConfig(emptyPath); err != nil || p.Commands == nil || len(p.Commands) != 0 {
 		t.Errorf("no commands must be an empty list, got %#v, %v", p.Commands, err)
+	}
+}
+
+// Exportar lists every local item; Importar marks the apps that already
+// exist here and the plugin mounts that can't be made on this machine.
+func TestTransferItems_ExportAndImportLists(t *testing.T) {
+	isolateActions(t)
+	b, _ := newTestBase(t)
+	svc := &DockerService{*b}
+	ws := t.TempDir()
+	local := config.AppContainer{Name: "Loja", Folder: "loja", URL: "loja.localhost", Type: config.AppTypePHP, PHPVersion: "8.3"}
+	if err := config.Update(func(c *config.Config) error {
+		c.WorkspacePath = ws
+		c.Docker = config.DockerConfig{NginxCreated: true, Apps: []config.AppContainer{local}}
+		c.MoodlePlugins = []config.MoodlePluginMount{{App: "mdle", Component: "local_x", DevPath: "/srv/dev/x", RelPath: "local/x", MegaIgnore: "/a/.megaignore", MegaIgnoreRule: "-dpG:x"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := svc.GetExportItems()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !items.Nginx || items.MariaDB || len(items.Apps) != 1 || len(items.Plugins) != 1 || items.Plugins[0].Key != "mdle/local/x" {
+		t.Errorf("export items = %+v", items)
+	}
+
+	exported := appstack.ExportedConfig{WorkspacePath: ws,
+		Docker:        config.DockerConfig{Apps: []config.AppContainer{local, {Name: "Novo", Folder: "novo", URL: "novo.localhost", Type: config.AppTypePHP, PHPVersion: "8.3"}}},
+		MoodlePlugins: []config.MoodlePluginMount{{App: "novo", Component: "local_y", DevPath: "/nonexistent/perci-dev", RelPath: "local/y"}},
+	}
+	data, _ := yaml.Marshal(exported)
+	path := filepath.Join(t.TempDir(), "export.yaml")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = approvePath(path, nil)
+	preview, err := svc.PreviewImportConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.LocalNginx || preview.LocalMariaDB || !preview.Apps[0].Exists || preview.Apps[1].Exists {
+		t.Errorf("preview = %+v", preview)
+	}
+	if p := preview.Plugins[0]; p.Mounted || p.Reason == "" {
+		t.Errorf("a mount into a non-Moodle app was offered: %+v", p)
 	}
 }

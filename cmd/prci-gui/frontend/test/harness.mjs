@@ -103,6 +103,26 @@ export class FakeElement {
   getAttribute(k) { return this.attributes[k] ?? null; }
   removeAttribute(k) { delete this.attributes[k]; }
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+  // querySelectorAll supports "tag", "tag[data-x]" and 'tag[data-x="v"]'
+  // over the descendants, in document order; any other selector finds
+  // nothing. querySelector returns the first match, or an inert value when
+  // there is none (as for the parts of the page a test doesn't build).
+  querySelectorAll(selector) {
+    const m = /^([a-z]+)(?:\[data-([a-z-]+)(?:="([^"]*)")?\])?$/.exec(selector);
+    if (!m) return [];
+    const [, tag, attr, value] = m;
+    const key = attr && attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const found = [];
+    const walk = (node) => node.children.forEach((c) => {
+      const tagOK = c.tagName === tag.toUpperCase();
+      const attrOK = !key || (key in c.dataset && (value === undefined || c.dataset[key] === value));
+      if (tagOK && attrOK) found.push(c);
+      walk(c);
+    });
+    walk(this);
+    return found;
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || makeInert(); }
 }
 
 // loadScripts runs files (relative to the scripts folder), in order, in one

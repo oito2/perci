@@ -229,60 +229,136 @@ func AddMoodlePlugin(ctx context.Context, exe *executor.Executor, stdout io.Writ
 	if err != nil {
 		return err
 	}
-
-	// The MEGA exclusion is written before the destination folder exists,
-	// so MEGAsync never scans the folder that is about to be mounted.
-	megaFile, megaRule, err := excludeFromMega(stdout, plan.Dest)
+	p, err := prepareMount(stdout, plan)
 	if err != nil {
 		return err
 	}
-	_, statErr := os.Lstat(plan.Dest)
-	created := errors.Is(statErr, fs.ErrNotExist)
-	dropDest := func() {
-		if created {
-			_ = os.Remove(plan.Dest)
-		}
-		if megaRule != "" {
-			_ = removeMegaIgnoreRule(megaFile, megaRule)
-		}
-	}
-	if err := os.MkdirAll(plan.Dest, 0o755); err != nil {
-		dropDest()
-		return fmt.Errorf("criar %s: %w", plan.Dest, err)
-	}
-	// Checked again right before the privileged step: the folders created
-	// above must not have led outside the Moodle through a link.
-	if !resolvedWithin(plan.HTML, plan.Dest) {
-		dropDest()
-		return fmt.Errorf("o destino %s fica fora do Moodle %s", plan.Dest, folder)
-	}
-
-	record := config.MoodlePluginMount{
-		App: plan.App, Component: plan.Component, DevPath: plan.DevPath, RelPath: plan.RelPath,
-		MegaIgnore: megaFile, MegaIgnoreRule: megaRule,
-	}
-	if err := config.Update(func(c *config.Config) error {
-		c.MoodlePlugins = append(c.MoodlePlugins, record)
-		return nil
-	}); err != nil {
-		dropDest()
-		return err
-	}
-	if err := installMountUnit(ctx, exe, stdout, plan); err != nil {
+	kept, err := installPrepared(ctx, exe, stdout, []preparedMount{p})
+	if err != nil {
 		// A mount the rollback could not stop keeps its unit, so the record
 		// is kept too: Remover can still undo it.
-		if mountActive(plan.DevPath, plan.Dest) {
+		if len(kept) > 0 {
 			return fmt.Errorf("%w — a montagem continua ativa e o registro foi mantido; use Remover para desfazê-la", err)
 		}
-		_ = config.Update(func(c *config.Config) error {
-			c.MoodlePlugins = withoutMoodlePlugin(c.MoodlePlugins, plan.App, plan.RelPath)
-			return nil
-		})
-		dropDest()
 		return err
 	}
 	ui.Success(stdout, fmt.Sprintf("%s montado em %s. Para aplicar, use \"Reiniciar contêiner\" na aba Plugins montados.", plan.Component, plan.Dest))
 	return nil
+}
+
+// preparedMount is a planned mount whose MEGA exclusion and destination
+// folder are in place, waiting for its mount unit.
+type preparedMount struct {
+	plan    MoodlePluginPlan
+	record  config.MoodlePluginMount
+	created bool // the destination folder did not exist before prepareMount
+}
+
+// drop removes what prepareMount created: the destination folder (when it
+// created it) and the MEGA exclusion.
+func (p preparedMount) drop() {
+	if p.created {
+		_ = os.Remove(p.plan.Dest)
+	}
+	if p.record.MegaIgnoreRule != "" {
+		_ = removeMegaIgnoreRule(p.record.MegaIgnore, p.record.MegaIgnoreRule)
+	}
+}
+
+// prepareMount writes the MEGA exclusion of plan.Dest (before the folder
+// exists, so MEGAsync never scans the folder that is about to be mounted)
+// and creates the destination folder. Nothing is left behind on error.
+func prepareMount(stdout io.Writer, plan MoodlePluginPlan) (preparedMount, error) {
+	megaFile, megaRule, err := excludeFromMega(stdout, plan.Dest)
+	if err != nil {
+		return preparedMount{}, err
+	}
+	_, statErr := os.Lstat(plan.Dest)
+	p := preparedMount{
+		plan: plan,
+		record: config.MoodlePluginMount{
+			App: plan.App, Component: plan.Component, DevPath: plan.DevPath, RelPath: plan.RelPath,
+			MegaIgnore: megaFile, MegaIgnoreRule: megaRule,
+		},
+		created: errors.Is(statErr, fs.ErrNotExist),
+	}
+	if err := os.MkdirAll(plan.Dest, 0o755); err != nil {
+		p.drop()
+		return preparedMount{}, fmt.Errorf("criar %s: %w", plan.Dest, err)
+	}
+	// Checked again right before the privileged step: the folders created
+	// above must not have led outside the Moodle through a link.
+	if !resolvedWithin(plan.HTML, plan.Dest) {
+		p.drop()
+		return preparedMount{}, fmt.Errorf("o destino %s fica fora do Moodle %s", plan.Dest, plan.App)
+	}
+	return p, nil
+}
+
+// installPrepared records every prepared mount, then installs and starts
+// all their mount units in one privileged batch (one password prompt).
+// When the batch fails, the mounts that are active anyway are kept with
+// their records; the others lose their record, folder and MEGA exclusion.
+// It returns the mounts kept and the batch error.
+func installPrepared(ctx context.Context, exe *executor.Executor, stdout io.Writer, prepared []preparedMount) ([]preparedMount, error) {
+	if len(prepared) == 0 {
+		return nil, nil
+	}
+	dropAll := func(list []preparedMount) {
+		for _, p := range list {
+			p.drop()
+		}
+	}
+	if err := config.Update(func(c *config.Config) error {
+		for _, p := range prepared {
+			c.MoodlePlugins = append(c.MoodlePlugins, p.record)
+		}
+		return nil
+	}); err != nil {
+		dropAll(prepared)
+		return nil, err
+	}
+
+	var steps []executor.PrivilegedStep
+	for _, p := range prepared {
+		unitSteps, tmp, err := mountUnitSteps(p.plan)
+		if tmp != "" {
+			defer func() { _ = os.Remove(tmp) }()
+		}
+		if err != nil {
+			return dropFailed(prepared, fmt.Errorf("preparar a unidade de montagem: %w", err))
+		}
+		steps = append(steps, unitSteps...)
+	}
+	ui.Info(stdout, "Solicitando autenticação de administrador para montar o plugin...")
+	if err := exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps); err != nil {
+		return dropFailed(prepared, fmt.Errorf("montar o plugin: %w", err))
+	}
+	return prepared, nil
+}
+
+// dropFailed keeps the prepared mounts that are active anyway and removes
+// the record, folder and MEGA exclusion of the others. It returns the
+// mounts kept and err.
+func dropFailed(prepared []preparedMount, err error) ([]preparedMount, error) {
+	var kept, dropped []preparedMount
+	for _, p := range prepared {
+		if mountActive(p.plan.DevPath, p.plan.Dest) {
+			kept = append(kept, p)
+		} else {
+			dropped = append(dropped, p)
+		}
+	}
+	_ = config.Update(func(c *config.Config) error {
+		for _, p := range dropped {
+			c.MoodlePlugins = withoutMoodlePlugin(c.MoodlePlugins, p.plan.App, p.plan.RelPath)
+		}
+		return nil
+	})
+	for _, p := range dropped {
+		p.drop()
+	}
+	return kept, err
 }
 
 // mountActive reports whether dev is mounted over dest. Replaced in tests.
@@ -321,41 +397,38 @@ func unmountSteps(unit, dest string) []executor.PrivilegedStep {
 	}
 }
 
-// installMountUnit writes the mount unit through a root-owned staged copy
-// and enables it, in one privileged batch. If enabling fails, the batch
-// removes the unit again.
-func installMountUnit(ctx context.Context, exe *executor.Executor, stdout io.Writer, plan MoodlePluginPlan) error {
+// mountUnitSteps stages plan's mount unit in a temporary file (returned in
+// tmp, for the caller to remove) and returns the privileged steps that
+// install it through a root-owned copy and enable it. If enabling fails,
+// the steps remove the unit again.
+func mountUnitSteps(plan MoodlePluginPlan) (steps []executor.PrivilegedStep, tmp string, err error) {
 	content := mountUnitContent(plan)
-	tmp, err := os.CreateTemp("", "perci-mount-*.mount")
+	f, err := os.CreateTemp("", "perci-mount-*.mount")
 	if err != nil {
-		return err
+		return nil, "", err
 	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
-		return err
+	tmp = f.Name()
+	if _, err := f.WriteString(content); err != nil {
+		_ = f.Close()
+		return nil, tmp, err
 	}
-	if err := tmp.Close(); err != nil {
-		return err
+	if err := f.Close(); err != nil {
+		return nil, tmp, err
 	}
 	sum := sha256.Sum256([]byte(content))
 
 	unit := mountUnitName(plan.Dest)
 	unitFile := filepath.Join(systemdUnitDir, unit)
-	steps, err := executor.PrivilegedInstallSteps(tmp.Name(), unitFile, hex.EncodeToString(sum[:]), "0644")
+	steps, err = executor.PrivilegedInstallSteps(tmp, unitFile, hex.EncodeToString(sum[:]), "0644")
 	if err != nil {
-		return err
+		return nil, tmp, err
 	}
 	steps[0].Announce = "Instalando a unidade de montagem " + unit + "..."
 	steps = append(steps,
 		executor.PrivilegedStep{Name: "systemctl", Args: []string{"daemon-reload"}},
 		executor.PrivilegedStep{Announce: "Montando " + plan.Dest + "...", Name: "sh", Args: []string{"-c", enableOrRollbackScript, "sh", unit, unitFile, plan.Dest}},
 	)
-	ui.Info(stdout, "Solicitando autenticação de administrador para montar o plugin...")
-	if err := exe.RunSudoSequence(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, steps); err != nil {
-		return fmt.Errorf("montar o plugin: %w", err)
-	}
-	return nil
+	return steps, tmp, nil
 }
 
 // mountUnitHeader is the first line of every mount unit perci installs.

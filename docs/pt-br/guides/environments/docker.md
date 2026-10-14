@@ -43,7 +43,12 @@ Rodar um fluxo de criação de novo sobre um MariaDB ou app já provisionado rea
 
 ## Exportando/Importando Sua Configuração Pra Outra Máquina
 
-Útil se você trabalha em várias estações compartilhando um workspace sincronizado (ex.: via MegaSync): **Exportar configurações** grava toda a configuração Docker (rede, Nginx, credenciais do MariaDB — em texto simples, então trate o arquivo exportado como um segredo — e cada app) num arquivo à sua escolha. **Importar configurações** em outra máquina lê de volta e recria tudo numa única ação (rede → Nginx → MariaDB → cada app). O import recusa se a máquina de destino já tiver um caminho de workspace *diferente* configurado; numa máquina nova sem nenhum definido, adota o da exportação.
+Útil se você trabalha em várias estações compartilhando um workspace sincronizado (ex.: via MegaSync). **Docker → Exportar/Importar** tem duas abas:
+
+- **Exportar** lista o Nginx, o MariaDB, cada app e cada montagem de plugin Moodle, todos marcados; desmarque o que não quiser e clique em **Exportar…** para gravar o arquivo. As credenciais do MariaDB vão em texto simples, então trate o arquivo exportado como um segredo. Só as definições são exportadas — arquivos dos projetos, `moodledata` e bancos não.
+- **Importar**: escolha um arquivo, marque os itens a importar e clique em **Importar**. Os itens marcados são criados, ou substituem o app com a mesma pasta; todo o resto desta máquina fica. Os contêineres são recriados (rede → Nginx → MariaDB → cada app) e as montagens de plugin são feitas com uma única senha. Uma montagem de plugin cuja pasta de desenvolvimento ou código do Moodle não existe nesta máquina aparece como indisponível e é pulada.
+
+Marcar um item marca também aquilo de que ele depende (um app precisa do Nginx, e do MariaDB quando usa o banco; uma montagem de plugin precisa do seu Moodle), e marcar um Moodle marca as montagens de plugin dele. O import recusa se a máquina de destino já tiver um caminho de workspace *diferente* configurado; numa máquina nova sem nenhum definido, adota o da exportação.
 
 ## O Que Deliberadamente Não Está Aqui
 

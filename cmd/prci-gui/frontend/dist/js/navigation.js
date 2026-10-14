@@ -141,6 +141,7 @@ function screenTable() {
     postinstall: { el: postinstallContainer, render: renderPostinstallScreen },
     "docker-create": { el: dockercreateContainer, render: renderDockerCreateScreen },
     "docker-manage": { el: dockerlistContainer, render: renderDockerListScreen },
+    "docker-transfer": { el: transferContainer, alsoShow: [tabLabelTransferImport], render: renderTransferScreen },
     moodleplugins: { el: moodlepluginsContainer, alsoShow: [tabLabelMpMounted], render: renderMoodlePluginsScreen },
     repos: { el: reposContainer, alsoShow: [tabLabelReposList], render: renderReposScreen },
     agentskills: { el: agentskillsContainer, render: renderAgentSkillsScreen },
@@ -168,13 +169,14 @@ function screenFor(item) {
   };
 }
 
-// Every screen container (plus the repos-only and moodleplugins-only tab
-// labels) — all hidden before the selected screen shows its own.
+// Every screen container (plus the repos-only, moodleplugins-only and
+// docker-transfer-only tab labels) — all hidden before the selected screen
+// shows its own.
 function screenContainers() {
   const table = screenTable();
   return Object.keys(table).map(function (k) { return table[k].el; }).concat([
     simpleContainer, itemTableContainer, multiselectContainer, singleappContainer, ideContainer, fileappContainer, tabLabelReposList,
-    tabLabelMpMounted,
+    tabLabelMpMounted, tabLabelTransferImport,
   ]);
 }
 

@@ -43,7 +43,12 @@ Re-running a creation flow against an already-provisioned MariaDB or app reuses 
 
 ## Exporting/Importing Your Setup to Another Machine
 
-Useful if you work across multiple workstations sharing a synced workspace (e.g. via MegaSync): **Exportar configurações** writes the whole Docker setup (network, Nginx, MariaDB credentials — in plaintext, so treat the export file like a secret — and every app) to a file you choose. **Importar configurações** on another machine reads it back and recreates everything in one action (network → Nginx → MariaDB → each app). Import refuses if the target machine already has a *different* workspace path configured; on a fresh machine with none set, it adopts the exported one.
+Useful if you work across multiple workstations sharing a synced workspace (e.g. via MegaSync). **Docker → Exportar/Importar** has two tabs:
+
+- **Exportar** lists Nginx, MariaDB, every app and every Moodle plugin mount, all checked; uncheck what you don't want and click **Exportar…** to write the file. MariaDB credentials go in plaintext, so treat the export file like a secret. Only definitions are exported — project files, `moodledata` and databases are not.
+- **Importar**: pick a file, check the items to import and click **Importar**. The checked items are created, or replace the app with the same folder; everything else on this machine stays. The containers are recreated (network → Nginx → MariaDB → each app) and the plugin mounts are made with one password. A plugin mount whose development folder or Moodle code doesn't exist on this machine shows as unavailable and is skipped.
+
+Checking an item also checks what it depends on (an app needs Nginx, and MariaDB when it uses the database; a plugin mount needs its Moodle), and checking a Moodle checks the plugin mounts on it. Import refuses if the target machine already has a *different* workspace path configured; on a fresh machine with none set, it adopts the exported one.
 
 ## What's Deliberately Not Here
 

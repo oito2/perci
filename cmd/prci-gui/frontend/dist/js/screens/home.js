@@ -93,8 +93,8 @@ btnSuUpdate.addEventListener("click", function () {
 // --- "Desinstalar Perci" (embedded in Visão Geral) — three independent
 // checkboxes (also remove config / remove Docker containers / back up
 // config before uninstalling), a "Desinstalar" button after them. The
-// backup is the same "Exportar configurações" that "Docker ::
-// Gerenciar Containers" uses (appstack.ExportConfig, via
+// backup is a full export, in the format "Docker :: Exportar/Importar"
+// reads (appstack.ExportConfig, via
 // App.PickUninstallBackupPath + the path passed to RunSelfUninstall) — if
 // the user checks that option and then cancels the "Salvar Como" dialog,
 // the whole uninstall is aborted instead of proceeding without the

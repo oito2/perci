@@ -107,13 +107,15 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		"InstallAntigravityIDE": func(b *serviceBase, p string) error { return (&DevSetupService{*b}).InstallAntigravityIDE(p) },
 		"UpdateAntigravityIDE":  func(b *serviceBase, p string) error { return (&DevSetupService{*b}).UpdateAntigravityIDE(p) },
 		"SaveTextFile":          func(b *serviceBase, p string) error { return (&DockerService{*b}).SaveTextFile(p, "x") },
-		"ExportDockerConfig":    func(b *serviceBase, p string) error { return (&DockerService{*b}).ExportDockerConfig(p) },
+		"ExportDockerConfig": func(b *serviceBase, p string) error {
+			return (&DockerService{*b}).ExportDockerConfig(p, TransferSelection{Nginx: true})
+		},
 		"PreviewImportConfig": func(b *serviceBase, p string) error {
 			_, err := (&DockerService{*b}).PreviewImportConfig(p)
 			return err
 		},
 		"ImportDockerContainerConfig": func(b *serviceBase, p string) error {
-			return (&DockerService{*b}).ImportDockerContainerConfig(p)
+			return (&DockerService{*b}).ImportDockerContainerConfig(p, TransferSelection{Nginx: true})
 		},
 		"BackupMariaDBContainer":  func(b *serviceBase, p string) error { return (&DockerService{*b}).BackupMariaDBContainer(p) },
 		"RestoreMariaDBContainer": func(b *serviceBase, p string) error { return (&DockerService{*b}).RestoreMariaDBContainer(p) },

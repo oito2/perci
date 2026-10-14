@@ -229,12 +229,21 @@ var categories = []MenuCategory{
 			},
 			{
 				// "gerenciar containers" mode (#dockerlist-container): a table with live
-				// status and per-row action icons, plus Exportar/Importar configurações
-				// below the table.
+				// status and per-row action icons.
 				Title:    "Gerenciar Contêineres",
 				Desc:     "Inicie, pare, reinicie, recrie, veja logs, edite ou remova os contêineres Docker do Perci.",
 				ActionID: "docker-manage",
 				Tab:      "Contêineres",
+			},
+			{
+				// "exportar/importar" mode (#transfer-container): the checklist of
+				// what to export (Nginx, MariaDB, each app, each Moodle plugin
+				// mount), plus the top-level "Importar" tab with the checklist of
+				// an export file.
+				Title:    "Exportar/Importar",
+				Desc:     "Exporte ou importe os contêineres Docker e os plugins Moodle montados, escolhendo os itens.",
+				ActionID: "docker-transfer",
+				Tab:      "Exportar",
 			},
 		},
 	},

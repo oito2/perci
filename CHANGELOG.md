@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Docker → **Exportar/Importar**: its own menu item with **Exportar** and **Importar** tabs. Both list Nginx, MariaDB, each app and each Moodle plugin mount to check one by one; checking an item also checks what it depends on, checking a Moodle checks the plugin mounts on it, and missing dependencies are pointed out.
+- Moodle plugin mounts are part of the export (without this machine's MEGA exclusion). Importing them makes the mounts, their units and the MEGA exclusion with one password; a mount whose development folder or Moodle code doesn't exist on the machine shows as unavailable and is skipped with a warning.
+
+### Changed
+- Importing merges: the checked items are added or replace the app with the same folder, and everything else on the machine stays — apps missing from the file no longer leave the stack. Files exported by earlier versions still import.
+- Exportar/Importar left Docker → Gerenciar Contêineres. The uninstall backup also carries the Moodle plugin mounts.
+
 ## [1.3.1] - 2026-10-14
 
 ### Changed

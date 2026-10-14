@@ -293,8 +293,20 @@ const dcHint = document.getElementById("dc-hint");
 const dockerlistContainer = document.getElementById("dockerlist-container");
 const dockerlistRows = document.getElementById("dockerlist-rows");
 const dockerlistEmpty = document.getElementById("dockerlist-empty");
-const btnDockerExport = document.getElementById("btn-docker-export");
-const btnDockerImport = document.getElementById("btn-docker-import");
+const transferContainer = document.getElementById("transfer-container");
+const transferExportList = document.getElementById("transfer-export-list");
+const transferExportEmpty = document.getElementById("transfer-export-empty");
+const transferExportNote = document.getElementById("transfer-export-note");
+const transferExportNoteText = document.getElementById("transfer-export-note-text");
+const btnTransferExport = document.getElementById("btn-transfer-export");
+const tabLabelTransferImport = document.getElementById("tab-label-transfer-import");
+const btnTransferPick = document.getElementById("btn-transfer-pick");
+const transferImportPathEl = document.getElementById("transfer-import-path");
+const transferImportWorkspace = document.getElementById("transfer-import-workspace");
+const transferImportList = document.getElementById("transfer-import-list");
+const transferImportNote = document.getElementById("transfer-import-note");
+const transferImportNoteText = document.getElementById("transfer-import-note-text");
+const btnTransferImport = document.getElementById("btn-transfer-import");
 const confirmModal = document.getElementById("confirm-modal");
 const confirmModalTitle = document.getElementById("confirm-modal-title");
 const confirmModalMessage = document.getElementById("confirm-modal-message");
@@ -494,9 +506,11 @@ const ACTION_DONE_HANDLERS = {
   // Creating Nginx/MariaDB may have just disabled that option in the select
   // (singleton) — re-fetches the whole catalog.
   "docker-create": function () { renderDockerCreateScreen(); },
-  // Recriar/Editar/Backup/Restore/Importar — re-fetches the whole table
-  // (status + whatever Import may have created/changed).
+  // Recriar/Editar/Backup/Restore — re-fetches the whole table.
   "docker-manage": function () { renderDockerListScreen(); },
+  // Importar — re-reads what can be exported and the import file's items
+  // (an imported plugin mount now shows as already mounted).
+  "docker-transfer": function () { refreshTransferScreen(); },
   // Criar/Reiniciar/Remover — re-fetches the table and re-checks the form.
   moodleplugins: function () { loadMpRows(); checkMpForm(); },
   // Identidade Global/Clonar/Iniciar/Identidade Local/Arquivos — re-fetches

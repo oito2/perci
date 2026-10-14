@@ -317,3 +317,19 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): implement the whole plan before release. Remove Linux Toys entirely, with no uninstaller. Keep Flutter's full-history clone. Bound unprivileged network commands (`curl --connect-timeout/--max-time`, a 30-minute limit); nothing interrupts `apt`/`dnf` and there is no Cancel button. Record, per agent, which agents accepted an SKILL or MCP server, and show "parcial" when one is missing. Never overwrite an existing `credential.helper`; on Fedora "Libsecret Tools" installs `git-credential-libsecret`, and a fall back to `cache` is warned about. Warn in Flutter's description that the Android SDK licenses are accepted. Generate `MOODLE_PATH` as the relative `.`. Tie the post-install record to `/etc/machine-id`. Closing or quitting during an action doesn't quit: the main window opens on the Execução tab with a notice. Split the release workflow into reusable `test` and `build` jobs and add ShellCheck to CI. Keep the official installers, with timeouts, and pin nvm (tag), Codex (version) and the Nerd Font (SHA-256). Pin SKILLs by commit, turn the `skills` CLI telemetry off and show a third-party-content notice. Pin composer/pecl, take Node from the official Node image instead of NodeSource, and renew the mkcert certificate before it expires. Stop generating `.claudeignore` (Claude Code ignores it): merge `permissions.deny` read rules into `.claude/settings.json` and keep `.aiexclude`. Validate the Nginx config with `nginx -t` in a throwaway container when Nginx is stopped. Group terminal output every ~30 ms. Use `--mount` instead of `-v`, refusing a comma in the workspace path.
 
 **Revisit if**: PHP 7.4/8.0 packages disappear from `archive.debian.org` (those images would have to be dropped), the `skills` CLI gains a lockfile for pinned installs, or a Cancel button for long actions is wanted.
+
+## 2026-10-14 — Moodle plugin mounts are excluded from MEGA sync
+
+**Context**: MEGAsync identifies files by inode. A plugin mount shows the development folder's inodes inside the Moodle's `html` folder; with both folders in different MEGA syncs, MEGAsync took the mount for a move between syncs and sent the development files to its `.debris` folder.
+
+**Decision** (the user's choice, over refusing or only warning): before mounting, Perci writes `-dpG:<destination>` to the nearest `.megaignore` above the destination, refuses the mount when it can't, and removes the line with the mount. A line the user already had is left alone. Tested with real mounts, edits through the Moodle path, a MEGAsync restart and a reboot.
+
+**Revisit if**: MEGAsync stops honoring `.megaignore` path rules before its inode move detection, or another sync client with the same behavior needs support.
+
+## 2026-10-14 — Docker → Exportar/Importar, item by item, merging
+
+**Context**: Export/Import lived under Gerenciar Contêineres, always carried the whole Docker stack, replaced it on import, and left the Moodle plugin mounts out.
+
+**Decision** (the user's choices): its own menu item with Exportar and Importar tabs. Both list Nginx, MariaDB, each app and each plugin mount to check one by one; checking an item checks its dependencies. Only definitions travel (no project files or databases). Import merges: checked items are added or replace the app with the same folder, nothing else leaves. Plugin mounts are imported with one password; one that can't be made on the machine (missing development folder or Moodle code) is skipped with a warning.
+
+**Revisit if**: the files and databases themselves need to travel too.

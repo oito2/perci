@@ -401,7 +401,7 @@ func TestImportConfig_CredentialMismatchTouchesNothing(t *testing.T) {
 		MariaDB: config.MariaDBConfig{DBUser: "dev", DBPass: "other-machine"},
 		Apps:    []config.AppContainer{lojaApp},
 	}}
-	if err := ImportConfig(context.Background(), exe, nil, buf, imported); err == nil {
+	if err := ImportConfig(context.Background(), exe, nil, buf, imported, SelectAll(imported)); err == nil {
 		t.Fatal("expected a credentials refusal")
 	}
 	cfg, _ := config.Load()
@@ -430,7 +430,7 @@ func TestImportConfig_KeepsLocalMariaDBSecrets(t *testing.T) {
 	exe, buf := testExe()
 
 	imported := ExportedConfig{WorkspacePath: ws, Docker: config.DockerConfig{MariaDB: config.MariaDBConfig{DBUser: "dev", DBPass: "pw"}}}
-	if err := ImportConfig(context.Background(), exe, nil, buf, imported); err != nil {
+	if err := ImportConfig(context.Background(), exe, nil, buf, imported, SelectAll(imported)); err != nil {
 		t.Fatalf("ImportConfig: %v\n%s", err, buf.String())
 	}
 	m := loadCfgNoFail(t).Docker.MariaDB
@@ -455,7 +455,7 @@ func TestImportConfig_LocalRootPassWinsOverFile(t *testing.T) {
 	fakeStack(t, stackOpts{status: "running"})
 	exe, buf := testExe()
 	imported := ExportedConfig{WorkspacePath: ws, Docker: config.DockerConfig{MariaDB: config.MariaDBConfig{DBUser: "dev", DBPass: "pw", DBRootPass: "fromfile"}}}
-	if err := ImportConfig(context.Background(), exe, nil, buf, imported); err != nil {
+	if err := ImportConfig(context.Background(), exe, nil, buf, imported, SelectAll(imported)); err != nil {
 		t.Fatalf("ImportConfig: %v\n%s", err, buf.String())
 	}
 	if m := loadCfgNoFail(t).Docker.MariaDB; m.DBRootPass != "rootsecret" {
