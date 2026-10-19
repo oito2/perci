@@ -8,6 +8,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 [![License](https://img.shields.io/github/license/oito2/perci?label=license)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/oito2/perci/ci.yml?branch=main&label=CI)](https://github.com/oito2/perci/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/oito2/perci/release.yml?label=release)](https://github.com/oito2/perci/actions/workflows/release.yml)
+[![Code: AI-Assisted](https://img.shields.io/badge/Code-AI--Assisted-blueviolet)](#ai-usage-in-this-project)
 
 🌐 **Language:** English · [Português](docs/pt-br/leiame.md)
 
@@ -20,6 +21,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 - [Automated Installation](#automated-installation)
 - [Update & Maintenance](#update--maintenance)
 - [Documentation](#documentation)
+- [AI Usage in This Project](#ai-usage-in-this-project)
 - [License](#license)
 
 ---
@@ -121,6 +123,15 @@ Full bilingual documentation site: **[docs/en/index.md](docs/en/index.md)** · *
 - [Configuration reference](docs/en/reference/configuration.md)
 - [Troubleshooting](docs/en/troubleshooting/common-issues.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
+
+---
+
+## AI Usage in This Project
+
+This project was developed with the assistance of generative AI tools:
+
+- **Scope:** Implementation of features, unit tests, refactoring and documentation, under the author's direction.
+- **Oversight:** All generated code was manually reviewed, tested and validated before integration.
 
 ---
 

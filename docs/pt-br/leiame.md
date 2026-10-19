@@ -8,6 +8,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 [![License](https://img.shields.io/github/license/oito2/perci?label=licen%C3%A7a)](../../LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/oito2/perci/ci.yml?branch=main&label=CI)](https://github.com/oito2/perci/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/oito2/perci/release.yml?label=release)](https://github.com/oito2/perci/actions/workflows/release.yml)
+[![Código: Assistido por IA](https://img.shields.io/badge/C%C3%B3digo-Assistido%20por%20IA-blueviolet)](#uso-de-ia-neste-projeto)
 
 🌐 **Idioma:** [English](../../README.md) · Português
 
@@ -20,6 +21,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 - [Instalação automatizada](#instalação-automatizada)
 - [Atualização e manutenção](#atualização-e-manutenção)
 - [Documentação](#documentação)
+- [Uso de IA neste projeto](#uso-de-ia-neste-projeto)
 - [Licença](#licença)
 
 ---
@@ -121,6 +123,15 @@ Site de documentação bilíngue completo: **[docs/en/index.md](../en/index.md)*
 - [Referência de configuração](./reference/configuration.md)
 - [Solução de problemas](./troubleshooting/common-issues.md)
 - Contribuindo: [contribuindo.md](./contribuindo.md) · [Código de Conduta](./codigo-de-conduta.md)
+
+---
+
+## Uso de IA neste projeto
+
+Este projeto foi desenvolvido com o auxílio de ferramentas de IA generativa:
+
+- **Escopo:** implementação de recursos, testes unitários, refatoração e documentação, sob a direção do autor.
+- **Supervisão:** todo o código gerado foi revisado manualmente, testado e validado antes da integração.
 
 ---
 
