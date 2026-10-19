@@ -14,7 +14,7 @@ coverage.html
 # Local, per-machine tool configuration
 /.claude/settings.local.json
 /.claude/settings.json
-/.luminavault.json
+/.sync82.json
 /.agents/mcp_config.json
 
 # AI agent rules and context files (kept locally, not versioned)
