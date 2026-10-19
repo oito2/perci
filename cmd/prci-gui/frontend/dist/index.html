@@ -407,8 +407,8 @@
             </div>
           </div>
 
-          <!-- Item table mode ("Desenvolvimento :: Pré-requisitos" and
-               "Linguagens e SDKs"): one table row per item, with its own
+          <!-- Item table mode ("Desenvolvimento :: Pré-requisitos",
+               "Linguagens e SDKs" and "IDEs"): one table row per item, with its own
                Instalar/Atualizar/Desinstalar buttons. Triggered via the
                ITEM_TABLE_SCREENS registry, one entry per actionId. -->
           <div id="itemtable-container" class="hidden">
@@ -443,42 +443,6 @@
                    per screen from MULTISELECT_SCREENS[actionId].extras;
                    empty when a screen doesn't define any. -->
               <div id="multiselect-extras" class="flex gap-2"></div>
-            </div>
-          </div>
-
-          <!-- "app único install/desinstalar" mode: an external app with
-               no checklist — two buttons, Instalar (always enabled) and
-               Desinstalar (enabled only if already installed). Triggered
-               via the SINGLE_APP_SCREENS registry below, one entry per
-               actionId (e.g. "megasync"). -->
-          <div id="singleapp-container" class="hidden">
-            <p id="singleapp-desc" class="opacity-80 mb-6" style="white-space: pre-line;"></p>
-            <div class="flex gap-2">
-              <button id="btn-singleapp-install" class="btn btn-primary" disabled>
-                Instalar
-              </button>
-              <button id="btn-singleapp-uninstall" class="btn btn-outline btn-error" disabled>
-                Desinstalar
-              </button>
-            </div>
-          </div>
-
-          <!-- "IDE install/atualizar/desinstalar" mode: three buttons,
-               Atualizar/Desinstalar enabled only once already installed.
-               Triggered via the IDE_SCREENS registry below, one entry per
-               actionId (e.g. "ide-zed"). -->
-          <div id="ide-container" class="hidden">
-            <p id="ide-desc" class="opacity-80 mb-6" style="white-space: pre-line;"></p>
-            <div class="flex gap-2">
-              <button id="btn-ide-install" class="btn btn-primary">
-                Instalar
-              </button>
-              <button id="btn-ide-update" class="btn btn-outline" disabled>
-                Atualizar
-              </button>
-              <button id="btn-ide-uninstall" class="btn btn-outline btn-error" disabled>
-                Desinstalar
-              </button>
             </div>
           </div>
 

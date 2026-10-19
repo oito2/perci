@@ -27,7 +27,7 @@ const ITEMS = [
 ];
 
 async function render(actionId = "prereqs", items = ITEMS) {
-  const loaded = loadScripts(scriptOrder(), { fixtures: { GetPrereqsInfo: items, GetSDKsInfo: items } });
+  const loaded = loadScripts(scriptOrder(), { fixtures: { GetPrereqsInfo: items, GetSDKsInfo: items, GetIDEsInfo: items } });
   loaded.ctx.renderItemTableScreen({ actionId, desc: "intro" });
   await tick();
   await tick();
@@ -70,4 +70,14 @@ test("Item table: Linguagens e SDKs uses its own bound methods and header", asyn
   const runs = calls.filter((c) => c.name === "RunSDKAction").map((c) => c.args);
   assert.deepEqual(runs, [["Node.js", "install"]]);
   assert.ok(!calls.some((c) => c.name === "RunPrereqAction"));
+});
+
+test("Item table: IDEs uses its own bound methods and header", async () => {
+  const { buttons, calls, element } = await render("ides");
+  assert.equal(element("itemtable-header").textContent, "IDE");
+  assert.ok(calls.some((c) => c.name === "GetIDEsInfo"));
+  buttons(1)[0].listeners.click[0]();
+  const runs = calls.filter((c) => c.name === "RunIDEAction").map((c) => c.args);
+  assert.deepEqual(runs, [["Node.js", "install"]]);
+  assert.ok(!calls.some((c) => c.name === "RunPrereqAction" || c.name === "RunSDKAction"));
 });

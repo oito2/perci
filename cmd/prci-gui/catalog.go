@@ -120,15 +120,6 @@ var categories = []MenuCategory{
 				ActionID: "flatpak-apps",
 				Tab:      "Definições",
 			},
-			{
-				// "app único install/desinstalar" mode (#singleapp-container): an
-				// external application, two buttons instead of a checklist or a single
-				// button.
-				Title:    "Aplicativos: MegaSync",
-				Desc:     "O MEGAsync é o aplicativo oficial do serviço de armazenamento em nuvem MEGA para computadores. Ele permite sincronizar pastas locais com a nuvem de forma automática e gerenciar downloads ou uploads.",
-				ActionID: "megasync",
-				Tab:      "Definições",
-			},
 		},
 	},
 	{
@@ -168,24 +159,10 @@ var categories = []MenuCategory{
 				Tab:      "Definições",
 			},
 			{
-				// "IDE install/atualizar/desinstalar" mode (#ide-container): three
-				// buttons, Atualizar/Desinstalar enabled only once already installed. One
-				// item per IDE (internal/dev/ide), one ActionID per IDE.
-				Title:    "IDE: Zed Editor",
-				Desc:     "O Zed é um editor de código minimalista criado para velocidade e colaboração entre humanos e IA.",
-				ActionID: "ide-zed",
-				Tab:      "Definições",
-			},
-			{
-				Title:    "IDE: VS Code",
-				Desc:     "O Visual Studio Code é um editor de código com IA, gratuito e de código aberto. Desenvolva com agentes de IA que planejam, escrevem código e depuram para você.",
-				ActionID: "ide-code",
-				Tab:      "Definições",
-			},
-			{
-				Title:    "IDE: VSCodium",
-				Desc:     "O VSCodium é uma distribuição binária do editor VS Code, da Microsoft, licenciada livremente e mantida pela comunidade.",
-				ActionID: "ide-codium",
+				// Item table mode, same as Pré-requisitos above.
+				Title:    "IDEs",
+				Desc:     "Instale, atualize ou desinstale cada IDE. Uma IDE que depende de um pré-requisito só pode ser instalada depois dele.",
+				ActionID: "ides",
 				Tab:      "Definições",
 			},
 			{

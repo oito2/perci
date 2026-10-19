@@ -37,7 +37,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 Uma interface gráfica de desktop (Go + [Wails](https://wails.io)), cinco categorias na barra lateral, sem daemon, sem banco de dados — só `~/.perci/config.yaml`:
 
 - **Home** — visão geral do seu sistema, atualizar/desinstalar o próprio Perci, configurações (tema, mascote da barra lateral, workspace, escopo Flatpak, bandeja do sistema).
-- **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak, MegaSync.
+- **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak.
 - **Desenvolvimento** — pré-requisitos de build, SDKs Go/Rust/Flutter, aplicativos de IA, terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — stack Docker por projeto (contêineres Nginx/MariaDB/PHP/Node/PHP+Node, com roteamento Moodle), criar e gerenciar contêineres.
 - **Dev Tools** — pastas de desenvolvimento de plugins montadas nos contêineres Moodle, controle de repositórios Git, geração de contexto de IA (`AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`), skills de agente de IA, registro de servidores MCP.

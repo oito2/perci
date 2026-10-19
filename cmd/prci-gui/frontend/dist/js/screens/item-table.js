@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Item table screens (Desenvolvimento :: Pré-requisitos and Linguagens e
-// SDKs) — a table with one row per item and its own Instalar/Atualizar/
+// Item table screens (Desenvolvimento :: Pré-requisitos, Linguagens e
+// SDKs and IDEs) — a table with one row per item and its own Instalar/Atualizar/
 // Desinstalar buttons. Instalar is enabled only while the item isn't
 // installed and nothing it requires is missing (the row then shows
 // "Requer: ..."); Atualizar and Desinstalar only while it is installed.
@@ -38,6 +38,11 @@ const ITEM_TABLE_SCREENS = {
     header: "SDK",
     fetch: function () { return App.GetSDKsInfo(); },
     run: function (id, op) { return App.RunSDKAction(id, op); },
+  },
+  ides: {
+    header: "IDE",
+    fetch: function () { return App.GetIDEsInfo(); },
+    run: function (id, op) { return App.RunIDEAction(id, op); },
   },
 };
 

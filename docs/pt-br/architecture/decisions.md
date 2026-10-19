@@ -350,3 +350,11 @@ uma recusa.
 **Decisão** (escolha do usuário): oferecer só no Ubuntu Budgie 26.04, logo depois de "Atualizar pacotes do sistema", num único lote privilegiado com as opções não interativas do apt; conta como aplicada enquanto uma fonte apt habilitada apontar para o PPA.
 
 **Rever se**: o PPA passar a publicar para outra versão que o Perci suporta.
+
+## 2026-10-19 — Instalador do MEGAsync removido, IDEs numa só tabela
+
+**Contexto**: Linux → Aplicativos: MegaSync instalava e removia o MEGAsync pelo repositório assinado da MEGA. Zed Editor, VS Code e VSCodium tinham cada um sua própria tela de três botões.
+
+**Decisão** (escolhas do usuário): a tela MegaSync e o `internal/system/megasync` saem sem deixar desinstalador, como o Linux Toys; o guia de desinstalação lista os comandos para remover o pacote, o repositório e a chave à mão. A exclusão no `.megaignore` das montagens de plugins Moodle continua, porque protege os arquivos de desenvolvimento de quem usa o MEGAsync. Zed Editor, VS Code e VSCodium passam para uma tabela **IDEs** (mesmo padrão de Linguagens e SDKs, com requisitos e confirmação ao desinstalar); Android Studio e Antigravity IDE mantêm suas telas de arquivo local.
+
+**Rever se**: a instalação do MEGAsync voltar a ser desejada, ou outra IDE instalada por arquivo baixado entrar no catálogo.

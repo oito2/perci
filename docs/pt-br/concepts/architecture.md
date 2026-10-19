@@ -35,7 +35,7 @@ O `internal/ui` (helpers de terminal estilo script: `PrintHeader`/`Info`/`Err`/`
 | `internal/executor` | Único ponto de escalada `sudo` |
 | `internal/selfupdate` | Auto-atualização via GitHub Releases, auto-desinstalação |
 | `internal/shellrc` | Helpers compartilhados para editar `~/.bashrc`/arquivos rc (exports de PATH, appends idempotentes) |
-| `internal/system/*` | **Categoria Linux**: pós-instalação (Mint/Zorin/Ubuntu/Fedora), fontes, modelos de arquivos, apps Flatpak, atualização de sistema, MegaSync |
+| `internal/system/*` | **Categoria Linux**: pós-instalação (Mint/Zorin/Ubuntu/Fedora), fontes, modelos de arquivos, apps Flatpak, atualização de sistema |
 | `internal/dev/*` | **Categoria Desenvolvimento**: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais; também dá suporte às skills de IA (`agentskills`) e ao registro de servidores MCP (`mcpservers`) da **categoria Dev Tools** |
 | `internal/appstack` | **Categoria Docker**: stack Docker de aplicativos por projeto — criação, ciclo de vida e roteamento Moodle de containers Nginx/MariaDB/PHP/Node/PHP+Node, montagens de plugins Moodle (Dev Tools), exportar/importar |
 | `internal/manager/*` | **Categoria Dev Tools**: contexto IA (`ai`), backup/restore de banco de dados (`db`, usado por `internal/appstack`), repositório Git (`repo`), `.gitignore` (`gitignore`) |

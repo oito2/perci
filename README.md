@@ -37,7 +37,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 A desktop GUI (Go + [Wails](https://wails.io)), five sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
 
 - **Home** — an overview of your system, update/uninstall Perci itself, settings (theme, sidebar mascot, workspace, Flatpak scope, system tray).
-- **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps, MegaSync.
+- **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps.
 - **Desenvolvimento** — build prerequisites, Go/Rust/Flutter SDKs, AI apps, terminals, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — a per-project Docker application stack (Nginx/MariaDB/PHP/Node/PHP+Node containers, with Moodle routing), create and manage containers.
 - **Dev Tools** — Moodle plugin development folders mounted into Moodle containers, Git repository control, AI context generation (`AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`), AI agent skills, MCP server registration.

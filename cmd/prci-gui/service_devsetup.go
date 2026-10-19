@@ -42,7 +42,7 @@ type DevSetupService struct {
 	serviceBase
 }
 
-// ── Tabelas com ações por item (Pré-requisitos, Linguagens e SDKs) ──────────
+// ── Tabelas com ações por item (Pré-requisitos, Linguagens e SDKs, IDEs) ────
 
 // ManagedItemInfo is one row of a table screen whose items each have their
 // own Instalar/Atualizar/Desinstalar buttons.
@@ -261,63 +261,51 @@ func (d *DevSetupService) RemoveStarship() error {
 	return d.runAction(terminal.UninstallStarship)
 }
 
-// ── IDE: Zed Editor / VS Code / VSCodium (install/atualizar/desinstalar) ────
+// ── IDEs ────────────────────────────────────────────────────────────────────
 
-func findIDE(cmd string) (ide.IDE, bool) {
-	for _, e := range ide.Catalogue {
-		if e.Cmd == cmd {
-			return e, true
+// GetIDEsInfo lists the IDE catalogue (internal/dev/ide: Zed Editor, VS
+// Code, VSCodium) with each item's installed state and missing
+// requirements.
+func (d *DevSetupService) GetIDEsInfo() []ManagedItemInfo {
+	ctx := context.Background()
+	installed := ide.InstalledMap(ctx, d.exe)
+	items := make([]ManagedItemInfo, len(ide.Catalogue))
+	for i, e := range ide.Catalogue {
+		items[i] = ManagedItemInfo{
+			ID: e.Name, Label: e.Name, Description: e.Description,
+			Installed:     installed[e.Name],
+			Missing:       ide.MissingRequirements(ctx, d.exe, e),
+			RemoveWarning: e.RemoveWarning,
 		}
 	}
-	return ide.IDE{}, false
+	return items
 }
 
-// GetIDEInfo reports whether the IDE identified by cmd ("zed"/"code"/
-// "codium" — internal/dev/ide.Catalogue) is currently installed. cmd is
-// derived by the frontend from the item's actionId ("ide-zed" → "zed",
-// etc.).
-func (d *DevSetupService) GetIDEInfo(cmd string) SingleAppInfo {
-	e, ok := findIDE(cmd)
-	if !ok {
-		return SingleAppInfo{}
-	}
-	installed := ide.InstalledMap(context.Background(), d.exe)
-	return SingleAppInfo{Installed: installed[e.Name]}
-}
-
-// InstallIDE installs the IDE identified by cmd.
-func (d *DevSetupService) InstallIDE(cmd string) error {
-	return d.runAction(func(stdout io.Writer) error {
-		e, ok := findIDE(cmd)
-		if !ok {
-			return fmt.Errorf("IDE desconhecida: %s", cmd)
+// RunIDEAction runs op ("install", "update" or "uninstall") on the IDE
+// named name.
+func (d *DevSetupService) RunIDEAction(name, op string) error {
+	ctx := context.Background()
+	return runManagedItemAction(&d.serviceBase, name, op, func(name string) (managedItem, bool) {
+		idx := slices.IndexFunc(ide.Catalogue, func(e ide.IDE) bool { return e.Name == name })
+		if idx < 0 {
+			return managedItem{}, false
 		}
-		return ide.InstallOne(context.Background(), d.exe, stdout, e, distro.Detect())
+		e := ide.Catalogue[idx]
+		return managedItem{
+			name:      e.Name,
+			installed: func() bool { return ide.InstalledMap(ctx, d.exe)[e.Name] },
+			missing:   func() []string { return ide.MissingRequirements(ctx, d.exe, e) },
+			install:   func(w io.Writer) error { return ide.InstallOne(ctx, d.exe, w, e, distro.Detect()) },
+			update:    func(w io.Writer) error { return ide.UpdateOne(ctx, d.exe, w, e, distro.Detect()) },
+			uninstall: func(w io.Writer) error { return ide.UninstallOne(ctx, d.exe, w, e, distro.Detect()) },
+		}, true
 	})
 }
 
-// UpdateIDE updates the IDE identified by cmd — reinstalls over it (ide.
-// UpdateOne), the same operation Install performs for all three IDEs in
-// this catalogue.
-func (d *DevSetupService) UpdateIDE(cmd string) error {
-	return d.runAction(func(stdout io.Writer) error {
-		e, ok := findIDE(cmd)
-		if !ok {
-			return fmt.Errorf("IDE desconhecida: %s", cmd)
-		}
-		return ide.UpdateOne(context.Background(), d.exe, stdout, e, distro.Detect())
-	})
-}
-
-// UninstallIDE uninstalls the IDE identified by cmd.
-func (d *DevSetupService) UninstallIDE(cmd string) error {
-	return d.runAction(func(stdout io.Writer) error {
-		e, ok := findIDE(cmd)
-		if !ok {
-			return fmt.Errorf("IDE desconhecida: %s", cmd)
-		}
-		return ide.UninstallOne(context.Background(), d.exe, stdout, e, distro.Detect())
-	})
+// SingleAppInfo is what the frontend needs for the local-file app screens
+// (Android Studio, Antigravity IDE): whether the app is installed.
+type SingleAppInfo struct {
+	Installed bool `json:"installed"`
 }
 
 // validateTarballPath checks that tarballPath is a regular .tar.gz file

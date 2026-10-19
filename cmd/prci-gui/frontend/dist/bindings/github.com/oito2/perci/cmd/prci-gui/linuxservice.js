@@ -4,7 +4,7 @@
 
 /**
  * LinuxService binds the "Linux" category: Atualizar Sistema,
- * Pós-instalação, Fontes, Templates, Flatpak Apps, MegaSync.
+ * Pós-instalação, Fontes, Templates, Flatpak Apps.
  * @module
  */
 
@@ -41,17 +41,6 @@ export function GetFontsInfo() {
 }
 
 /**
- * GetMegaSyncInfo reports whether MegaSync is currently installed — same
- * "app único install/desinstalar" screen shape.
- * @returns {$CancellablePromise<$models.SingleAppInfo>}
- */
-export function GetMegaSyncInfo() {
-    return $Call.ByName("main.LinuxService.GetMegaSyncInfo").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
-    }));
-}
-
-/**
  * GetPostinstallProfile detects which of the supported OS/DE/version
  * combinations Perci is running on, and returns its items — or
  * Supported:false if the machine isn't one of them.
@@ -59,7 +48,7 @@ export function GetMegaSyncInfo() {
  */
 export function GetPostinstallProfile() {
     return $Call.ByName("main.LinuxService.GetPostinstallProfile").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType2($result);
     }));
 }
 
@@ -71,7 +60,7 @@ export function GetPostinstallProfile() {
  */
 export function GetPostinstallStatus() {
     return $Call.ByName("main.LinuxService.GetPostinstallStatus").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType3($result);
     }));
 }
 
@@ -86,16 +75,6 @@ export function GetTemplatesInfo() {
     return $Call.ByName("main.LinuxService.GetTemplatesInfo").then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
-}
-
-/**
- * InstallMegaSync runs the official install flow (internal/system/
- * megasync.Install) — the GUI's "Instalar" button click is itself the
- * confirmation.
- * @returns {$CancellablePromise<void>}
- */
-export function InstallMegaSync() {
-    return $Call.ByName("main.LinuxService.InstallMegaSync");
 }
 
 /**
@@ -163,18 +142,8 @@ export function RunTemplates(selectedFilenames) {
     return $Call.ByName("main.LinuxService.RunTemplates", selectedFilenames);
 }
 
-/**
- * UninstallMegaSync removes MegaSync via the distro's native package manager
- * (internal/system/megasync.Uninstall).
- * @returns {$CancellablePromise<void>}
- */
-export function UninstallMegaSync() {
-    return $Call.ByName("main.LinuxService.UninstallMegaSync");
-}
-
 // Private type creation functions
 const $$createType0 = $models.MultiSelectItemInfo.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.SingleAppInfo.createFrom;
-const $$createType3 = $models.PostinstallProfileInfo.createFrom;
-const $$createType4 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $models.PostinstallProfileInfo.createFrom;
+const $$createType3 = $Create.Map($Create.Any, $Create.Any);

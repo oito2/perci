@@ -21,7 +21,7 @@ A sidebar on the left with five categories, and a main panel on the right showin
 | Category | Covers |
 |---|---|
 | **Home** | Dashboard ("Visão Geral"), app settings ("Configurações"). |
-| **Linux** | System updates, distro/DE-aware post-installation, fonts, file templates, Flatpak/MegaSync apps. |
+| **Linux** | System updates, distro/DE-aware post-installation, fonts, file templates, Flatpak apps. |
 | **Desenvolvimento** | Build prerequisites, language SDKs, AI/terminal apps, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Create and manage the per-project Docker application stack. |
 | **Dev Tools** | Moodle plugin mounts, Git repositories, AI context generation, AI agent skills, MCP server registration. |

@@ -34,7 +34,7 @@ Optionally: **Gerenciar Fontes**, **Gerenciar Templates de Arquivos**, **Aplicat
 
 1. **Pré-requisitos** — compiler toolchain, Git, curl, Docker Engine, mkcert, NPM.
 2. **Linguagens e SDKs** — Go and/or Flutter, if your Moodle plugins/tooling need them.
-3. **IDE: Zed Editor / VS Code / VSCodium / Android Studio / Antigravity IDE** — whichever you use day to day (each IDE is its own install/update screen).
+3. **IDEs** (Zed Editor, VS Code, VSCodium — one table with Instalar/Atualizar/Desinstalar per IDE), **IDE: Android Studio** or **IDE: Antigravity IDE** — whichever you use day to day.
 
 ## 5. Docker Application Stack
 

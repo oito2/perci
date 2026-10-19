@@ -1417,10 +1417,8 @@ export class SelfUpdateInfo {
 }
 
 /**
- * SingleAppInfo is what the frontend needs for the "app único
- * install/desinstalar" screen pattern (e.g. Linux :: Aplicativos -
- * MegaSync) — two buttons instead of a checklist: "Instalar" (always
- * enabled) and "Desinstalar" (enabled only when Installed is true).
+ * SingleAppInfo is what the frontend needs for the local-file app screens
+ * (Android Studio, Antigravity IDE): whether the app is installed.
  */
 export class SingleAppInfo {
     /**

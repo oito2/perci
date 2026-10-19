@@ -130,7 +130,7 @@ Veja [docs/pt-br/index.md](./index.md) para o site de documentação completo �
 1. Adicione a entrada no slice `Items` da categoria correspondente em `cmd/prci-gui/catalog.go` (`Title`, `Desc`, `ActionID`).
 2. Implemente a função de domínio no pacote apropriado (parâmetros simples, sem interatividade — ver Convenções de Código acima).
 3. Adicione um método Go no `service_*.go` do domínio correspondente em `cmd/prci-gui` (`HomeService`/`LinuxService`/`DevSetupService`/`DockerService`/`DevToolsService`/`TrayService` — um `application.Service` por categoria) que a chame — exposto ao frontend via os bindings ES module gerados em `frontend/dist/bindings/` (rode `make generate-bindings` depois de adicionar um método ou mudar a assinatura de um existente).
-4. Monte a tela no frontend: um `<div>` container em `cmd/prci-gui/frontend/dist/index.html`, a função de render em `frontend/dist/js/screens/`, uma entrada em `screenTable()` (`js/navigation.js`) e, quando ela precisar se atualizar ao fim de uma ação, em `ACTION_DONE_HANDLERS` (`js/core.js`) — ou reaproveite um modo já existente (simple/multiselect/singleapp/etc.) quando a tela se encaixar em algum. Encadeie `.catch(failRun)` em toda chamada que inicia uma ação depois de `startExecution()`.
+4. Monte a tela no frontend: um `<div>` container em `cmd/prci-gui/frontend/dist/index.html`, a função de render em `frontend/dist/js/screens/`, uma entrada em `screenTable()` (`js/navigation.js`) e, quando ela precisar se atualizar ao fim de uma ação, em `ACTION_DONE_HANDLERS` (`js/core.js`) — ou reaproveite um modo já existente (simple/multiselect/item table/etc.) quando a tela se encaixar em algum. Encadeie `.catch(failRun)` em toda chamada que inicia uma ação depois de `startExecution()`.
 
 ---
 

@@ -59,16 +59,14 @@ export function GetAntigravityIDEInfo() {
 }
 
 /**
- * GetIDEInfo reports whether the IDE identified by cmd ("zed"/"code"/
- * "codium" — internal/dev/ide.Catalogue) is currently installed. cmd is
- * derived by the frontend from the item's actionId ("ide-zed" → "zed",
- * etc.).
- * @param {string} cmd
- * @returns {$CancellablePromise<$models.SingleAppInfo>}
+ * GetIDEsInfo lists the IDE catalogue (internal/dev/ide: Zed Editor, VS
+ * Code, VSCodium) with each item's installed state and missing
+ * requirements.
+ * @returns {$CancellablePromise<$models.ManagedItemInfo[]>}
  */
-export function GetIDEInfo(cmd) {
-    return $Call.ByName("main.DevSetupService.GetIDEInfo", cmd).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+export function GetIDEsInfo() {
+    return $Call.ByName("main.DevSetupService.GetIDEsInfo").then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
     }));
 }
 
@@ -126,15 +124,6 @@ export function InstallAntigravityIDE(tarballPath) {
 }
 
 /**
- * InstallIDE installs the IDE identified by cmd.
- * @param {string} cmd
- * @returns {$CancellablePromise<void>}
- */
-export function InstallIDE(cmd) {
-    return $Call.ByName("main.DevSetupService.InstallIDE", cmd);
-}
-
-/**
  * PickAndroidStudioTarball opens the native file picker and returns the
  * chosen path, or "" if the user cancelled.
  * @returns {$CancellablePromise<string>}
@@ -170,6 +159,17 @@ export function RemoveStarship() {
  */
 export function RunAIApps(selectedNames) {
     return $Call.ByName("main.DevSetupService.RunAIApps", selectedNames);
+}
+
+/**
+ * RunIDEAction runs op ("install", "update" or "uninstall") on the IDE
+ * named name.
+ * @param {string} name
+ * @param {string} op
+ * @returns {$CancellablePromise<void>}
+ */
+export function RunIDEAction(name, op) {
+    return $Call.ByName("main.DevSetupService.RunIDEAction", name, op);
 }
 
 /**
@@ -221,32 +221,12 @@ export function UninstallAntigravityIDE() {
 }
 
 /**
- * UninstallIDE uninstalls the IDE identified by cmd.
- * @param {string} cmd
- * @returns {$CancellablePromise<void>}
- */
-export function UninstallIDE(cmd) {
-    return $Call.ByName("main.DevSetupService.UninstallIDE", cmd);
-}
-
-/**
  * UpdateAntigravityIDE replaces the current installation with tarballPath.
  * @param {string} tarballPath
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateAntigravityIDE(tarballPath) {
     return $Call.ByName("main.DevSetupService.UpdateAntigravityIDE", tarballPath);
-}
-
-/**
- * UpdateIDE updates the IDE identified by cmd — reinstalls over it (ide.
- * UpdateOne), the same operation Install performs for all three IDEs in
- * this catalogue.
- * @param {string} cmd
- * @returns {$CancellablePromise<void>}
- */
-export function UpdateIDE(cmd) {
-    return $Call.ByName("main.DevSetupService.UpdateIDE", cmd);
 }
 
 // Private type creation functions

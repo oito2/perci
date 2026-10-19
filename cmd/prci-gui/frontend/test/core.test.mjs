@@ -109,10 +109,10 @@ test("beginRun: one run at a time, refusals and sync errors end the run", async 
 });
 
 test("doneHandlerFor picks the handler by screen family", () => {
-  const { ctx } = load({ GetMegaSyncInfo: { installed: false }, GetIDEInfo: { installed: true } });
+  const { ctx } = load();
   assert.equal(ctx.doneHandlerFor("unknown-screen"), ctx.updateExecutarButton);
   const run = { buttons: [], actionId: "x" };
-  for (const id of ["terminals", "megasync", "ide-zed", "androidstudio", "prereqs"]) {
+  for (const id of ["terminals", "androidstudio", "prereqs", "ides"]) {
     assert.equal(typeof ctx.doneHandlerFor(id), "function", id);
     assert.notEqual(ctx.doneHandlerFor(id), ctx.updateExecutarButton, id);
     ctx.__selectedItem = { actionId: id, title: id, desc: "" };
@@ -125,15 +125,16 @@ test("screenFor resolves each family to its container", () => {
   const el = (item) => ctx.screenFor(item).el;
   assert.equal(el({ actionId: "dashboard" }), element("dashboard-container"));
   assert.equal(el({ actionId: "fonts" }), element("multiselect-container"));
-  assert.equal(el({ actionId: "megasync" }), element("singleapp-container"));
-  assert.equal(el({ actionId: "ide-zed" }), element("ide-container"));
   assert.equal(el({ actionId: "androidstudio" }), element("fileapp-container"));
   assert.equal(el({ actionId: "prereqs" }), element("itemtable-container"));
+  assert.equal(el({ actionId: "ides" }), element("itemtable-container"));
+  assert.equal(el({ actionId: "megasync" }), element("simple-container"));
   assert.equal(el({ actionId: "system-update" }), element("simple-container"));
   assert.equal(ctx.screenFor({ actionId: "repos" }).alsoShow[0], element("tab-label-repos-list"));
   assert.equal(ctx.screenFor({ actionId: "moodleplugins" }).alsoShow[0], element("tab-label-mp-mounted"));
   assert.equal(ctx.screenFor({ actionId: "self-config" }).noTerminal, true);
-  assert.equal(evalIn(ctx, 'typeof SINGLE_APP_SCREENS["linuxtoys"]'), "undefined");
+  assert.equal(evalIn(ctx, "typeof SINGLE_APP_SCREENS"), "undefined");
+  assert.equal(evalIn(ctx, "typeof IDE_SCREENS"), "undefined");
 });
 
 test("the screen-only tab labels are hidden when another screen is selected", () => {
@@ -193,41 +194,6 @@ test("checklist: Executar is disabled and unarmed until the items arrive", async
   btn.onclick();
   assert.equal(calls.filter((c) => c.name === "RunFonts").length, 0, "never runs the old screen");
   assert.equal(calls.filter((c) => c.name === "RunTemplates").length, 1);
-});
-
-// FE-02: a late answer cannot overwrite the buttons of a newer one.
-test("single app: a stale fetch is dropped, also from the done handler", async () => {
-  const first = deferred();
-  const second = deferred();
-  const third = deferred();
-  const { ctx, element } = load({ GetMegaSyncInfo: queued([first, second, third]) });
-  ctx.renderSingleAppScreen({ actionId: "megasync", title: "MEGA", desc: "" });
-  ctx.renderSingleAppScreen({ actionId: "megasync", title: "MEGA", desc: "" });
-  second.resolve({ installed: false });
-  await tick();
-  first.resolve({ installed: true });
-  await tick();
-  assert.equal(element("btn-singleapp-install").disabled, false);
-  assert.equal(element("btn-singleapp-uninstall").disabled, true);
-
-  ctx.doneHandlerFor("megasync")({ buttons: [] });
-  third.resolve({ installed: true });
-  await tick();
-  assert.equal(element("btn-singleapp-install").disabled, true);
-  assert.equal(element("btn-singleapp-uninstall").disabled, false);
-});
-
-test("IDE screen: a stale fetch is dropped", async () => {
-  const first = deferred();
-  const second = deferred();
-  const { ctx, element } = load({ GetIDEInfo: queued([first, second]) });
-  ctx.renderIDEScreen({ actionId: "ide-zed", desc: "" });
-  ctx.renderIDEScreen({ actionId: "ide-code", desc: "" });
-  second.resolve({ installed: false });
-  await tick();
-  first.resolve({ installed: true });
-  await tick();
-  assert.equal(element("btn-ide-uninstall").disabled, true);
 });
 
 test("item table: a failed query shows the error instead of waiting forever", async () => {

@@ -21,7 +21,7 @@ Uma barra lateral à esquerda com cinco categorias, e um painel principal à dir
 | Categoria | Cobre |
 |---|---|
 | **Home** | Dashboard ("Visão Geral"), configurações do app ("Configurações"). |
-| **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak/MegaSync. |
+| **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak. |
 | **Desenvolvimento** | Pré-requisitos de build, SDKs de linguagens, aplicativos de IA/terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Criar e gerenciar a stack Docker de aplicativos por projeto. |
 | **Dev Tools** | Montagem de plugins Moodle, repositórios Git, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/oito2/perci/internal/dev/agentskills"
+	"github.com/oito2/perci/internal/dev/ide"
 	"github.com/oito2/perci/internal/dev/llm"
 	"github.com/oito2/perci/internal/dev/mcpservers"
 	"github.com/oito2/perci/internal/dev/prereqs"
@@ -66,7 +67,7 @@ func TestActions_ReachTheirDomainCode(t *testing.T) {
 		{"RunPrereqAction", func(b *serviceBase) error {
 			return (&DevSetupService{*b}).RunPrereqAction("Git", "install")
 		}, []string{"git"}},
-		{"InstallIDE", func(b *serviceBase) error { return (&DevSetupService{*b}).InstallIDE("zed") },
+		{"RunIDEAction", func(b *serviceBase) error { return (&DevSetupService{*b}).RunIDEAction("Zed Editor", "update") },
 			[]string{"zed.dev"}},
 		{"UninstallAndroidStudio", func(b *serviceBase) error { return (&DevSetupService{*b}).UninstallAndroidStudio() },
 			[]string{"/opt/android-studio"}},
@@ -78,8 +79,6 @@ func TestActions_ReachTheirDomainCode(t *testing.T) {
 		}, []string{"flatpak", "org.gnome.Loupe"}},
 		{"RunSystemUpdate", func(b *serviceBase) error { return (&LinuxService{*b}).RunSystemUpdate(false, false) },
 			[]string{"[dry-run] /usr/bin/sudo", "update"}},
-		{"UninstallMegaSync", func(b *serviceBase) error { return (&LinuxService{*b}).UninstallMegaSync() },
-			[]string{"megasync"}},
 		{"ApplyGlobalGitIdentity", func(b *serviceBase) error {
 			return (&DevToolsService{*b}).ApplyGlobalGitIdentity("Dev", "dev@example.com")
 		}, []string{"config --global -- user.name Dev"}},
@@ -286,6 +285,7 @@ func TestGetters_ListTheirCatalogues(t *testing.T) {
 		"ai apps":   {len(devSetup.GetAIAppsInfo()), len(llm.Catalogue)},
 		"prereqs":   {len(devSetup.GetPrereqsInfo()), len(prereqs.Catalogue)},
 		"sdks":      {len(devSetup.GetSDKsInfo()), len(sdks.Catalogue)},
+		"ides":      {len(devSetup.GetIDEsInfo()), len(ide.Catalogue)},
 		"flatpak":   {len(linux.GetFlatpakAppsInfo()), len(apps.Catalogue)},
 		"templates": {len(linux.GetTemplatesInfo()), len(templates.Catalogue)},
 		"skills":    {mustLen(devTools.GetAgentSkillsRows(true, "")), countActive(agentskills.Catalogue, func(s agentskills.Skill) bool { return s.Retired })},
@@ -303,10 +303,8 @@ func TestGetters_ListTheirCatalogues(t *testing.T) {
 		t.Error("empty app version or sidebar categories")
 	}
 	// Single-app screens and the rest: just answer.
-	_ = devSetup.GetIDEInfo("zed")
 	_ = devSetup.GetAndroidStudioInfo()
 	_ = devSetup.GetAntigravityIDEInfo()
-	_ = linux.GetMegaSyncInfo()
 	_ = linux.GetPostinstallProfile()
 	_ = docker.GetContainerRows()
 	_ = home.GetSelfConfigInfo()

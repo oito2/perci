@@ -26,7 +26,6 @@ import (
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/system/apps"
 	"github.com/oito2/perci/internal/system/fonts"
-	"github.com/oito2/perci/internal/system/megasync"
 	"github.com/oito2/perci/internal/system/postinstall"
 	"github.com/oito2/perci/internal/system/templates"
 	"github.com/oito2/perci/internal/system/update"
@@ -34,7 +33,7 @@ import (
 )
 
 // LinuxService binds the "Linux" category: Atualizar Sistema,
-// Pós-instalação, Fontes, Templates, Flatpak Apps, MegaSync.
+// Pós-instalação, Fontes, Templates, Flatpak Apps.
 type LinuxService struct {
 	serviceBase
 }
@@ -298,35 +297,4 @@ func (l *LinuxService) GetFlatpakAppsInfo() []MultiSelectItemInfo {
 // other multi-select screen.
 func (l *LinuxService) RunFlatpakApps(selectedFlatIDs []string) error {
 	return runChecklist(&l.serviceBase, l.flatpakAppsChecklist(), selectedFlatIDs)
-}
-
-// SingleAppInfo is what the frontend needs for the "app único
-// install/desinstalar" screen pattern (e.g. Linux :: Aplicativos -
-// MegaSync) — two buttons instead of a checklist: "Instalar" (always
-// enabled) and "Desinstalar" (enabled only when Installed is true).
-type SingleAppInfo struct {
-	Installed bool `json:"installed"`
-}
-
-// GetMegaSyncInfo reports whether MegaSync is currently installed — same
-// "app único install/desinstalar" screen shape.
-func (l *LinuxService) GetMegaSyncInfo() SingleAppInfo {
-	return SingleAppInfo{Installed: megasync.Installed(context.Background(), l.exe)}
-}
-
-// InstallMegaSync runs the official install flow (internal/system/
-// megasync.Install) — the GUI's "Instalar" button click is itself the
-// confirmation.
-func (l *LinuxService) InstallMegaSync() error {
-	return l.runAction(func(stdout io.Writer) error {
-		return megasync.Install(context.Background(), l.exe, stdout)
-	})
-}
-
-// UninstallMegaSync removes MegaSync via the distro's native package manager
-// (internal/system/megasync.Uninstall).
-func (l *LinuxService) UninstallMegaSync() error {
-	return l.runAction(func(stdout io.Writer) error {
-		return megasync.Uninstall(context.Background(), l.exe, stdout)
-	})
 }

@@ -130,7 +130,7 @@ See [docs/en/index.md](docs/en/index.md) for the full documentation site — thi
 1. Add the entry to the relevant category's `Items` slice in `cmd/prci-gui/catalog.go` (`Title`, `Desc`, `ActionID`).
 2. Implement the domain function in the appropriate package (plain parameters, no interactivity — see Coding Conventions above).
 3. Add a Go method to the matching domain's `service_*.go` file in `cmd/prci-gui` (`HomeService`/`LinuxService`/`DevSetupService`/`DockerService`/`DevToolsService`/`TrayService`) that calls it — exposed to the frontend via the generated ES module bindings in `frontend/dist/bindings/` (run `make generate-bindings` after adding a method or changing one's signature).
-4. Wire the screen in the frontend: a container `<div>` in `cmd/prci-gui/frontend/dist/index.html`, its render function in `frontend/dist/js/screens/`, an entry in `screenTable()` (`js/navigation.js`) and, when it must refresh after an action finishes, in `ACTION_DONE_HANDLERS` (`js/core.js`) — or reuse an existing mode (simple/multiselect/singleapp/etc.) when the screen fits one already. Chain `.catch(failRun)` onto every call that starts an action after `startExecution()`.
+4. Wire the screen in the frontend: a container `<div>` in `cmd/prci-gui/frontend/dist/index.html`, its render function in `frontend/dist/js/screens/`, an entry in `screenTable()` (`js/navigation.js`) and, when it must refresh after an action finishes, in `ACTION_DONE_HANDLERS` (`js/core.js`) — or reuse an existing mode (simple/multiselect/item table/etc.) when the screen fits one already. Chain `.catch(failRun)` onto every call that starts an action after `startExecution()`.
 
 ---
 

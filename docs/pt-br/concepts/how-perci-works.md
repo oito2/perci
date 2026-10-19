@@ -17,7 +17,7 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 | # | Categoria | Cobre |
 |---|---|---|
 | 1 | **Home** | Visão geral/dashboard (com auto-atualização e desinstalação), configurações. |
-| 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, MegaSync, WebApps. |
+| 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, WebApps. |
 | 3 | **Desenvolvimento** | Construir um ambiente de dev: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais. |
 | 4 | **Docker** | A stack Docker de aplicativos por projeto: criação e gerenciamento de containers Nginx/MariaDB/PHP/Node, exportar/importar. |
 | 5 | **Dev Tools** | Trabalhar dentro de um projeto já configurado: pastas de desenvolvimento de plugins montadas nos contêineres Moodle, controle de repositório Git, geração de Contexto IA, skills de IA, registro de servidores MCP. |

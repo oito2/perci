@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Checklist screens (fonts, templates, apps...), single-app install/uninstall screens, IDE screens and the local-file app screens (Android Studio, Antigravity IDE).
+// Checklist screens (fonts, templates, apps...) and the local-file app screens (Android Studio, Antigravity IDE).
 //
 // Classic script (not a module): shares one global scope with the other
 // scripts under js/.
@@ -174,36 +174,6 @@ function renderMultiselectScreen(item) {
   }));
 }
 
-// --- "single app install/uninstall" screens: an external app with no
-// checklist — two buttons (Instalar always enabled, Desinstalar only if
-// already installed). SINGLE_APP_SCREENS maps actionId to the three
-// bound methods the screen needs: fetch() brings {installed}, install()
-// and uninstall() trigger the action. Each new screen of this type only
-// needs one entry here. ----------------------------------------------
-const SINGLE_APP_SCREENS = {
-  megasync: {
-    fetch: function () { return App.GetMegaSyncInfo(); },
-    install: function () { return App.InstallMegaSync(); },
-    uninstall: function () { return App.UninstallMegaSync(); },
-  },
-};
-
-function renderSingleAppScreen(item) {
-  singleappDesc.textContent = item.desc || "";
-  const cfg = SINGLE_APP_SCREENS[item.actionId];
-  btnSingleappInstall.disabled = true;
-  btnSingleappUninstall.disabled = true;
-
-  cfg.fetch().then(latestOnly("singleapp", function (info) {
-    btnSingleappInstall.disabled = info.installed;
-    btnSingleappUninstall.disabled = !info.installed;
-  }));
-
-  const buttons = [btnSingleappInstall, btnSingleappUninstall];
-  btnSingleappInstall.onclick = function () { runScreenAction(item, "instalar", buttons, cfg.install); };
-  btnSingleappUninstall.onclick = function () { runScreenAction(item, "desinstalar", buttons, cfg.uninstall); };
-}
-
 // runScreenAction starts one of a screen's install/update/uninstall
 // actions: nothing while another runs, then the Execução lifecycle with
 // the screen's buttons disabled, and fn()'s refusal handled by failRun.
@@ -213,36 +183,6 @@ function runScreenAction(item, label, buttons, fn) {
     maxSteps: 1,
     announce: "Iniciando " + item.title + " (" + label + ")...",
   });
-}
-
-// --- "IDE install/atualizar/desinstalar" screens: three buttons —
-// Atualizar/Desinstalar enabled only once already installed, same
-// backend call for all three, differentiated by the cmd
-// parameter. IDE_SCREENS maps actionId ("ide-zed"/
-// "ide-code"/"ide-codium") to the cmd the bound methods expect. -------
-const IDE_SCREENS = {
-  "ide-zed": { cmd: "zed" },
-  "ide-code": { cmd: "code" },
-  "ide-codium": { cmd: "codium" },
-};
-
-function renderIDEScreen(item) {
-  ideDesc.textContent = item.desc || "";
-  const cfg = IDE_SCREENS[item.actionId];
-  btnIdeInstall.disabled = true;
-  btnIdeUpdate.disabled = true;
-  btnIdeUninstall.disabled = true;
-
-  App.GetIDEInfo(cfg.cmd).then(latestOnly("ide", function (info) {
-    btnIdeInstall.disabled = false;
-    btnIdeUpdate.disabled = !info.installed;
-    btnIdeUninstall.disabled = !info.installed;
-  }));
-
-  const buttons = [btnIdeInstall, btnIdeUpdate, btnIdeUninstall];
-  btnIdeInstall.onclick = function () { runScreenAction(item, "instalar", buttons, function () { return App.InstallIDE(cfg.cmd); }); };
-  btnIdeUpdate.onclick = function () { runScreenAction(item, "atualizar", buttons, function () { return App.UpdateIDE(cfg.cmd); }); };
-  btnIdeUninstall.onclick = function () { runScreenAction(item, "desinstalar", buttons, function () { return App.UninstallIDE(cfg.cmd); }); };
 }
 
 // --- "app externo via arquivo local install/(atualizar/)desinstalar"

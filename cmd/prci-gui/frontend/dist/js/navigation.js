@@ -131,8 +131,8 @@ App.GetCategories().then(function (cats) {
 // Screen registry: which container each menu item shows and how it renders
 // (the counterpart of ACTION_DONE_HANDLERS). Built on demand —
 // the containers and render functions are declared in scripts that load
-// after this one. Screens sharing one container (checklists, single apps,
-// IDEs, local-file apps) resolve by family; anything else is the "simple"
+// after this one. Screens sharing one container (item tables, checklists,
+// local-file apps) resolve by family; anything else is the "simple"
 // screen (description + Executar).
 function screenTable() {
   return {
@@ -156,8 +156,6 @@ function screenFor(item) {
   if (fixed) return fixed;
   if (ITEM_TABLE_SCREENS[id]) return { el: itemTableContainer, render: renderItemTableScreen };
   if (MULTISELECT_SCREENS[id]) return { el: multiselectContainer, render: renderMultiselectScreen };
-  if (SINGLE_APP_SCREENS[id]) return { el: singleappContainer, render: renderSingleAppScreen };
-  if (IDE_SCREENS[id]) return { el: ideContainer, render: renderIDEScreen };
   if (FILEAPP_SCREENS[id]) return { el: fileappContainer, render: renderFileAppScreen };
   return {
     el: simpleContainer,
@@ -175,7 +173,7 @@ function screenFor(item) {
 function screenContainers() {
   const table = screenTable();
   return Object.keys(table).map(function (k) { return table[k].el; }).concat([
-    simpleContainer, itemTableContainer, multiselectContainer, singleappContainer, ideContainer, fileappContainer, tabLabelReposList,
+    simpleContainer, itemTableContainer, multiselectContainer, fileappContainer, tabLabelReposList,
     tabLabelMpMounted, tabLabelTransferImport,
   ]);
 }

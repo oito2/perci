@@ -135,3 +135,36 @@ func TestSDKs_RequirementsAndUpdate(t *testing.T) {
 		t.Errorf("flutter update: %v\n%s", done, logs)
 	}
 }
+
+// IDEs: Zed Editor needs Curl from Pré-requisitos, VS Code and VSCodium need
+// nothing. DryRun reports every IDE as installed, so install is refused and
+// update reaches the IDE's own installer.
+func TestIDEs_RequirementsAndActions(t *testing.T) {
+	isolateActions(t)
+	b, _ := newTestBase(t)
+	missing := map[string][]string{}
+	for _, it := range (&DevSetupService{*b}).GetIDEsInfo() {
+		missing[it.ID] = it.Missing
+	}
+	if !slices.Equal(missing["Zed Editor"], []string{"Curl (Pré-requisitos)"}) || len(missing["VS Code"]) != 0 || len(missing["VSCodium"]) != 0 {
+		t.Errorf("missing = %v", missing)
+	}
+
+	b, rec := newTestBase(t)
+	if err := (&DevSetupService{*b}).RunIDEAction("VSCodium", "install"); err != nil {
+		t.Fatal(err)
+	}
+	if _, done := rec.wait(t); done["ok"] == true || !strings.Contains(done["error"].(string), "já está instalado") {
+		t.Errorf("install of an installed IDE: %v", done)
+	}
+
+	for name, want := range map[string]string{"Zed Editor": "zed.dev/install.sh", "VS Code": "packages.microsoft.com"} {
+		b, rec = newTestBase(t)
+		if err := (&DevSetupService{*b}).RunIDEAction(name, "update"); err != nil {
+			t.Fatal(err)
+		}
+		if logs, done := rec.wait(t); done["ok"] != true || !strings.Contains(logs, want) {
+			t.Errorf("%s update: %v\n%s", name, done, logs)
+		}
+	}
+}

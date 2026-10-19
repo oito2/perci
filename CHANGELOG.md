@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-19
+
+### Changed
+- Desenvolvimento → **IDEs**: Zed Editor, VS Code and VSCodium share one screen, a table like Linguagens e SDKs with Instalar, Atualizar and Desinstalar per IDE; Desinstalar asks for confirmation. Zed Editor needs Curl from Pré-requisitos. Android Studio and Antigravity IDE keep their own screens.
+
+### Removed
+- Linux → **Aplicativos: MegaSync**: Perci no longer installs or removes MEGAsync. To remove one installed by an earlier version, see the uninstallation guide. Moodle plugin mounts still add their `.megaignore` exclusion.
+
 ## [1.4.1] - 2026-10-14
 
 ### Fixed
@@ -161,7 +169,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/oito2/perci/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/oito2/perci/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/oito2/perci/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/oito2/perci/compare/v1.3.0...v1.3.1

@@ -96,10 +96,10 @@ btnLogsExport.addEventListener("click", function () {
 // no-extra-button case.
 //
 // announceText: the line written to the terminal sometimes differs from
-// the default "Iniciando <label>..." pattern — a suffix (IDE/app-local-
-// file/singleapp: "Zed Editor (instalar)...") or even a different verb
+// the default "Iniciando <label>..." pattern — a suffix (app-local-
+// file: "IDE: Android Studio (instalar)...") or even a different verb
 // (self-uninstall: "Desinstalando o Perci...", not "Iniciando..."), while
-// termTitle always uses just label ("Executando: Zed Editor..."). This
+// termTitle always uses just label ("Executando: IDE: Android Studio..."). This
 // parameter lets those screens reuse the shared sequence instead of
 // hand-rolling the whole block just for that one line; when omitted, the
 // terminal uses the default pattern.

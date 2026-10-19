@@ -27,7 +27,7 @@ perci.gnl (`prci`) is a personal desktop GUI (Go + [Wails](https://wails.io)) th
 
 ## 🏗️ Architecture (for contributors)
 
-- [System management](./architecture/system-management.md) — `internal/system/*` (post-install, fonts, templates, update, apps, megasync).
+- [System management](./architecture/system-management.md) — `internal/system/*` (post-install, fonts, templates, update, apps).
 - [Dev environment](./architecture/dev-environment.md) — `internal/dev/*` (SDKs, IDEs, LLM/MCP CLIs, terminals).
 - [Docker application stack](./architecture/appstack.md) — `internal/appstack` (per-project Nginx/PHP/Node/MariaDB container lifecycle, Moodle routing).
 - [Dev Tools backend](./architecture/managers.md) — `internal/manager/*` (AI context, AI skills, database, repository, gitignore).

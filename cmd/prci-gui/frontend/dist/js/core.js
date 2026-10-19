@@ -265,15 +265,6 @@ const multiselectExtras = document.getElementById("multiselect-extras");
 // Buttons built from MULTISELECT_SCREENS[actionId].extras for the screen
 // currently shown (renderMultiselectScreen).
 let multiselectExtraButtons = [];
-const singleappContainer = document.getElementById("singleapp-container");
-const singleappDesc = document.getElementById("singleapp-desc");
-const btnSingleappInstall = document.getElementById("btn-singleapp-install");
-const btnSingleappUninstall = document.getElementById("btn-singleapp-uninstall");
-const ideContainer = document.getElementById("ide-container");
-const ideDesc = document.getElementById("ide-desc");
-const btnIdeInstall = document.getElementById("btn-ide-install");
-const btnIdeUpdate = document.getElementById("btn-ide-update");
-const btnIdeUninstall = document.getElementById("btn-ide-uninstall");
 const fileappContainer = document.getElementById("fileapp-container");
 const fileappDesc = document.getElementById("fileapp-desc");
 const btnFileappPick = document.getElementById("btn-fileapp-pick");
@@ -498,7 +489,7 @@ function finishRun(result) {
 }
 
 // Per-screen refresh after a run, keyed by actionId. Screens that share one
-// container (checklists, single apps, IDEs, local-file apps) resolve by
+// container (item tables, checklists, local-file apps) resolve by
 // family in doneHandlerFor; anything else just re-evaluates "Executar".
 const ACTION_DONE_HANDLERS = {
   // Re-fetches which items are applied now.
@@ -540,27 +531,8 @@ function doneHandlerFor(actionId) {
       multiselectExtraButtons.forEach(function (btn) { btn.disabled = false; });
     };
   }
-  // The three families below share their container's buttons with the
-  // screen's own render, so they use the render's latestOnly key.
-  if (SINGLE_APP_SCREENS[actionId]) {
-    // Re-fetches the installed state: after Instalar, Desinstalar should
-    // become enabled (and Instalar disabled), and vice versa.
-    return function () {
-      SINGLE_APP_SCREENS[actionId].fetch().then(latestOnly("singleapp", function (info) {
-        btnSingleappInstall.disabled = info.installed;
-        btnSingleappUninstall.disabled = !info.installed;
-      }));
-    };
-  }
-  if (IDE_SCREENS[actionId]) {
-    return function () {
-      App.GetIDEInfo(IDE_SCREENS[actionId].cmd).then(latestOnly("ide", function (info) {
-        btnIdeInstall.disabled = false;
-        btnIdeUpdate.disabled = !info.installed;
-        btnIdeUninstall.disabled = !info.installed;
-      }));
-    };
-  }
+  // Shares its container's buttons with the screen's own render, so it
+  // uses the render's latestOnly key.
   if (FILEAPP_SCREENS[actionId]) {
     return function () {
       const cfg = FILEAPP_SCREENS[actionId];
