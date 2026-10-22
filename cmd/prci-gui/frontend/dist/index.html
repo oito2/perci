@@ -520,6 +520,10 @@
           <!-- "Docker :: Gerenciar Containers": a table + per-row action
                icons. -->
           <div id="dockerlist-container" class="hidden">
+            <div id="dockerlist-toolbar" class="flex flex-wrap items-center gap-3 mb-4 hidden">
+              <button id="btn-dockerlist-update-all" class="btn btn-sm">Atualizar imagens</button>
+              <p class="text-xs opacity-60">Baixa as correções mais recentes das imagens (mesmas versões de PHP, Node, Nginx e MariaDB) e recria só os contêineres que mudaram. Arquivos, bancos e plugins montados são mantidos.</p>
+            </div>
             <div class="overflow-x-auto mb-4">
               <table class="table">
                 <thead>

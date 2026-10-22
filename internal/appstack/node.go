@@ -88,10 +88,16 @@ func EnsureNodeImage(ctx context.Context, exe *executor.Executor, stdout io.Writ
 	if !ValidNodeVersion(version) {
 		return fmt.Errorf("versão Node não suportada: %s", version)
 	}
-	return ensureImage(ctx, exe, stdout, imageBuild{
+	return ensureImage(ctx, exe, stdout, nodeImageBuild(version))
+}
+
+// nodeImageBuild describes the NodeImageName(version) image.
+func nodeImageBuild(version string) imageBuild {
+	return imageBuild{
 		name:  NodeImageName(version),
 		first: "primeira vez que a versão Node " + version + " é usada",
 		files: map[string]string{"Dockerfile": nodeDockerfile},
 		args:  []string{"NODE_VERSION=" + version, fmt.Sprintf("UID=%d", os.Getuid())},
-	})
+		bases: []string{"node:" + version + "-bookworm"},
+	}
 }

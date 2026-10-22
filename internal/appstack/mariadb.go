@@ -147,7 +147,10 @@ func mariadbRunArgs(dataDir, initDir string, env []string) []string {
 	args = append(args, bindMount(dataDir, "/var/lib/mysql", false)...)
 	args = append(args, bindMount(initDir, "/docker-entrypoint-initdb.d", false)...)
 	args = append(args, envNames(env)...) // values go through the client env, see envNames
-	return append(args, "-e", "MYSQL_DATABASE=dev_db", "--", MariaDBImage)
+	// MARIADB_AUTO_UPGRADE makes the entrypoint run mariadb-upgrade when the
+	// image's server version differs from the one the data directory was
+	// last used with (after an image update).
+	return append(args, "-e", "MYSQL_DATABASE=dev_db", "-e", "MARIADB_AUTO_UPGRADE=1", "--", MariaDBImage)
 }
 
 // mariadbEnv returns the credential assignments mariadbRunArgs names —

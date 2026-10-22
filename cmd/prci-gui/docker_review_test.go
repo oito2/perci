@@ -247,3 +247,110 @@ func TestTransferItems_ExportAndImportLists(t *testing.T) {
 		t.Errorf("a mount into a non-Moodle app was offered: %+v", p)
 	}
 }
+
+// GetContainerRows tells a container missing from Docker ("" status, no
+// DockerError) apart from a Docker that can't be queried (DockerError set
+// on every row).
+func TestGetContainerRows_UnreachableDocker(t *testing.T) {
+	cases := []struct {
+		name      string
+		script    string
+		wantError bool
+	}{
+		{"container missing", "#!/bin/sh\nexit 0\n", false},
+		{"docker unreachable", "#!/bin/sh\necho 'permission denied on docker.sock' >&2\nexit 1\n", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			isolateActions(t)
+			s := realDockerService(t)
+			bin := t.TempDir()
+			if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(tc.script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin)
+			registerApp(t, config.AppContainer{Name: "Loja", Folder: "loja", URL: "loja.localhost", Type: config.AppTypePHP, PHPVersion: "8.3"})
+
+			rows := s.GetContainerRows()
+			if len(rows) != 1 {
+				t.Fatalf("got %d rows, want 1", len(rows))
+			}
+			if rows[0].Status != "" {
+				t.Errorf("Status = %q, want empty", rows[0].Status)
+			}
+			if got := rows[0].DockerError != ""; got != tc.wantError {
+				t.Errorf("DockerError = %q, want set: %v", rows[0].DockerError, tc.wantError)
+			}
+			if tc.wantError && !strings.Contains(rows[0].DockerError, "permission denied") {
+				t.Errorf("DockerError %q does not carry docker's stderr", rows[0].DockerError)
+			}
+		})
+	}
+}
+
+// runUpdate starts an image update on a DockerService whose executor runs
+// the docker script on PATH and returns the finished action's result.
+func runUpdate(t *testing.T, start func(*DockerService) error) map[string]interface{} {
+	t.Helper()
+	b, rec := newTestBase(t)
+	b.exe = executor.New(nil, nil)
+	if err := start(&DockerService{*b}); err != nil {
+		t.Fatalf("refused synchronously: %v", err)
+	}
+	_, done := rec.wait(t)
+	return done
+}
+
+// A MariaDB update needs the automatic backup: with MariaDB stopped it is
+// refused before any container is removed or created.
+func TestUpdateDockerContainerImage_MariaDBMustRun(t *testing.T) {
+	isolateActions(t)
+	if err := config.Update(func(c *config.Config) error {
+		c.Docker.MariaDB = config.MariaDBConfig{DBUser: "dev", DBPass: "pw"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	log := filepath.Join(bin, "calls.log")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '" + log + "'\n" +
+		"case \"$*\" in\n" +
+		"*'{{.Id}}'*) echo new-image ;;\n" +
+		"*'{{.Image}}'*) echo old-image ;;\n" +
+		"*'{{.State.Status}}'*) echo exited ;;\n" +
+		"esac\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	done := runUpdate(t, func(s *DockerService) error { return s.UpdateDockerContainerImage(kindMariaDB, "") })
+	if done["ok"] != false || !strings.Contains(done["error"].(string), "precisa estar rodando") {
+		t.Errorf("done = %v, want a refusal for the stopped MariaDB", done)
+	}
+	b, _ := os.ReadFile(log)
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "rm ") || strings.HasPrefix(line, "run ") || strings.HasPrefix(line, "exec ") {
+			t.Errorf("docker %q ran although the update was refused", line)
+		}
+	}
+}
+
+// Unknown kinds and unregistered apps are refused before docker runs.
+func TestUpdateDockerContainerImage_RefusesUnknownTargets(t *testing.T) {
+	for name, call := range map[string]func(*DockerService) error{
+		"unknown kind":     func(s *DockerService) error { return s.UpdateDockerContainerImage("postgres", "") },
+		"unregistered app": func(s *DockerService) error { return s.UpdateDockerContainerImage(kindApp, "postgres") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			isolateActions(t)
+			log := fakeDockerOnPath(t, "running")
+			if done := runUpdate(t, call); done["ok"] != false {
+				t.Errorf("done = %v, want a refusal", done)
+			}
+			if b, _ := os.ReadFile(log); len(b) != 0 {
+				t.Errorf("docker ran:\n%s", b)
+			}
+		})
+	}
+}

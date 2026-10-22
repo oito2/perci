@@ -49,6 +49,12 @@ Downloaded fonts are installed under `~/.local/share/fonts/perci/<font>`; an arc
 
 ## Docker Application Stack
 
+**Every row in Gerenciar Containers says "Docker inacessível"**
+Perci couldn't query Docker, so the containers' status is unknown — hover the status to see Docker's message. Usually the Docker daemon isn't running (`sudo systemctl start docker`) or your user can't use its socket: add it to the `docker` group (`sudo usermod -aG docker "$USER"`), then log out and back in. Check with `docker ps -a` in a terminal.
+
+**A row in Gerenciar Containers says "não encontrado"**
+The container is registered in Perci but doesn't exist in Docker — it was removed outside Perci, or an import stopped before creating it. Use **Recriar** on that row.
+
 **A new Container Aplicativo isn't reachable at its `*.localhost` URL**
 Check that "Criar Container Nginx" ran first (it's the reverse proxy every app routes through) and that the browser trusts the mkcert wildcard certificate — `mkcert -install` runs automatically the first time the Nginx container is created, but only registers the CA for the invoking user. Also confirm the app's container is actually running (**Docker → Gerenciar Containers**).
 

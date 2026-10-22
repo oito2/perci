@@ -138,7 +138,7 @@ function buildDockerRow(row) {
   tr.appendChild(tdType);
 
   const tdStatus = document.createElement("td");
-  tdStatus.innerHTML = statusBadgeHTML(row.status);
+  tdStatus.innerHTML = statusBadgeHTML(row.status, row.dockerError);
   tr.appendChild(tdStatus);
 
   function setRowLoading() {
@@ -147,7 +147,7 @@ function buildDockerRow(row) {
   function refreshRowStatus() {
     App.GetContainerRows().then(function (fresh) {
       const updated = (fresh || []).find(function (r) { return r.folder === row.folder; });
-      tdStatus.innerHTML = statusBadgeHTML(updated ? updated.status : "");
+      tdStatus.innerHTML = updated ? statusBadgeHTML(updated.status, updated.dockerError) : statusBadgeHTML("");
     });
   }
   function wireQuickAction(btn, fn) {
@@ -187,6 +187,17 @@ function buildDockerRow(row) {
     });
   });
   wrap.appendChild(btnRecreate);
+
+  const btnUpdateImage = iconButton("circleArrowUp", "Atualizar imagem");
+  btnUpdateImage.addEventListener("click", function () {
+    if (running) return;
+    openConfirm("Atualizar imagem", updateImageMessage(row), function () {
+      if (running) return; // re-checked: the confirm dialog is async
+      startExecution('Atualizar imagem de "' + row.name + '"');
+      App.UpdateDockerContainerImage(row.family, row.folder).catch(failRun);
+    });
+  });
+  wrap.appendChild(btnUpdateImage);
 
   const btnLogs = iconButton("scrollText", "Ver Logs");
   btnLogs.addEventListener("click", function () { openLogs(row.folder, row.name); });
@@ -248,11 +259,36 @@ function buildDockerRow(row) {
   return tr;
 }
 
+// updateImageMessage is the confirmation text of a row's "Atualizar
+// imagem": what is downloaded and recreated, and what is kept.
+function updateImageMessage(row) {
+  const kept = " Arquivos, bancos e plugins montados são mantidos; se nada mudou, nada é recriado.";
+  if (row.family === "mariadb") {
+    return 'Atualizar a imagem do MariaDB para a correção mais recente da mesma versão? Antes de recriar o contêiner, um backup completo do banco é salvo em ~/.perci/appstack/backups (o MariaDB precisa estar rodando).' + kept;
+  }
+  if (row.family === "nginx") {
+    return "Atualizar a imagem do Nginx para a correção mais recente da mesma versão e recriar o contêiner?" + kept;
+  }
+  return 'Atualizar a imagem de "' + row.name + '" para a correção mais recente da mesma versão? Todos os contêineres que usam a mesma imagem são recriados.' + kept;
+}
+
+btnDockerlistUpdateAll.addEventListener("click", function () {
+  if (running) return;
+  openConfirm("Atualizar imagens",
+    "Atualizar as imagens de todos os contêineres para as correções mais recentes das mesmas versões? Só os contêineres cuja imagem mudou são recriados; o MariaDB recebe um backup completo antes, em ~/.perci/appstack/backups (precisa estar rodando). Arquivos, bancos e plugins montados são mantidos.",
+    function () {
+      if (running) return; // re-checked: the confirm dialog is async
+      startExecution("Atualizar imagens");
+      App.UpdateAllDockerImages().catch(failRun);
+    });
+});
+
 function renderDockerListScreen() {
   dockerlistRows.innerHTML = "";
   App.GetContainerRows().then(latestOnly("dockerlist", function (rows) {
     rows = rows || [];
     dockerlistEmpty.classList.toggle("hidden", rows.length > 0);
+    dockerlistToolbar.classList.toggle("hidden", rows.length === 0);
     rows.forEach(function (row) { dockerlistRows.appendChild(buildDockerRow(row)); });
   }));
 }

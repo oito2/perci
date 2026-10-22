@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -31,6 +32,7 @@ import (
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/manager/db"
+	"github.com/oito2/perci/internal/ui"
 )
 
 // DockerService binds the "Docker" category: Criar Container e Gerenciar
@@ -185,19 +187,23 @@ type ContainerRow struct {
 	// ContainerFormRequest.Kind (the specific app subtype, e.g. "moodle"),
 	// which is a different field with different values despite the two
 	// structs sharing the same "create/edit a container" screens.
-	Family  string `json:"family"`
-	Type    string `json:"type"`   // "nginx" | "mariadb" | config.AppType* — for the table's label/icon
-	Name    string `json:"name"`   // display label ("Nginx", "MariaDB", or AppContainer.Name)
-	Folder  string `json:"folder"` // the real Docker container name
-	Status  string `json:"status"` // Docker's raw value: running/exited/created/paused/restarting/dead/"" (not found)
-	CanEdit bool   `json:"canEdit"`
-	HasDB   bool   `json:"hasDb"` // only true for "mariadb" — enables the extra Backup/Restore icons
+	Family string `json:"family"`
+	Type   string `json:"type"`   // "nginx" | "mariadb" | config.AppType* — for the table's label/icon
+	Name   string `json:"name"`   // display label ("Nginx", "MariaDB", or AppContainer.Name)
+	Folder string `json:"folder"` // the real Docker container name
+	Status string `json:"status"` // Docker's raw value: running/exited/created/paused/restarting/dead/"" (not found)
+	// DockerError is set (and Status left "") when the Docker daemon could
+	// not be queried, so the status is unknown rather than "not found".
+	DockerError string `json:"dockerError,omitempty"`
+	CanEdit     bool   `json:"canEdit"`
+	HasDB       bool   `json:"hasDb"` // only true for "mariadb" — enables the extra Backup/Restore icons
 }
 
 // GetContainerRows lists every container registered in config.yaml (the
 // source of truth — never derived from `docker ps`), enriched with its
 // live status via appstack.ContainerStatuses — one batched call for every
-// container at once, not a `docker inspect` subprocess per container.
+// container at once, not a `docker inspect` subprocess per container. When
+// Docker can't be queried, every row carries the reason in DockerError.
 func (s *DockerService) GetContainerRows() []ContainerRow {
 	cfg, err := config.Load()
 	if err != nil {
@@ -227,8 +233,12 @@ func (s *DockerService) GetContainerRows() []ContainerRow {
 	for i, row := range rows {
 		names[i] = row.Folder
 	}
-	statuses := appstack.ContainerStatuses(ctx, s.exe, names)
+	statuses, err := appstack.ContainerStatuses(ctx, s.exe, names)
 	for i, row := range rows {
+		if err != nil {
+			rows[i].DockerError = err.Error()
+			continue
+		}
 		rows[i].Status = statuses[row.Folder]
 	}
 	return rows
@@ -353,6 +363,82 @@ func (s *DockerService) RecreateDockerContainer(kind, folder string) error {
 		}
 		return fmt.Errorf("tipo desconhecido: %s", kind)
 	})
+}
+
+// ── Atualizar imagem ──────────────────────────────────────────────────────
+
+// UpdateDockerContainerImage updates the image of one container: Nginx,
+// MariaDB, or an app together with every app sharing its Perci image (see
+// updateImages).
+func (s *DockerService) UpdateDockerContainerImage(kind, folder string) error {
+	return s.runAction(func(stdout io.Writer) error {
+		var target appstack.ImageUpdateTarget
+		switch kind {
+		case kindNginx:
+			target.Nginx = true
+		case kindMariaDB:
+			target.MariaDB = true
+		case kindApp:
+			t, err := appstack.AppImageTarget(folder)
+			if err != nil {
+				return err
+			}
+			target = t
+		default:
+			return fmt.Errorf("tipo desconhecido: %s", kind)
+		}
+		return s.updateImages(stdout, target)
+	})
+}
+
+// UpdateAllDockerImages updates the images of every registered container
+// (see updateImages).
+func (s *DockerService) UpdateAllDockerImages() error {
+	return s.runAction(func(stdout io.Writer) error {
+		target, err := appstack.AllImagesTarget()
+		if err != nil {
+			return err
+		}
+		return s.updateImages(stdout, target)
+	})
+}
+
+// updateImages pulls and rebuilds the images of target, then recreates the
+// containers whose image changed. Before MariaDB is recreated, all its
+// databases are dumped to appstack.MariaDBBackupDir; MariaDB must be
+// running for that, otherwise nothing is recreated.
+func (s *DockerService) updateImages(stdout io.Writer, target appstack.ImageUpdateTarget) error {
+	ctx := context.Background()
+	plan, err := appstack.PrepareImageUpdate(ctx, s.exe, stdout, target)
+	if err != nil {
+		return err
+	}
+	if plan.Empty() {
+		ui.Success(stdout, "Tudo já está na versão mais recente — nenhum contêiner foi recriado.")
+		return nil
+	}
+	if plan.MariaDB {
+		if appstack.ContainerStatus(ctx, s.exe, appstack.MariaDBContainerName) != "running" {
+			return fmt.Errorf("o MariaDB precisa estar rodando para o backup automático antes da atualização — inicie-o e tente de novo")
+		}
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		dir, err := appstack.MariaDBBackupDir()
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(dir, "mariadb-antes-da-atualizacao-"+time.Now().Format("2006-01-02-150405")+".sql")
+		if err := db.Backup(ctx, s.exe, stdout, appstack.MariaDBContainerName, cfg.Docker.MariaDB.DBUser, cfg.Docker.MariaDB.DBPass, dest); err != nil {
+			return fmt.Errorf("backup antes da atualização: %w", err)
+		}
+	}
+	if err := appstack.ApplyImageUpdate(ctx, s.exe, stdout, plan); err != nil {
+		return err
+	}
+	ui.Success(stdout, "Imagens atualizadas e contêineres recriados.")
+	return nil
 }
 
 // ── Ver Logs ──────────────────────────────────────────────────────────────

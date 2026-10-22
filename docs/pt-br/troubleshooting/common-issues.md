@@ -49,6 +49,12 @@ As fontes baixadas são instaladas em `~/.local/share/fonts/perci/<fonte>`; um a
 
 ## Stack Docker de Aplicativos
 
+**Todas as linhas de Gerenciar Containers dizem "Docker inacessível"**
+O Perci não conseguiu consultar o Docker, então o status dos contêineres é desconhecido — passe o mouse sobre o status para ver a mensagem do Docker. Em geral o serviço do Docker não está rodando (`sudo systemctl start docker`) ou o seu usuário não pode usar o socket dele: adicione-o ao grupo `docker` (`sudo usermod -aG docker "$USER"`), depois saia da sessão e entre de novo. Confira com `docker ps -a` num terminal.
+
+**Uma linha de Gerenciar Containers diz "não encontrado"**
+O contêiner está registrado no Perci, mas não existe no Docker — foi removido fora do Perci, ou uma importação parou antes de criá-lo. Use **Recriar** nessa linha.
+
 **Um Container Aplicativo novo não fica acessível na sua URL `*.localhost`**
 Confira se "Criar Container Nginx" já rodou (é o proxy reverso por onde todo app é roteado) e se o navegador confia no certificado wildcard do mkcert — o `mkcert -install` roda automaticamente na primeira vez que o container Nginx é criado, mas só registra a CA pro usuário que invocou. Confirme também se o container do app está de fato rodando (**Docker → Gerenciar Containers**).
 

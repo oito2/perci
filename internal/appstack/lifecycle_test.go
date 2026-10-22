@@ -15,7 +15,14 @@
 
 package appstack
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/oito2/perci/internal/executor"
+)
 
 func TestParseContainerStatuses(t *testing.T) {
 	cases := []struct {
@@ -33,6 +40,11 @@ func TestParseContainerStatuses(t *testing.T) {
 			"multiple lines",
 			"/nginx\trunning\n/mariadb\texited\n/myapp\tcreated",
 			map[string]string{"nginx": "running", "mariadb": "exited", "myapp": "created"},
+		},
+		{
+			"docker ps names without a slash",
+			"nginx\trunning\nloja\texited",
+			map[string]string{"nginx": "running", "loja": "exited"},
 		},
 		{
 			"malformed line without tab is skipped",
@@ -58,4 +70,47 @@ func TestParseContainerStatuses(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeDockerPS puts a `docker` script first on PATH that prints out for
+// `docker ps` and fails with stderr msg when fail is set.
+func fakeDockerPS(t *testing.T, out string, fail bool, msg string) {
+	t.Helper()
+	bin := t.TempDir()
+	script := "#!/bin/sh\n"
+	if fail {
+		script += "echo '" + msg + "' >&2\nexit 1\n"
+	} else {
+		script += "[ \"$1\" = ps ] || exit 1\nprintf '" + out + "'\n"
+	}
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestContainerStatuses(t *testing.T) {
+	exe := executor.New(nil, nil)
+
+	t.Run("missing container is absent, others keep their status", func(t *testing.T) {
+		fakeDockerPS(t, `nginx\trunning\nother\texited\n`, false, "")
+		got, err := ContainerStatuses(t.Context(), exe, []string{"nginx", "loja"})
+		if err != nil {
+			t.Fatalf("ContainerStatuses: unexpected error %v", err)
+		}
+		if len(got) != 1 || got["nginx"] != "running" {
+			t.Errorf("got %v, want map[nginx:running]", got)
+		}
+	})
+
+	t.Run("unreachable docker is an error carrying stderr", func(t *testing.T) {
+		fakeDockerPS(t, "", true, "permission denied while trying to connect to the docker API")
+		got, err := ContainerStatuses(t.Context(), exe, []string{"nginx"})
+		if err == nil {
+			t.Fatalf("got %v, nil error; want an error", got)
+		}
+		if !strings.Contains(err.Error(), "permission denied") {
+			t.Errorf("error %q does not carry docker's stderr", err)
+		}
+	})
 }

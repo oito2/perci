@@ -357,3 +357,11 @@ removing the container from the stack; configs from before they existed get a wa
 **Decision** (the user's choices): the MegaSync screen and `internal/system/megasync` are removed with no uninstaller left, like Linux Toys; the uninstallation guide lists the commands to remove the package, repository and key by hand. The `.megaignore` exclusion of Moodle plugin mounts stays, since it protects the development files of anyone running MEGAsync. Zed Editor, VS Code and VSCodium move to one **IDEs** item table (same pattern as Linguagens e SDKs, with requirements and an uninstall confirmation); Android Studio and Antigravity IDE keep their local-file screens.
 
 **Revisit if**: MEGAsync installation is wanted back, or another IDE installed from a downloaded file joins the catalogue.
+
+## 2026-10-22 — Updating container images
+
+**Context**: Recriar reuses the image already on the machine, and Perci's images are built once per version (`perci-php82`, …) from tags that only pin the minor PHP or major Node version (`php:8.2-fpm`, `node:24-bookworm`); Nginx and MariaDB run straight from `nginx:1.26-alpine` and `mariadb:11.4`. Security patches of those versions never reached existing containers.
+
+**Decision** (the user's choices): an **Atualizar imagem** action per row and an **Atualizar imagens** button for every container. It pulls the same tags, rebuilds a Perci image only when a base image changed (or its content label differs), and recreates only containers whose image changed, keeping stopped ones stopped; an app's update recreates every app sharing its image. MariaDB is included: a full dump goes to `~/.perci/appstack/backups` first (MariaDB must be running) and the container runs with `MARIADB_AUTO_UPGRADE=1`. No availability check on screen open — the action itself reports when everything is current. Versions (PHP minor, Node major, Nginx/MariaDB lines) never change here; that stays with Editar.
+
+**Revisit if**: a pinned tag moves to a new minor/major line, or checking for updates without pulling becomes cheap enough to show on screen.

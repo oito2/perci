@@ -262,12 +262,44 @@ func EnsureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 	if !ValidPHPVersion(version) {
 		return fmt.Errorf("versão PHP não suportada: %s", version)
 	}
-	return ensureImage(ctx, exe, stdout, imageBuild{
+	return ensureImage(ctx, exe, stdout, phpImageBuild(version))
+}
+
+// phpImageBuild describes the ImageName(version) image.
+func phpImageBuild(version string) imageBuild {
+	return imageBuild{
 		name:  ImageName(version),
 		first: "primeira vez que a versão " + version + " é usada",
 		files: map[string]string{"Dockerfile": phpImageDockerfile, "php.ini": phpIni},
 		args:  []string{"PHP_VERSION=" + version, fmt.Sprintf("UID=%d", os.Getuid())},
-	})
+		bases: []string{"php:" + version + "-fpm"},
+	}
+}
+
+// buildImage runs `docker build` for b in a temporary build context,
+// labelling the image with b.hash(). The upstream base images are the ones
+// already in the local image store (pulled on first use).
+func buildImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, b imageBuild) error {
+	buildDir, err := os.MkdirTemp("", "perci-appstack-image-*")
+	if err != nil {
+		return fmt.Errorf("criar diretório de build temporário: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(buildDir) }()
+	for n, content := range b.files {
+		if err := os.WriteFile(filepath.Join(buildDir, n), []byte(content), 0o644); err != nil {
+			return fmt.Errorf("escrever %s: %w", n, err)
+		}
+	}
+
+	args := []string{"build", "-t", b.name, "--label", imageLabel + "=" + b.hash()}
+	for _, a := range b.args {
+		args = append(args, "--build-arg", a)
+	}
+	args = append(args, "--", buildDir)
+	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", args...); err != nil {
+		return fmt.Errorf("construir imagem %s: %w", b.name, err)
+	}
+	return nil
 }
 
 // imageLabel holds the hash of what an image was built from.
@@ -280,6 +312,7 @@ type imageBuild struct {
 	first string // why a first build happens, for the progress message
 	files map[string]string
 	args  []string
+	bases []string // upstream images it is built FROM, refreshed by an image update
 }
 
 // hash identifies b's content: its files, in name order, and build args.
@@ -318,29 +351,13 @@ func ensureImage(ctx context.Context, exe *executor.Executor, stdout io.Writer, 
 			"--filter", "ancestor="+b.name, "--format", "{{.Names}}")
 	}
 
-	buildDir, err := os.MkdirTemp("", "perci-appstack-image-*")
-	if err != nil {
-		return fmt.Errorf("criar diretório de build temporário: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(buildDir) }()
-	for n, content := range b.files {
-		if err := os.WriteFile(filepath.Join(buildDir, n), []byte(content), 0o644); err != nil {
-			return fmt.Errorf("escrever %s: %w", n, err)
-		}
-	}
-
 	if rebuild {
 		ui.Warning(stdout, "A imagem "+b.name+" foi construída por outra versão do Perci — reconstruindo com a configuração atual (pode levar alguns minutos)...")
 	} else {
 		ui.Info(stdout, "Construindo imagem "+b.name+" ("+b.first+" — pode levar alguns minutos)...")
 	}
-	args := []string{"build", "-t", b.name, "--label", imageLabel + "=" + want}
-	for _, a := range b.args {
-		args = append(args, "--build-arg", a)
-	}
-	args = append(args, "--", buildDir)
-	if err := exe.Run(ctx, executor.Options{Stdout: stdout, Stderr: stdout}, "docker", args...); err != nil {
-		return fmt.Errorf("construir imagem %s: %w", b.name, err)
+	if err := buildImage(ctx, exe, stdout, b); err != nil {
+		return err
 	}
 	if names := strings.Fields(users); len(names) > 0 {
 		ui.Warning(stdout, "Estes contêineres continuam na imagem antiga até serem recriados (Docker → Gerenciar Containers → Recriar): "+strings.Join(names, ", "))

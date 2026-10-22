@@ -180,15 +180,21 @@ function statusInfo(status) {
     default: return { label: status, color: "neutral", ping: false };
   }
 }
-function statusBadgeHTML(status) {
-  const info = statusInfo(status);
+// dockerError (GetContainerRows' row.dockerError) means Docker couldn't be
+// queried: the badge says so and shows the reason as a tooltip instead of
+// "não encontrado".
+function statusBadgeHTML(status, dockerError) {
+  const info = dockerError
+    ? { label: "Docker inacessível", color: "warning", ping: false }
+    : statusInfo(status);
   const dot = "status status-" + info.color;
   const indicator = info.ping
     ? '<span class="inline-grid *:[grid-area:1/1]"><span class="' + dot + ' animate-ping"></span><span class="' + dot + '"></span></span>'
     : '<span class="' + dot + '"></span>';
   // The default label is Docker's raw status — escaped like any other
   // non-literal text.
-  return '<span class="inline-flex items-center gap-2">' + indicator + "<span>" + escHTML(info.label) + "</span></span>";
+  const title = dockerError ? ' title="' + escAttr(dockerError) + '"' : "";
+  return '<span class="inline-flex items-center gap-2"' + title + ">" + indicator + "<span>" + escHTML(info.label) + "</span></span>";
 }
 
 // --- escaping (a convention for the whole file, not just this section) -

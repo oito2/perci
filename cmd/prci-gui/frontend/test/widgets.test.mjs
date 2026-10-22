@@ -48,6 +48,13 @@ test("statusBadgeHTML escapes an unknown Docker status", () => {
   assert.ok(html.includes("&lt;img src=x&gt;") && !html.includes("<img"));
 });
 
+test("statusBadgeHTML tells an unreachable Docker apart from a missing container", () => {
+  assert.ok(ctx.statusBadgeHTML("").includes("não encontrado"));
+  const html = ctx.statusBadgeHTML("", `docker: exit status 1: permission denied "/var/run/docker.sock"`);
+  assert.ok(html.includes("Docker inacessível") && !html.includes("não encontrado"), html);
+  assert.ok(html.includes(`title="docker: exit status 1: permission denied &quot;/var/run/docker.sock&quot;"`), html);
+});
+
 test("textFieldHTML keeps values intact and hides secrets", () => {
   const plain = ctx.textFieldHTML("f", "Campo", { value: `a&amp;b"` });
   assert.ok(plain.includes(`value="a&amp;amp;b&quot;"`), plain);

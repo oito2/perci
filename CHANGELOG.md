@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-22
+
+### Added
+- Docker → **Gerenciar Containers** → **Atualizar imagem** (per row) and **Atualizar imagens** (all containers): downloads the newest build of the same PHP, Node, Nginx or MariaDB version (security fixes) and recreates only the containers whose image changed; an app's update also recreates the other apps sharing its image. Files, databases and mounted Moodle plugins are kept, and stopped containers stay stopped. Before MariaDB is recreated, all its databases are dumped to `~/.perci/appstack/backups`; MariaDB must be running for that.
+
+### Fixed
+- Docker → **Gerenciar Containers**: when Docker can't be queried (daemon stopped, user without access to its socket), the rows now say "Docker inacessível", with Docker's message on hover, instead of "não encontrado" as if the containers were missing. The Visão Geral summary says so too.
+
 ## [1.5.0] - 2026-10-19
 
 ### Changed
@@ -169,7 +177,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/oito2/perci/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/oito2/perci/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/oito2/perci/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/oito2/perci/compare/v1.3.1...v1.4.0

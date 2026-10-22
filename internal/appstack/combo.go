@@ -140,11 +140,18 @@ func EnsureComboImage(ctx context.Context, exe *executor.Executor, stdout io.Wri
 	if !ValidNodeVersion(nodeVersion) {
 		return fmt.Errorf("versão Node não suportada: %s", nodeVersion)
 	}
-	return ensureImage(ctx, exe, stdout, imageBuild{
+	return ensureImage(ctx, exe, stdout, comboImageBuild(phpVersion, nodeVersion))
+}
+
+// comboImageBuild describes the ComboImageName(phpVersion, nodeVersion)
+// image.
+func comboImageBuild(phpVersion, nodeVersion string) imageBuild {
+	return imageBuild{
 		name:  ComboImageName(phpVersion, nodeVersion),
 		first: "primeira vez que essa combinação PHP+Node é usada",
 		files: map[string]string{"Dockerfile": comboDockerfile, "php.ini": phpIni, "supervisord.conf": comboSupervisordConf},
 		args: []string{"PHP_VERSION=" + phpVersion, "NODE_VERSION=" + nodeVersion,
 			fmt.Sprintf("UID=%d", os.Getuid())},
-	})
+		bases: []string{"php:" + phpVersion + "-fpm", "node:" + nodeVersion + "-bookworm-slim"},
+	}
 }

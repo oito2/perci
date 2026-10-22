@@ -313,6 +313,15 @@ export class ContainerRow {
              */
             this["status"] = "";
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * DockerError is set (and Status left "") when the Docker daemon could
+             * not be queried, so the status is unknown rather than "not found".
+             * @member
+             * @type {string | undefined}
+             */
+            this["dockerError"] = undefined;
+        }
         if (!("canEdit" in $$source)) {
             /**
              * @member

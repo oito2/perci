@@ -90,7 +90,8 @@ export function GetContainerLogsSnapshot(folder) {
  * GetContainerRows lists every container registered in config.yaml (the
  * source of truth — never derived from `docker ps`), enriched with its
  * live status via appstack.ContainerStatuses — one batched call for every
- * container at once, not a `docker inspect` subprocess per container.
+ * container at once, not a `docker inspect` subprocess per container. When
+ * Docker can't be queried, every row carries the reason in DockerError.
  * @returns {$CancellablePromise<$models.ContainerRow[]>}
  */
 export function GetContainerRows() {
@@ -279,6 +280,15 @@ export function StopDockerContainer(folder) {
 }
 
 /**
+ * UpdateAllDockerImages updates the images of every registered container
+ * (see updateImages).
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateAllDockerImages() {
+    return $Call.ByName("main.DockerService.UpdateAllDockerImages");
+}
+
+/**
  * UpdateDockerContainer applies an edit by removing and recreating the
  * container with the new parameters. Treated as a long-running operation
  * (it may rebuild the base image) — same handling as Recriar, shows the
@@ -288,6 +298,18 @@ export function StopDockerContainer(folder) {
  */
 export function UpdateDockerContainer(req) {
     return $Call.ByName("main.DockerService.UpdateDockerContainer", req);
+}
+
+/**
+ * UpdateDockerContainerImage updates the image of one container: Nginx,
+ * MariaDB, or an app together with every app sharing its Perci image (see
+ * updateImages).
+ * @param {string} kind
+ * @param {string} folder
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateDockerContainerImage(kind, folder) {
+    return $Call.ByName("main.DockerService.UpdateDockerContainerImage", kind, folder);
 }
 
 // Private type creation functions

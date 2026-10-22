@@ -84,6 +84,7 @@ See [Docker application stack architecture](../architecture/appstack.md) for the
 | Path | Purpose |
 |---|---|
 | `~/.perci/appstack/certs/` | mkcert-generated `*.localhost` wildcard TLS certificate, created by "Criar Container Nginx" and regenerated when fewer than 30 days remain. |
+| `~/.perci/appstack/backups/` | `mariadb-antes-da-atualizacao-<date>.sql` dumps (mode `0600`, directory `0700`) taken automatically before **Atualizar imagem** recreates MariaDB. Never deleted by Perci. |
 | `~/.perci/appstack/nginx/default.conf` | Generated Nginx config, one `server{}` block per app in `docker.apps`; regenerated and reloaded automatically on every create/edit/remove. |
 | `~/.perci/appstack/php-conf/<folder>/zz-perci-overrides.ini` | Generated per-app php.ini snippet (currently just `memory_limit`), bind-mounted read-only into the app's own container at `/usr/local/etc/php/conf.d/`; regenerated on every create/edit. |
 | `{{workspace_path}}/localhost/html\|data\|logs\|databases/*` | Per-app bind-mounted folders — see [Docker application stack architecture](../architecture/appstack.md#path-conventions). |

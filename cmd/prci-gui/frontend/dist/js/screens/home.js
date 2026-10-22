@@ -42,6 +42,10 @@ function renderDashboardStats() {
       dashboardDockerSummary.textContent = "Nenhum";
       return;
     }
+    if (rows[0].dockerError) {
+      dashboardDockerSummary.textContent = "Docker inacessível";
+      return;
+    }
     const runningCount = rows.filter(function (r) { return r.status === "running"; }).length;
     dashboardDockerSummary.textContent = runningCount + " / " + rows.length;
   });

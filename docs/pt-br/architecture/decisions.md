@@ -358,3 +358,11 @@ uma recusa.
 **Decisão** (escolhas do usuário): a tela MegaSync e o `internal/system/megasync` saem sem deixar desinstalador, como o Linux Toys; o guia de desinstalação lista os comandos para remover o pacote, o repositório e a chave à mão. A exclusão no `.megaignore` das montagens de plugins Moodle continua, porque protege os arquivos de desenvolvimento de quem usa o MEGAsync. Zed Editor, VS Code e VSCodium passam para uma tabela **IDEs** (mesmo padrão de Linguagens e SDKs, com requisitos e confirmação ao desinstalar); Android Studio e Antigravity IDE mantêm suas telas de arquivo local.
 
 **Rever se**: a instalação do MEGAsync voltar a ser desejada, ou outra IDE instalada por arquivo baixado entrar no catálogo.
+
+## 2026-10-22 — Atualização das imagens dos containers
+
+**Contexto**: Recriar reaproveita a imagem que já está na máquina, e as imagens do Perci são construídas uma vez por versão (`perci-php82`, …) a partir de tags que fixam só a versão menor do PHP ou a maior do Node (`php:8.2-fpm`, `node:24-bookworm`); Nginx e MariaDB rodam direto de `nginx:1.26-alpine` e `mariadb:11.4`. As correções de segurança dessas versões nunca chegavam aos containers existentes.
+
+**Decisão** (escolhas do usuário): uma ação **Atualizar imagem** por linha e um botão **Atualizar imagens** para todos os containers. Ela baixa as mesmas tags, reconstrói uma imagem do Perci só quando uma imagem base mudou (ou o rótulo de conteúdo difere) e recria só os containers cuja imagem mudou, mantendo parados os que estavam parados; a atualização de um app recria todos os apps que usam a mesma imagem. O MariaDB entra: um dump completo vai antes para `~/.perci/appstack/backups` (o MariaDB precisa estar rodando) e o container roda com `MARIADB_AUTO_UPGRADE=1`. Sem verificação de disponibilidade ao abrir a tela — a própria ação informa quando tudo já está atualizado. As versões (menor do PHP, maior do Node, linhas do Nginx/MariaDB) nunca mudam aqui; isso continua com Editar.
+
+**Rever se**: uma tag fixada passar para uma nova linha menor/maior, ou verificar atualizações sem baixar ficar barato o bastante para mostrar na tela.

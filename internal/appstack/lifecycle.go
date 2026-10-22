@@ -39,36 +39,38 @@ func ContainerStatus(ctx context.Context, exe *executor.Executor, name string) s
 }
 
 // ContainerStatuses is the batched form of ContainerStatus: one `docker
-// inspect` for every name at once instead of one subprocess per name.
-//
-// `docker inspect` exits non-zero as soon as any requested name does not
-// exist, but still prints every successfully inspected container to
-// stdout. The command runs via `bash -c ... || true` so the exit code stays
-// 0 and exe.Output still returns the captured statuses; a missing
-// container is simply absent from the result. Names are shell-quoted with
-// ShellQuote.
-func ContainerStatuses(ctx context.Context, exe *executor.Executor, names []string) map[string]string {
+// ps -a` lists every container of the host, and the statuses of names are
+// picked from it; a name with no container is simply absent from the
+// result. `docker ps` only fails when the Docker daemon can't be reached
+// (daemon stopped, no permission on its socket, docker not installed), so
+// an error means the statuses are unknown, not that the containers are
+// missing; it carries docker's trimmed stderr.
+func ContainerStatuses(ctx context.Context, exe *executor.Executor, names []string) (map[string]string, error) {
 	result := make(map[string]string, len(names))
 	if len(names) == 0 {
-		return result
+		return result, nil
 	}
 
-	quoted := make([]string, len(names))
-	for i, n := range names {
-		quoted[i] = executor.ShellQuote(n)
+	var stderr bytes.Buffer
+	out, err := exe.Output(ctx, executor.Options{Stderr: &stderr}, "docker", "ps", "-a", "--no-trunc", "--format", "{{.Names}}\t{{.State}}")
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("%w: %s", err, msg)
+		}
+		return nil, err
 	}
-	script := "docker inspect -f '{{.Name}}\t{{.State.Status}}' -- " + strings.Join(quoted, " ") + " 2>/dev/null || true"
-
-	out, _ := exe.Output(ctx, executor.Options{}, "bash", "-c", script)
-	for name, status := range parseContainerStatuses(out) {
-		result[name] = status
+	all := parseContainerStatuses(out)
+	for _, name := range names {
+		if status, ok := all[name]; ok {
+			result[name] = status
+		}
 	}
-	return result
+	return result, nil
 }
 
-// parseContainerStatuses parses `docker inspect -f '{{.Name}}\t{{.State.Status}}'`
-// output (one "/name\tstatus" per line) into a name->status map, without
-// needing a Docker daemon.
+// parseContainerStatuses parses `docker ps --format '{{.Names}}\t{{.State}}'`
+// output (one "name\tstatus" per line; a leading "/" is dropped) into a
+// name->status map, without needing a Docker daemon.
 func parseContainerStatuses(out string) map[string]string {
 	result := make(map[string]string)
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {

@@ -31,7 +31,9 @@ Generates (per app): the container itself, `~/.local/bin/` CLI wrappers (`php-<f
 **Docker → Gerenciar Containers** lists every container perci knows about (Nginx, MariaDB, each app) with live status. Pick one, then an action:
 
 - **Iniciar / Parar / Reiniciar** — straightforward lifecycle control.
-- **Recriar** — reapplies the parameters already on file, no form.
+- **Recriar** — reapplies the parameters already on file, no form. It reuses the image already on the machine, so it does not pick up new PHP/Node/Nginx/MariaDB patch releases.
+- **Atualizar imagem** — downloads the newest build of the same version (e.g. `php:8.2-fpm` moves from 8.2.x to the latest 8.2 patch), rebuilds Perci's image when its base changed, and recreates the container only if its image changed. For an app, every other app sharing the same image (same PHP/Node version) is recreated too. For MariaDB, a full dump is saved to `~/.perci/appstack/backups/mariadb-antes-da-atualizacao-<date>.sql` first (MariaDB must be running) and the server upgrades its system tables on start (`MARIADB_AUTO_UPGRADE`). Files, databases and mounted Moodle plugins live on the host and are kept; a stopped container is stopped again afterwards.
+- **Atualizar imagens** (above the table) — the same for every container at once; use it when a security release comes out.
 - **Ver logs** — follows the container's logs (Ctrl+C to stop following). For a PHP+Node combo container, both processes' output is interleaved, prefixed by supervisord.
 - **Remover** — removes the container and its `config.yaml` entry. **Never deletes `html`/`data` on disk.**
 - **Editar** (MariaDB and every app type, not Nginx) — remove-and-recreate with new parameters, existing volumes preserved. The only real way to change a running container's image or PHP/Node version.
