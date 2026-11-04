@@ -60,8 +60,9 @@ func TestGuideStatus(t *testing.T) {
 	}
 }
 
-// Every committed version of a standard is known, so a project's copy of
-// it shows as outdated rather than edited.
+// Every committed version of a standard other than the current one is
+// known, so a project's copy of it shows as outdated rather than edited
+// (the current version is recognized as applied without the history).
 func TestTemplateHistory(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
@@ -71,6 +72,10 @@ func TestTemplateHistory(t *testing.T) {
 	}
 	for _, m := range models {
 		rel := filepath.ToSlash(m.Instruction)
+		current, err := readTpl(m.Instruction)
+		if err != nil {
+			t.Fatal(err)
+		}
 		out, err := exec.CommandContext(t.Context(), "git", "log", "--format=%H", "--", rel).Output()
 		if err != nil {
 			t.Fatal(err)
@@ -78,6 +83,9 @@ func TestTemplateHistory(t *testing.T) {
 		for _, commit := range strings.Fields(string(out)) {
 			data, err := exec.CommandContext(t.Context(), "git", "show", commit+":./"+rel).Output()
 			if err != nil {
+				continue
+			}
+			if string(data) == current {
 				continue
 			}
 			sum := sha256.Sum256(data)

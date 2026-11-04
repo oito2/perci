@@ -16,9 +16,10 @@
 package ai
 
 // templateHistory lists, per instruction file, the SHA-256 of every
-// committed version of it, so a project's copy can be told apart as an
-// older Perci version (outdated) or an edit. TestTemplateHistory lists
-// the hashes a newly committed version needs here.
+// committed version of it before the current one, so a project's copy can
+// be told apart as an older Perci version (outdated) or an edit. Once a
+// standard changes again, TestTemplateHistory lists the hash of the
+// version it replaced, to be added here.
 var templateHistory = map[string][]string{
 	"BASH.md": {
 		"80cd8b8a80eb5f8cc9986ec6cdb9f2135cfd2c6561db815393f630e77cd64f30",
