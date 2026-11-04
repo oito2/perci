@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-04
+
+### Added
+- **Repositórios** menu, right after Docker, for Git accounts on GitHub and GitLab (self-hosted hosts included). Each account owns a folder, and every repository inside it commits with the account's name and e-mail and connects with the account's SSH key — also from the terminal — through an `includeIf` rule in `~/.gitconfig`.
+- Repositórios → **Configurar Conta**: create, edit and remove accounts. Each account gets a new SSH key (with an optional passphrase) or uses an existing one, shows its public key with a link to the provider's key page, confirms the server key (built in for github.com and gitlab.com), unlocks a key with a passphrase into the session's SSH agent and tests the connection. An optional, read-only API token is stored in the system keyring. The form explains how to register the key and create the token on the chosen provider, with buttons to its pages. The **Identidade padrão** tab sets the global commit name and e-mail used outside the account folders.
+- Repositórios → **<account>**: the account's repositories (found anywhere under its folder) with branch, last commit and changes, read without network access. **Verificar Alterações** fetches, **Baixar Alterações** fast-forwards the current branch and skips repositories with uncommitted changes, without upstream or that diverged, saying why. Per repository: Ajustar URL (HTTPS → SSH, checked before saving), Definir remote, Corrigir identidade, `.gitignore` and Código de Conduta. Repositories of another owner or host are listed apart.
+- Repositórios → <account> → **Novo Repositório**: clone one of the account's repositories (picked from its list on GitHub/GitLab — private ones too with a token — or by name or URL) or start a new local one, in a folder inside the account folder.
+- Repositórios → **Gerenciar Repositórios**: **Exportar** writes the accounts and their repositories (folder and SSH URL; never SSH keys or tokens) to a YAML file of its own, separate from the Docker export; **Importar** creates or merges the accounts — a new account gets its folder, an SSH key and its `~/.gitconfig` rule — and lists the repositories as pending on each account's screen, where **Clonar pendentes** tests the connection and clones them.
+- Home → Visão Geral → Desinstalar Perci: **Fazer backup dos repositórios** saves the repositories export to a file of its own before uninstalling.
+- Dev Tools → **IA: Contextos**: one checkbox per AI agent — Claude Code, Gemini (CLI and Code Assist), ChatGPT CLI (Codex), OpenCode and Antigravity — and only the checked agents' files are written: `CLAUDE.md` and path-scoped `.claude/rules/perci/*.md` (Claude Code loads a language standard only when it works on matching files), `GEMINI.md`, `.aiexclude` and `.geminiignore`, or an `instructions` entry in `opencode.json`. Unchecking an agent removes the files Perci wrote for it, keeping any you edited.
+- IA: Contextos: `.instructions/PROJECT.md` for the rules defined for the project. Perci creates it once and never rewrites it, it takes precedence over `AGENTS.md` and the standards, and agents are told to record there the rules you set. Lines you had added to `AGENTS.md` are moved into it on the first Aplicar.
+- IA: Contextos: each standard shows a description and whether it is applied, outdated (written by an earlier Perci) or edited; complements are listed under their base; a folder with no standards starts on the project type its files suggest; **Aplicar** first lists the files it will create, update or remove.
+- IA: Contextos: new standards **TypeScript/Node**, **Docker/Compose** and **CI (GitHub Actions)**.
+
+### Changed
+- Desinstalar Perci with **Também remover configurações** also removes the Git accounts' `~/.gitconfig` rules, their files in `~/.perci/git` and their tokens from the keyring. SSH keys and repositories stay.
+- IA: Contextos: `AGENTS.md` lists the standards by file name instead of importing them, so no agent loads every standard on every session; it ends with a note saying which agents it was generated for.
+- IA: Contextos: the read rules no longer block images, PDFs and lockfiles, and leave `vendor/`, `dist/`, `build/`, `out/`, `env/` and `.next/` readable when git tracks files in them; rules earlier versions added and no longer apply are removed from `.claude/settings.json`, keeping your own.
+- IA: Contextos: the standards were reviewed and updated (Wails v3.0.0, Go 1.26/1.27, PHP 8.3+, supported MySQL/MariaDB and Moodle lines, Moodle security and test commands, Slim security), each with a `Last verified` date and a `Quality` section. Dart + Flutter is now a general standard, and the Lumina boilerplate left the Bash standard.
+
+### Removed
+- Dev Tools → **Repositórios** (folder cards, Clonar, Iniciar Repositório, Identidade Local, Arquivos): replaced by the Repositórios menu. Its `repo_folders` key is dropped from `config.yaml` on the next save.
+- The **Repositórios** item of the tray menu and its tab in the compact window.
+
+### Fixed
+- Docker → Gerenciar Containers: the **Atualizar imagem** button had no icon.
+- IA: Contextos: `MOODLE.md` no longer keeps raw `{{MOODLE_VERSION}}` markers: the version also comes from a plugin's `$plugin->requires`, and reads "unknown" when nothing gives it.
+
 ## [1.6.0] - 2026-10-22
 
 ### Added
@@ -177,7 +205,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/oito2/perci/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/oito2/perci/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/oito2/perci/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/oito2/perci/compare/v1.4.0...v1.4.1

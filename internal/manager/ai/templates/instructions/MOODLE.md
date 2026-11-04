@@ -1,87 +1,57 @@
 # Moodle Plugin Development
 
 Standards and conventions for developing Moodle plugins in this project.
-Covers file structure, API usage, architecture patterns, and common mistakes.
+Covers file structure, API usage, security, architecture patterns, testing and common mistakes.
+
+Last verified: 2026-11-04
 
 ---
 
 ## Development Environment
 
-- **Moodle Version:** {{MOODLE_VERSION}}
-- **Installation Path:** {{MOODLE_PATH}}
+| Item | Value |
+|---|---|
+| Target Moodle release | {{MOODLE_VERSION}} |
+| Target Moodle version number (`YYYYMMDDXX`) | {{MOODLE_FULLVERSION}} |
+| Moodle root | The project folder (`.`) when it is a Moodle checkout; from Moodle 5.1 the web-accessible code lives in its `public/` subfolder. A plugin-only project needs a Moodle checkout to run tests — ask the user where it is. |
 
 ---
 
 ## Docker Development Environment
 
-Each Moodle install runs in its own container (one project, one PHP version, one URL), created in perci via **Docker → Criar Contêiner → Contêiner Aplicativo**, type **Moodle**. It provides PHP tools as host-side wrapper scripts in `~/.local/bin/`, suffixed with the project's own folder name — no PHP-version suffix, since a project only ever has the one PHP version it was created with. All commands run inside that project's container automatically.
+When the project was created by Perci as an application container of type **Moodle** (one project, one PHP version, one URL), Perci writes host-side wrapper scripts to `~/.local/bin/`, suffixed with the project's folder name. Each wrapper runs the tool inside that project's container, from the project root (`/var/www/html` in the container); host paths under the project folder are translated to container paths.
 
-### Available commands
-
-For a project in folder `<folder>` (e.g. `mdle`):
-
-| Command | Description |
+| Command | Runs |
 |---|---|
-| `php-<folder>` | PHP CLI |
-| `phpcs-<folder>` | PHP_CodeSniffer (global, PSR-12 and standards installed in the container) |
-| `phpcbf-<folder>` | PHP Code Beautifier and Fixer |
-| `phpunit-<folder>` | PHPUnit |
+| `php-<folder>` | The container's PHP CLI — use it for Moodle CLI scripts and for the project's own `vendor/bin/*` tools |
 | `composer-<folder>` | Composer |
+| `phpunit-<folder>` | The container's **global** PHPUnit PHAR — **not** Moodle's PHPUnit from `composer.json`; do not use it for Moodle tests |
+| `phpcs-<folder>` / `phpcbf-<folder>` | The container's **global** PHP_CodeSniffer, which does not know the `moodle` standard |
 
-### Common Moodle CLI commands
+For Moodle tests and the Moodle coding standard, always run the project's own tools through the PHP wrapper (`php-<folder> vendor/bin/phpunit`, `php-<folder> vendor/bin/phpcs --standard=moodle`). Examples for a project in folder `mdle`:
 
 ```bash
-# Run a PHP file inside the container
-php-mdle admin/cli/purge_caches.php
-
-# Run the upgrade tool after plugin changes
-php-mdle admin/cli/upgrade.php --non-interactive
-
-# Install Moodle coding standard in the project
-composer-mdle require --dev moodlehq/moodle-cs
-
-# Run PHPCS with the Moodle standard (uses project's vendor phpcs + moodle-cs)
-php-mdle vendor/bin/phpcs --standard=moodle local/myplugin/
-
-# Auto-fix coding style violations
-php-mdle vendor/bin/phpcbf --standard=moodle local/myplugin/
-
-# Run PHPUnit test suite
-phpunit-mdle
-
-# Run a specific test class
-phpunit-mdle --filter MyPluginTest
+php-mdle admin/cli/purge_caches.php                 # Moodle 5.1+: php-mdle public/admin/cli/purge_caches.php
+php-mdle admin/cli/upgrade.php --non-interactive    # after a version.php bump
 ```
-
-> **Note:** Use `php-mdle vendor/bin/phpcs --standard=moodle` (the project's own phpcs binary) when
-> the Moodle coding standard is required, because the Moodle standard is registered through
-> `moodlehq/moodle-cs` installed in the project's `vendor/`. The global `phpcs-mdle` wrapper uses
-> the system-wide PHPCS installation and does not have access to project-local standards.
 
 ---
 
 ## Target Moodle Version
 
-This project targets **Moodle {{MOODLE_VERSION}}+** (core `$version = {{MOODLE_FULLVERSION}}`).
+Use only APIs available in the plugin's minimum supported Moodle version (`$plugin->requires` in the plugin's `version.php`; for a new plugin, this project's target release: {{MOODLE_VERSION}}). **Strictly avoid** deprecated functions.
 
-- Use only APIs compatible with Moodle {{MOODLE_VERSION}} or later.
-- **Strictly avoid** functions deprecated in previous versions.
+### Moodle / PHP Support Matrix
 
-### PHP Compatibility Matrix
+| Moodle | PHP | Security support until | Perci container option → PHP |
+|---|---|---|---|
+| 4.5 (LTS) | 8.1 – 8.3 | 2027-10-04 | `4.4-4.5` → 8.1, 8.2, 8.3 |
+| 5.1 | 8.2 – 8.4 | 2027-04-19 | `5.1+` → 8.3, 8.4 |
+| 5.2 | 8.3 – 8.4 | 2027-10-04 | `5.1+` → 8.3, 8.4 |
+| 5.3 (LTS) | 8.3 – 8.4 | 2029-10-01 | `5.1+` → 8.3, 8.4 |
+| 4.1 – 4.4, 5.0 | — | **Out of support** | — |
 
-| Moodle Version | Supported PHP | perci "Versão do Moodle" → PHP options |
-|---|---|---|
-| 4.1 (LTS) | 7.4 – 8.1 | `4.1` → 7.4, 8.0, 8.1 |
-| 4.2 | 8.0 – 8.2 | `4.2-4.3` → 8.0, 8.1, 8.2 |
-| 4.3 | 8.0 – 8.2 | `4.2-4.3` → 8.0, 8.1, 8.2 |
-| 4.4 | 8.1 – 8.3 | `4.4-4.5` → 8.1, 8.2, 8.3 |
-| 4.5 (LTS) | 8.1 – 8.3 | `4.4-4.5` → 8.1, 8.2, 8.3 |
-| 5.0 | 8.2 – 8.4 | `5.0` → 8.2, 8.3, 8.4 |
-| 5.1 | 8.2 – 8.4 | `5.1+` → 8.3, 8.4 |
-| 5.2 | 8.3 – 8.4 | `5.1+` → 8.3, 8.4 |
-| 5.3 (LTS, from 2026-10-05) | 8.3 – 8.4 | `5.1+` → 8.3, 8.4 |
-
-Write PHP code compatible with the lowest **Supported PHP** for {{MOODLE_VERSION}}, not just the PHP version running in this stack's container — sites still on that release's lowest supported PHP must keep working. If unsure whether legacy-PHP compatibility matters for this project, ask the user before relying on syntax newer than that minimum (e.g. enums, readonly properties, first-class callable syntax).
+Write PHP code compatible with the lowest PHP version supported by the plugin's minimum Moodle release, not just the PHP running in this project's container. If unsure whether that minimum matters for this project, ask the user before relying on newer syntax (e.g. enums, readonly properties, first-class callable syntax). Do not drop support for an older Moodle release on your own — ask first.
 
 ### Hook API vs lib.php Callbacks
 
@@ -125,16 +95,15 @@ $callbacks = [
 
 ---
 
-## Moodle 5.1+ — `/public` Directory & Routing Engine
+## Moodle 5.1+ — `public/` Directory & Routing Engine
 
-Starting with Moodle 5.1, the codebase ships a `/public` directory, and the web server document root must point to `{{MOODLE_PATH}}/public` instead of `{{MOODLE_PATH}}`. A new (optional) Routing Engine enables cleaner URLs; it is **not compulsory** — a compatibility layer keeps traditional script-based URLs (e.g. `/mod/forum/view.php?id=1`) working.
+From Moodle 5.1 the checkout has a `public/` directory: the web server's document root points to it, and everything web-accessible (including `admin/`, `local/`, `mod/`, `blocks/`, ...) lives under it, while `config.php`, `composer.json` and `vendor/` stay at the root. An optional Routing Engine enables cleaner URLs; a compatibility layer keeps script URLs (e.g. `/mod/forum/view.php?id=1`) working.
 
-**Impact on this Docker stack:** none — this project's container already has its own dedicated nginx `root`, pointed directly at `{{MOODLE_PATH}}/public` by perci itself when the container was created (Moodle apps always route this way, by design; no manual nginx change needed). To run a Moodle 5.1+ project here:
-
-- `$CFG->wwwroot` (and the browser URL) is just the app's own URL, e.g. `http://<folder>.localhost` — **no** `/public` suffix; the document root already points inside `public/`, so it never appears in the URL.
-- Plugin code (`local/`, `mod/`, `blocks/`, etc.) keeps the exact same relative structure — it now lives under `public/<area>/<plugin>` instead of `<area>/<plugin>`. Never hardcode the Moodle root path; use `$CFG->dirroot` / `new moodle_url(...)` as already required elsewhere in this guide.
-- This project does not cover **upgrading** an existing install to 5.1+ (moving plugins from above `/public` into it) — only fresh 5.1+ checkouts, which already ship the `public/` layout.
-- Do not implement custom routes against the new Routing Engine unless explicitly asked — default to standard script-based pages, which keep working through the compatibility layer.
+- **Check where `admin/` is before running any CLI script** (`ls public/admin/cli` vs `ls admin/cli`) — never hard-code one layout. The same applies to `admin/tool/phpunit/cli/` and `admin/tool/behat/cli/`.
+- Plugin code keeps the same relative structure under `public/` (`public/local/<plugin>`). Never hard-code the Moodle root path in code; use `$CFG->dirroot` and `new moodle_url(...)`.
+- In a Perci container created with the `5.1+` option, nginx already serves `public/`; `$CFG->wwwroot` is the app URL without a `/public` suffix.
+- Moving an existing install to the 5.1 layout is out of scope unless the user asks for it.
+- Do not implement routes for the Routing Engine unless explicitly asked — default to standard script-based pages.
 
 ---
 
@@ -163,10 +132,12 @@ defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_example';
 $plugin->version   = 2026010100; // Format: YYYYMMDDNN (NN = daily increment, starting at 00)
-$plugin->requires  = {{MOODLE_FULLVERSION}}; // Minimum Moodle core version
+$plugin->requires  = 2024100700; // Minimum Moodle core version (this example: 4.5)
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '1.0';
 ```
+
+`$plugin->requires` is the version number of the oldest Moodle release the plugin supports. For a new plugin, use this project's target version number — {{MOODLE_FULLVERSION}} — unless the user asks to support older releases.
 
 ### Language File
 
@@ -185,7 +156,8 @@ All user-facing strings must be defined here. Never hardcode strings in PHP or M
 - Tables must use the Moodle prefix (handled by XMLDB).
 - Every table **must** have a primary key.
 - Define indexes for columns used in `WHERE` or `JOIN` clauses.
-- Supported types: `INT`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BINARY`.
+- Supported types: `INT`, `CHAR`, `TEXT`, `NUMBER`, `FLOAT`, `BINARY`. Prefer `NUMBER` (fixed precision and scale) over `FLOAT` (approximate) for decimal values.
+- Edit `install.xml` with the XMLDB editor (*Site administration → Development → XMLDB editor*) so it stays valid and `upgrade.php` code can be generated from it.
 
 ### db/upgrade.php
 
@@ -230,6 +202,20 @@ $capabilities = [
     ],
 ];
 ```
+
+---
+
+## Security
+
+| Concern | Rule |
+|---|---|
+| Access | `require_login()` (with the course/module when there is one) at the top of every page, then `require_capability()` / `has_capability()` against the right context. |
+| State-changing requests | `require_sesskey()` (or `confirm_sesskey()` when handling the failure yourself) before any create/update/delete; links that change state carry `sesskey`. |
+| Forms | Build them with `moodleform` (formslib): it adds and checks `sesskey`, and cleans each element by its declared `PARAM_*` type. |
+| Input | `required_param()` / `optional_param()` with the narrowest `PARAM_*` type; never read `$_GET`/`$_POST` directly. |
+| Output | Escape with `s()` (attributes and plain text), `format_string()` (short user-entered strings, e.g. names) and `format_text()` (rich text, with its format and context). In Mustache, `{{var}}` escapes; `{{{var}}}` only for already-formatted HTML. |
+| SQL | `$DB` methods with `?` or `:named` placeholders and a params array; never concatenate values into SQL. |
+| Files | Store through the File API (`get_file_storage()`), serve through `pluginfile.php` with a `<component>_pluginfile()` callback that checks access. |
 
 ---
 
@@ -315,58 +301,65 @@ class provider implements \core_privacy\local\metadata\null_provider {
 
 ### Full provider (stores personal data)
 
+Implement the metadata provider, the plugin request provider and `core_userlist_provider` (used to delete several users' data in one context):
+
 ```php
 namespace local_example\privacy;
 
 use core_privacy\local\metadata\collection;
-use core_privacy\local\request\contextlist;
 use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\approved_userlist;
+use core_privacy\local\request\contextlist;
+use core_privacy\local\request\userlist;
 
 class provider implements
     \core_privacy\local\metadata\provider,
-    \core_privacy\local\request\plugin\provider {
+    \core_privacy\local\request\plugin\provider,
+    \core_privacy\local\request\core_userlist_provider {
 
     public static function get_metadata(collection $collection): collection {
-        $collection->add_database_table('example_table', [
-            'userid'      => 'privacy:metadata:example_table:userid',
-            'data'        => 'privacy:metadata:example_table:data',
-            'timecreated' => 'privacy:metadata:example_table:timecreated',
-        ], 'privacy:metadata:example_table');
+        $collection->add_database_table('local_example', [
+            'userid' => 'privacy:metadata:local_example:userid',
+            'data'   => 'privacy:metadata:local_example:data',
+        ], 'privacy:metadata:local_example');
         return $collection;
     }
 
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
-        $sql = "SELECT ctx.id
-                  FROM {example_table} et
-                  JOIN {context} ctx ON ctx.instanceid = et.courseid
-                       AND ctx.contextlevel = :contextlevel
-                 WHERE et.userid = :userid";
-        $contextlist->add_from_sql($sql, ['contextlevel' => CONTEXT_COURSE, 'userid' => $userid]);
+        // $contextlist->add_from_sql(...): the contexts where $userid has data.
         return $contextlist;
     }
 
+    public static function get_users_in_context(userlist $userlist): void {
+        // $userlist->add_from_sql(...): the users with data in $userlist->get_context().
+    }
+
     public static function export_user_data(approved_contextlist $contextlist): void {
-        // Export user data for GDPR subject access requests.
+        // writer::with_context($context)->export_data([...], $data) for each approved context.
     }
 
     public static function delete_data_for_all_users_in_context(\context $context): void {
-        global $DB;
-        // Delete all personal data stored in this context.
+        // Delete every user's data in $context.
     }
 
     public static function delete_data_for_user(approved_contextlist $contextlist): void {
-        global $DB;
-        // Delete data for a specific user across their approved contexts.
+        // Delete $contextlist->get_user()'s data in each approved context.
+    }
+
+    public static function delete_data_for_users(approved_userlist $userlist): void {
+        // Delete the data of $userlist->get_userids() in $userlist->get_context().
     }
 }
 ```
+
+Every metadata string key (`privacy:metadata:...`) must exist in the language file. Cover the provider with a PHPUnit test extending `\core_privacy\tests\provider_testcase`.
 
 ---
 
 ## External API (Web Services)
 
-Declare each endpoint as a class under `classes/external/` and register it in `db/services.php`. From Moodle 4.2 the external API classes live in the `core_external` namespace; the global names (`external_api`, `external_value`, ...) are deprecated aliases — use them only when the plugin must support 4.1.
+Declare each endpoint as a class under `classes/external/` and register it in `db/services.php`. From Moodle 4.2 the external API classes live in the `core_external` namespace; the global names (`external_api`, `external_value`, ...) are deprecated aliases — use them only when the plugin must support Moodle older than 4.2.
 
 ```php
 // classes/external/get_example.php
@@ -481,7 +474,7 @@ $observers = [
 | **Request Vars** | `$id = $_POST['id'];` | `$id = required_param('id', PARAM_INT);` |
 | **URLs** | `echo '/local/plugin/index.php';` | `new moodle_url('/local/plugin/index.php')` |
 | **DB Queries** | `mysqli_query(...);` | `$DB->get_records('table', [...]);` |
-| **Security** | Skipping checks | `require_login(); require_capability();` |
+| **Security** | Skipping checks | See [Security](#security) |
 
 ### Database Access
 
@@ -563,7 +556,7 @@ The plugin must work correctly regardless of which theme is active on the site.
 
 - Always use the global `$DB` object for all database operations.
 - SQL table names in raw queries must use `{bracket_format}`.
-- Follow **Moodle Coding Style** (based on PSR-12).
+- Follow the **Moodle coding style** (checked by `moodlehq/moodle-cs`).
 - **Ignore when searching the codebase:** `.git`, `node_modules`, `vendor`, `.grunt`, `moodledata`, `cache`.
 
 ### Database Portability (MySQL/MariaDB priority, PostgreSQL support)
@@ -582,22 +575,25 @@ This stack's database is **MariaDB** (MySQL-compatible) — the priority target 
 
 ## Quality
 
+Run from the Moodle root, through the Docker wrappers when they exist (`php-<folder> ...`, `composer-<folder> ...`). Paths under `admin/` are under `public/admin/` from Moodle 5.1 — check the checkout. Replace `local/example` and `local_example` with the plugin's path and component.
+
 ```bash
-# Install Moodle coding standard (once per project)
-composer-mdle require --dev moodlehq/moodle-cs
+# Coding style (install the standard once per checkout)
+composer require --dev moodlehq/moodle-cs
+php vendor/bin/phpcs --standard=moodle local/example/
+php vendor/bin/phpcbf --standard=moodle local/example/     # auto-fix
 
-# Check coding style
-php-mdle vendor/bin/phpcs --standard=moodle local/example/
+# PHPUnit: Moodle's own PHPUnit from composer; needs $CFG->phpunit_prefix and $CFG->phpunit_dataroot in config.php
+php admin/tool/phpunit/cli/init.php        # again after upgrades, plugin installs or new test files
+php vendor/bin/phpunit --testsuite local_example_testsuite
 
-# Auto-fix coding style violations
-php-mdle vendor/bin/phpcbf --standard=moodle local/example/
+# Behat: needs $CFG->behat_wwwroot, $CFG->behat_prefix and $CFG->behat_dataroot in config.php
+php admin/tool/behat/cli/init.php          # prints the exact run command
+php vendor/bin/behat --config <behat dataroot>/behatrun/behat/behat.yml --tags=@local_example
 
-# Run tests
-phpunit-mdle
-
-# Run tests for a specific plugin
-phpunit-mdle --filter local_example
+# JavaScript, when amd/src/ changed (needs npm install with the Node version in .nvmrc)
+npx grunt amd
 ```
 
-- **moodle-cs** — enforces Moodle coding style (based on PSR-12); install via `composer-<folder> require --dev moodlehq/moodle-cs`.
-- **phpunit** — run the full test suite before reporting a task as done, via the project's own `phpunit-<folder>` wrapper.
+- Zero coding-standard errors in changed files; PHPUnit and Behat green for the plugin before reporting a task as done.
+- After a `version.php` bump, run `admin/cli/upgrade.php --non-interactive` and purge caches before testing.

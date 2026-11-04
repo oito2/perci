@@ -1,6 +1,8 @@
 # Tauri v2 Frontend — Vanilla TypeScript + Vite
 
-Complement for Tauri v2 apps whose webview is **plain TypeScript bundled with Vite** (no UI framework), as produced by the `vanilla-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP and build rules live there.
+Complement for Tauri v2 apps whose webview is **plain TypeScript bundled with Vite** (no UI framework), as produced by the `vanilla-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP, IPC and build rules live there.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -13,7 +15,7 @@ Complement for Tauri v2 apps whose webview is **plain TypeScript bundled with Vi
 ├── tsconfig.json           # "strict": true — keep it
 ├── src/
 │   ├── main.ts             # entry: wires DOM events to the API layer
-│   ├── api/                # typed wrappers around invoke/listen/Channel (only place that imports @tauri-apps/api)
+│   ├── api/                # errors.ts + typed command wrappers (TAURI.md → Frontend IPC)
 │   ├── ui/                 # DOM rendering helpers
 │   └── styles.css
 └── src-tauri/              # see TAURI.md
@@ -23,19 +25,12 @@ Complement for Tauri v2 apps whose webview is **plain TypeScript bundled with Vi
 
 ## Calling Rust
 
-- Import from the v2 modules: `invoke` and `Channel` from `@tauri-apps/api/core`, `listen`/`emit` from `@tauri-apps/api/event`, windows from `@tauri-apps/api/webviewWindow`. Do not use `window.__TAURI__` when the code is bundled by Vite.
-- **One typed wrapper per command** in `src/api/`. UI code never calls `invoke` with a string literal directly.
-- Argument keys are **camelCase** (Rust `file_name` ↔ `fileName`) unless the command uses `rename_all`.
-- Rejections carry the serialized Rust error (`{ kind, message }`, see `TAURI.md`); type it and handle it — never leave a promise unhandled.
+Wrappers, argument casing and `CommandError` follow `TAURI.md` → Frontend IPC. Windows come from `@tauri-apps/api/webviewWindow`; do not use `window.__TAURI__` when the code is bundled by Vite.
+
+Streams use a `Channel` created in the wrapper:
 
 ```typescript
 import { invoke, Channel } from "@tauri-apps/api/core";
-
-export type CommandError = { kind: "io" | "invalidInput"; message: string };
-
-export function increment(by: number): Promise<number> {
-  return invoke<number>("increment", { by });
-}
 
 export type Progress =
   | { event: "started"; data: { total: number } }
@@ -51,7 +46,7 @@ export async function runImport(path: string, onProgress: (p: Progress) => void)
 
 ### Events
 
-`listen()` returns a **Promise** of the unlisten function. Await it, keep the handle, and call it when the view that registered the listener is torn down — an SPA does not unregister listeners on its own.
+Await `listen()`, keep the handle, and call it when the view is torn down — an SPA does not unregister listeners on its own.
 
 ```typescript
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -73,12 +68,11 @@ export function unwatchSync(): void {
 
 ## DOM Safety
 
-The webview can reach IPC, so an XSS is a path into the backend.
+General rules: `TAURI.md` → Markup safety. In plain DOM code:
 
 - Write text with `textContent` / `innerText`; build elements with `document.createElement` + `append`.
-- **Never** assign `innerHTML`, `outerHTML` or call `insertAdjacentHTML` / `document.write` with data from commands, events, files, URLs or user input. Static markup literals written in the source are the only acceptable `innerHTML` content.
-- Set attributes with `setAttribute` / properties, never by concatenating HTML strings; do not build `href`/`src` from untrusted data without validating the scheme.
-- No `eval`, `new Function` or string-based `setTimeout`.
+- **Never** assign `innerHTML`, `outerHTML` or call `insertAdjacentHTML` / `document.write` with untrusted data. Static markup literals written in the source are the only acceptable `innerHTML` content.
+- Set attributes with `setAttribute` / properties, never by concatenating HTML strings.
 - Query elements once, type them (`querySelector<HTMLInputElement>`), and handle `null`.
 
 ```typescript
@@ -125,7 +119,7 @@ export default defineConfig(() => ({
 | `clearScreen: false` | Keeps Rust compiler errors visible |
 | `strictPort: true` | Tauri expects a fixed port; fail instead of switching |
 | `TAURI_DEV_HOST` | Needed for physical mobile devices during `tauri android/ios dev` |
-| `envPrefix` | Only `VITE_*` and `TAURI_ENV_*` reach `import.meta.env` — never put secrets in them, they ship in the bundle |
+| `envPrefix` | Only `VITE_*` and `TAURI_ENV_*` reach `import.meta.env` (shipped in the bundle) |
 | `build.target` | Chromium (WebView2) on Windows, WebKit on macOS/Linux |
 
 ---
@@ -174,14 +168,13 @@ test("increment forwards the argument", async () => {
 | Anti-pattern | Why | Instead |
 |---|---|---|
 | `el.innerHTML = data` | XSS with IPC access | `textContent` / `createElement` |
-| `invoke("cmd")` scattered in UI code | Untyped, renames break silently | Typed wrapper in `src/api/` |
 | `listen(...)` without keeping the unlisten handle | Duplicate handlers, leaks | Await and store `UnlistenFn` |
-| Secrets in `VITE_*` variables | Shipped inside the bundle | Keep secrets in Rust / OS keychain |
-| `import { invoke } from "@tauri-apps/api/tauri"` | v1 path | `@tauri-apps/api/core` |
 
 ---
 
 ## Quality
+
+Frontend checks; they add to the `TAURI.md` Quality section, which runs after them.
 
 ```bash
 npx tsc --noEmit
@@ -190,5 +183,3 @@ npx prettier --check .
 npx vitest run
 npm run build
 ```
-
-Then run the Rust checks from `TAURI.md`.

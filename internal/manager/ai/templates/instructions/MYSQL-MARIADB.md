@@ -2,12 +2,14 @@
 
 Apply this standard when working on MySQL or MariaDB schema design, migrations, slow-query investigation, queue-style transactions, connection pools, or production database configuration. Prefer exact version checks before applying a feature-specific pattern because MySQL and MariaDB have diverged in several SQL details.
 
+Last verified: 2026-11-04
+
 ## Activation
 - Designing MySQL or MariaDB tables, indexes, and constraints
 - Reviewing migrations before they run on large production tables
 - Debugging slow queries, lock waits, deadlocks, or connection exhaustion
 - Adding keyset pagination, upserts, full-text search, JSON columns, or queues
-- Configuring application connection pools, read replicas, TLS, or slow logs
+- Configuring application connections, read replicas, TLS, or slow logs
 
 ---
 
@@ -18,6 +20,19 @@ Start by identifying the engine and version:
 SELECT VERSION();
 SHOW VARIABLES LIKE 'version_comment';
 ```
+
+### Supported lines
+
+| Engine | Line | Status |
+|---|---|---|
+| MySQL | 9.7 LTS | Supported (premier support until 2031-04-30) |
+| MySQL | 8.4 LTS | Supported (premier support until 2029-04-30) |
+| MySQL | 26.x Innovation | Short-lived; only when the project already uses it |
+| MySQL | 8.0, 5.7 | **End of life** (8.0 on 2026-04-30) — plan an upgrade to 8.4 or 9.7 |
+| MariaDB | 10.11, 11.4, 11.8, 12.3 (LTS) | Supported (community maintenance ends 2028-02-16, 2029-05-29, 2028-06-04, 2029-06-12) |
+| MariaDB | 10.6 and older | **End of life** (10.6 community support ended 2026-07-06) |
+
+New projects target a supported LTS line. On an end-of-life version, keep the code compatible with it but tell the user it no longer receives security fixes.
 
 Keep MySQL and MariaDB guidance separate when syntax differs:
 - **MySQL 8.0+** documents row aliases as the replacement for `VALUES(col)` in `ON DUPLICATE KEY UPDATE`; `VALUES(col)` is deprecated there.
@@ -53,7 +68,7 @@ CREATE TABLE orders (
 | **UUID Lookup Keys** | `BINARY(16)` with conversion helpers | `VARCHAR(36)` primary keys on hot tables |
 | **Money / Exact Quantities** | `DECIMAL(p, s)` | `FLOAT` or `DOUBLE` |
 | **User-facing Text (MySQL 8.0+)** | `utf8mb4_0900_ai_ci` | `utf8` / `utf8mb3` legacy collations |
-| **User-facing Text (MySQL 5.7 / MariaDB)** | `utf8mb4_unicode_ci` | `utf8mb3` |
+| **User-facing Text (MariaDB, or both engines)** | `utf8mb4_unicode_ci` | `utf8mb3` |
 | **Application Timestamps** | `DATETIME` with UTC managed by app | Assuming `DATETIME` stores time zone metadata |
 | **Soft Deletes** | `deleted_at DATETIME NULL` + scoped indexes | Filtering soft-deleted rows without an index |
 | **Extensible Status Values** | Lookup table or constrained `VARCHAR` | `ENUM` when values change often |
@@ -121,6 +136,10 @@ LIMIT 50;
 - `key`: `NULL` when a selective predicate exists
 - `rows`: Very high row estimate for an interactive path
 - `Extra`: `Using temporary`, `Using filesort`, or broad `Using where`
+
+To measure real execution (it **runs** the query — use a replica or a copy for writes and heavy reads):
+- **MySQL 8.0.18+:** `EXPLAIN ANALYZE SELECT ...`
+- **MariaDB:** `ANALYZE SELECT ...` (or `ANALYZE FORMAT=JSON SELECT ...`); MariaDB has no `EXPLAIN ANALYZE`.
 
 *Avoid adding indexes blindly. Each index increases write cost, migration time, backup size, and buffer-pool pressure.*
 
@@ -239,45 +258,15 @@ COMMIT;
 
 ---
 
-## Connection Pools
+## Application Connections (PHP)
 
-### SQLAlchemy (Python)
-```python
-from sqlalchemy import create_engine
+PHP-FPM has no shared connection pool: each worker opens its own connection per request (PDO, Doctrine DBAL and Eloquent all build on PDO).
 
-engine = create_engine(
-    "mysql+mysqlconnector://app:secret@db.internal/app",
-    pool_size=10,
-    max_overflow=5,
-    pool_timeout=30,
-    pool_recycle=240,
-    pool_pre_ping=True,
-    connect_args={"connect_timeout": 5},
-)
-```
-
-### Node.js (`mysql2`)
-```javascript
-import mysql from 'mysql2/promise';
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 30000,
-});
-
-const [rows] = await pool.execute(
-  'SELECT id, total FROM orders WHERE account_id = ? LIMIT 50',
-  [accountId],
-);
-```
-*Keep pool recycling time (`pool_recycle`) lower than the database server's `wait_timeout` (e.g., set `pool_recycle=240` if `wait_timeout=300`).*
+- Size `max_connections` above the sum of all PHP-FPM `pm.max_children` that can connect, plus workers, cron and admin sessions.
+- Set the charset in the DSN or connection params (`charset=utf8mb4`), `PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION` and `PDO::ATTR_EMULATE_PREPARES => false`.
+- Avoid `PDO::ATTR_PERSISTENT` unless measured: a persistent connection keeps session state (open transactions, variables, locks) between requests.
+- Long-running CLI workers reconnect after `wait_timeout` errors ("MySQL server has gone away") instead of holding one connection for hours.
+- Connection details for each data layer: `SLIM-PDO.md`, `SLIM-DBAL.md`, `SLIM-ELOQUENT.md`.
 
 ---
 
@@ -295,9 +284,9 @@ Enabling slow log dynamically:
 ```sql
 SET GLOBAL slow_query_log = 'ON';
 SET GLOBAL long_query_time = 1;
-SET GLOBAL log_queries_not_using_indexes = 'ON';
+-- Temporarily, while hunting missing indexes only (very noisy):
+-- SET GLOBAL log_queries_not_using_indexes = 'ON';
 ```
-*Use `EXPLAIN ANALYZE` only when safe. It executes the query and can be expensive on large datasets.*
 
 ---
 
@@ -309,7 +298,7 @@ Read replicas can lag. Do not route read-your-own-write paths, checkout flows, p
 -- Legacy syntax (older MySQL / MariaDB)
 SHOW SLAVE STATUS\G
 
--- MySQL 8.0.22+ and MariaDB 10.5.1+
+-- MySQL 8.0.22+ and MariaDB 10.5.1+ (the only form on MySQL 8.4+)
 SHOW REPLICA STATUS\G
 ```
 
@@ -340,11 +329,13 @@ DROP USER IF EXISTS ''@'%';
 
 ## Configuration Baseline
 
-Example starting point for a dedicated database host:
+Example starting point for a dedicated database host; adjust every value to the measured workload:
 
 ```ini
 [mysqld]
-innodb_buffer_pool_size = 4G
+# Size from available RAM: roughly 50-75% of memory on a dedicated host,
+# much less when the web server or PHP-FPM share the machine.
+innodb_buffer_pool_size = <size>
 innodb_flush_log_at_trx_commit = 1
 sync_binlog = 1
 
@@ -357,7 +348,7 @@ innodb_lock_wait_timeout = 10
 
 slow_query_log = ON
 long_query_time = 1
-log_queries_not_using_indexes = ON
+log_queries_not_using_indexes = OFF   # turn on only temporarily; it logs every unindexed query
 
 log_bin = mysql-bin
 binlog_format = ROW
@@ -377,15 +368,31 @@ binlog_expire_logs_seconds = 604800
 | DDL in multi-step SQL scripts | Unexpected implicit commits breaking rollback logic | Run DDL separately and handle migration steps carefully |
 | Direct DML on `mysql.user` | Grant table corruption risk | Use `CREATE USER`, `ALTER USER`, `DROP USER` |
 | Application user with admin grants | High blast radius on vulnerability | Least-privilege runtime user (`SELECT, INSERT, UPDATE, DELETE`) |
-| Pool recycle above `wait_timeout` | Broken/stale connections in pool | Recycle below server timeout + use pre-ping |
+| Long-lived worker connection without reconnect | "Server has gone away" after `wait_timeout` | Reconnect on that error, or reconnect per job |
 | Replica reads immediately after write | Stale user-facing state | Pin read-after-write flows to Primary |
 
 ---
 
 ## Output Expectations for Code / Schema Review
 When this standard is used for a review, return:
-1. **Engine/version assumptions** (MySQL 8.0 vs 5.7 vs MariaDB).
+1. **Engine/version assumptions** (MySQL 8.4 / 9.7 vs MariaDB, and whether the version is end of life).
 2. **Highest-risk issues** (correctness, locks, implicit commits, security, migration blocking).
 3. **Exact SQL or code changes** for the safe path.
 4. **Validation plan:** `EXPLAIN` analysis, migration dry run, lock/deadlock checks, and rollback strategy.
 5. **Syntax divergences** affecting the recommendation.
+
+---
+
+## Quality
+
+Before reporting a schema or query change as done:
+
+```bash
+mysql -e "SELECT VERSION();"                       # or mariadb -e ...; confirm engine and version
+mysql --database=<test_db> -e "EXPLAIN <query>;"   # every new or changed query on a large table
+mysqlcheck --check --databases <test_db>           # after migrations on the test database
+```
+
+- Run the migration forward (and backward, when the tool supports it) on a test database with the **same engine and major version** as production.
+- For large tables, confirm the `ALGORITHM`/`LOCK` clause is accepted (the statement fails instead of falling back to a locking copy) or plan a `gh-ost`/`pt-online-schema-change` run.
+- Run the project's test suite; every new query has a test against the test database.

@@ -32,6 +32,13 @@ import (
 	"github.com/oito2/perci/internal/config"
 )
 
+// DevToolsService binds the "Dev Tools" category: Plugins Moodle,
+// IA: Contextos, IA: SKILLs, IA: MCPs — one struct, with one group of
+// methods per sub-screen.
+type DevToolsService struct {
+	serviceBase
+}
+
 // MoodleAppOption is one Moodle container offered by the screen.
 type MoodleAppOption struct {
 	Folder string `json:"folder"`

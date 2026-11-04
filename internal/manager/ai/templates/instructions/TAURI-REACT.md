@@ -1,6 +1,8 @@
 # Tauri v2 Frontend — React + TypeScript + Vite
 
-Complement for Tauri v2 apps whose webview is **React + TypeScript bundled with Vite**, as produced by the `react-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP and build rules live there.
+Complement for Tauri v2 apps whose webview is **React + TypeScript bundled with Vite**, as produced by the `react-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP, IPC and build rules live there.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -10,7 +12,7 @@ Complement for Tauri v2 apps whose webview is **React + TypeScript bundled with 
 src/
 ├── main.tsx            # createRoot + <React.StrictMode> — keep StrictMode
 ├── App.tsx
-├── api/                # typed wrappers around invoke / Channel (only place that imports @tauri-apps/api/core)
+├── api/                # errors.ts + typed command wrappers (TAURI.md → Frontend IPC)
 ├── hooks/              # useCommand, useTauriEvent, feature hooks
 ├── components/
 └── features/<name>/    # components + hooks per feature, when the app grows
@@ -22,21 +24,7 @@ Keep the template's `vite.config.ts` Tauri options (`clearScreen: false`, `serve
 
 ## Invoking Commands
 
-- Import `invoke`/`Channel` from `@tauri-apps/api/core`, `listen` from `@tauri-apps/api/event`.
-- One typed wrapper per command in `src/api/`; components never call `invoke("...")` directly.
-- Argument keys are camelCase unless the Rust command uses `rename_all`. Type rejections with the serialized error shape from `TAURI.md`.
-- Never call `invoke` during render — only in event handlers, effects or a data hook.
-
-```typescript
-// src/api/counter.ts
-import { invoke } from "@tauri-apps/api/core";
-
-export type CommandError = { kind: "io" | "invalidInput"; message: string };
-
-export function increment(by: number): Promise<number> {
-  return invoke<number>("increment", { by });
-}
-```
+Wrappers, argument casing and `CommandError` follow `TAURI.md` → Frontend IPC. Never call `invoke` during render — only in event handlers, effects or a data hook.
 
 ---
 
@@ -49,7 +37,7 @@ Expose `data`, `error`, `busy` and a stable `run` so every component handles loa
 ```typescript
 // src/hooks/useCommand.ts
 import { useCallback, useState } from "react";
-import type { CommandError } from "../api/counter";
+import type { CommandError } from "../api/errors";
 
 type CommandState<T> = { data: T | null; error: CommandError | null; busy: boolean };
 
@@ -75,7 +63,7 @@ export function useCommand<A extends unknown[], T>(fn: (...args: A) => Promise<T
 
 ### Events — always clean up
 
-`listen()` returns a **Promise** of the unlisten function. Register it in `useEffect` and unlisten in the cleanup; otherwise handlers pile up on every mount (and StrictMode mounts twice in development).
+Register `listen()` in `useEffect` and unlisten in the cleanup; otherwise handlers pile up on every mount (and StrictMode mounts twice in development).
 
 ```typescript
 // src/hooks/useTauriEvent.ts
@@ -106,14 +94,12 @@ For streams (progress, logs) pass a `Channel` to the command from inside an effe
 
 - Local UI state: `useState` / `useReducer`. Shared state: React Context for low-frequency values; use the state library the project already has otherwise — do not add one without asking.
 - The Rust side is the source of truth for persisted data; React state is a cache of command results. Re-fetch or update it from events after a mutation instead of guessing.
-- Never store secrets in React state, `localStorage` or `VITE_*` variables.
 
 ---
 
 ## Markup Safety
 
-- Render data through JSX (`{value}` is escaped). **Never** use `dangerouslySetInnerHTML` with data from commands, events, files or user input.
-- Do not build `href`/`src` from untrusted data without validating the scheme; open external links through the opener plugin.
+General rules: `TAURI.md` → Markup safety. Render data through JSX (`{value}` is escaped); **never** use `dangerouslySetInnerHTML` with untrusted data.
 
 ---
 
@@ -142,17 +128,17 @@ export default defineConfig([
 ]);
 ```
 
-Mock the backend with `@tauri-apps/api/mocks`. Unmount before `clearMocks()` and let pending unlisten calls settle, or they hit the removed mock:
+Mock the backend with `@tauri-apps/api/mocks`. Unmount before `clearMocks()` and flush pending unlisten promises inside `act`, or they hit the removed mock (use `vi.waitFor` instead when waiting for a specific condition):
 
 ```tsx
 import { afterEach, expect, test } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { Counter } from "../src/Counter";
 
 afterEach(async () => {
   cleanup();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await act(async () => {});
   clearMocks();
 });
 
@@ -181,6 +167,8 @@ test("shows the value returned by the command", async () => {
 
 ## Quality
 
+Frontend checks; they add to the `TAURI.md` Quality section, which runs after them.
+
 ```bash
 npx tsc --noEmit
 npx eslint .
@@ -189,4 +177,4 @@ npx vitest run
 npm run build
 ```
 
-Run only the tools the project has configured, then the Rust checks from `TAURI.md`.
+Run only the tools the project has configured.

@@ -2,6 +2,8 @@
 
 Base standard for applications built with **Tauri v2** and a Rust backend: desktop (Linux, Windows, macOS) and, where the project targets them, Android and iOS. Apply it to any task that touches `src-tauri/`, the Tauri configuration, capabilities, plugins, bundling or the app's release pipeline. The frontend complements (`TAURI-VANILLA.md`, `TAURI-SVELTEKIT.md`, `TAURI-REACT.md`) add rules for the webview side and are always used together with this file.
 
+Last verified: 2026-11-04
+
 Tauri v1 APIs, config keys (`tauri.allowlist`, `build.distDir`, `build.devPath`) and the `@tauri-apps/api/tauri` import path do not apply — never introduce them.
 
 ---
@@ -80,14 +82,14 @@ impl serde::Serialize for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 ```
 
-The frontend receives `{ kind: "io" | "invalidInput", message: string }` as the rejection value. Never put secrets, full stack traces or absolute paths of the user's machine in error messages.
+The frontend receives `{ kind: "io" | "invalidInput", message: string }` as the rejection value, typed as `CommandError` (see [Frontend IPC](#frontend-ipc)). Never put secrets, full stack traces or absolute paths of the user's machine in error messages.
 
 ---
 
 ## Commands
 
 - Annotate with `#[tauri::command]`, register **all** commands in a single `tauri::generate_handler![...]` call (only the last `invoke_handler` call is used). Command names must be unique.
-- **Typed arguments:** take owned, typed parameters (`String`, `PathBuf`, structs deriving `serde::Deserialize`), not `serde_json::Value`. JavaScript passes argument keys in **camelCase** by default (`invoke_message` ↔ `invokeMessage`); only change it with `#[tauri::command(rename_all = "snake_case")]` consistently across the project.
+- **Typed arguments:** take owned, typed parameters (`String`, `PathBuf`, structs deriving `serde::Deserialize`), not `serde_json::Value`.
 - **Async commands:** borrowed arguments (`&str`, `State<'_, T>`) in an `async fn` require the command to return a `Result`. Prefer owned types plus `Result<T, Error>`.
 - **Never trust the webview.** Treat every argument as attacker-controlled: validate lengths, ranges, enums, and canonicalize and check every path against an allowed base directory before touching the filesystem. The webview only says *what* it wants; Rust decides *whether* it is allowed.
 - Return only the data the UI needs. Large binary payloads use `tauri::ipc::Response` instead of JSON serialization.
@@ -114,6 +116,39 @@ pub async fn increment(by: u32, state: State<'_, Mutex<AppState>>) -> crate::Res
     Ok(guard.counter)
 }
 ```
+
+---
+
+## Frontend IPC
+
+Rules for every frontend; the complements add only framework-specific parts.
+
+- Import from the v2 modules: `invoke` and `Channel` from `@tauri-apps/api/core`, `listen`/`emit` from `@tauri-apps/api/event`.
+- **One typed wrapper per command** in the frontend's API folder (`src/api/`, or `src/lib/api/` in SvelteKit) — the only place that imports `@tauri-apps/api/core`. UI code never calls `invoke("...")` with a string literal.
+- Argument keys are **camelCase** by default (Rust `invoke_message` ↔ JS `invokeMessage`); only change it with `#[tauri::command(rename_all = "snake_case")]` consistently across the project.
+- Type rejections with `CommandError`, kept in sync with the Rust `ErrorKind`, and handle every promise — never leave one unhandled.
+- `listen()` returns a **Promise** of the unlisten function: keep it and call it when the view that registered the listener is torn down.
+
+```typescript
+// src/api/errors.ts — the canonical rejection type
+export type CommandError = { kind: "io" | "invalidInput"; message: string };
+
+// src/api/counter.ts
+import { invoke } from "@tauri-apps/api/core";
+
+export function increment(by: number): Promise<number> {
+  return invoke<number>("increment", { by });
+}
+```
+
+### Markup safety
+
+The webview can reach IPC, so an XSS is a path into the backend.
+
+- Render data from commands, events, files, URLs or user input as **text** (escaped); never through the framework's raw-HTML path (`innerHTML`, `{@html}`, `dangerouslySetInnerHTML`).
+- Validate the scheme before building `href`/`src` from untrusted data; open external links through the opener plugin, not by navigating the webview.
+- No `eval`, `new Function` or string-based `setTimeout`.
+- `VITE_*` and `TAURI_ENV_*` variables ship inside the bundle: never put secrets in them, in `localStorage` or in frontend state.
 
 ---
 
@@ -228,7 +263,7 @@ The CLI runs through the npm script (`npm run tauri <cmd>`) or the Cargo subcomm
 | Icons | `npm run tauri icon <source.png>` |
 | Android / iOS | `npm run tauri android init` / `android dev` / `android build`; `ios ...` only on macOS hosts |
 
-Bundle types per OS: Linux `deb`, `rpm`, `appimage`; Windows `msi`, `nsis`; macOS `app`, `dmg`. Bundles are built on the target OS — do not promise cross-OS builds. Output goes to `src-tauri/target/release/bundle/`.
+Bundle types per OS: Linux `deb`, `rpm`, `appimage`; Windows `msi`, `nsis`; macOS `app`, `dmg`. Where they can be built: `msi` only on Windows; `nsis` on Windows, or cross-compiled from Linux/macOS with caveats (last resort: needs NSIS, LLVM/LLD and `cargo-xwin`, less tested, signing needs an external tool); `app`/`dmg` only on macOS; Linux bundles on Linux. Output goes to `src-tauri/target/release/bundle/` (`target/<triple>/release/bundle/` with `--target`).
 
 ### System prerequisites
 
@@ -237,7 +272,7 @@ Bundle types per OS: Linux `deb`, `rpm`, `appimage`; Windows `msi`, `nsis`; macO
 | Debian/Ubuntu | `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev` |
 | Fedora | `sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file libappindicator-gtk3-devel librsvg2-devel libxdo-devel` and `sudo dnf group install "c-development"` |
 | Arch | `sudo pacman -S --needed webkit2gtk-4.1 base-devel curl wget file openssl appmenu-gtk-module libappindicator-gtk3 librsvg xdotool` |
-| Windows | Microsoft C++ Build Tools ("Desktop development with C++"), WebView2 runtime, `rustup default stable-msvc` |
+| Windows | Microsoft C++ Build Tools ("Desktop development with C++"), WebView2 runtime, `rustup default stable-msvc`; building `msi` also needs the **VBSCRIPT** optional feature enabled (`failed to run light.exe` means it is off) |
 | macOS | Xcode (or `xcode-select --install` for desktop only) |
 | Android | Android Studio + SDK/NDK, `JAVA_HOME`, `ANDROID_HOME`, `NDK_HOME`, rustup Android targets |
 | iOS | macOS host, full Xcode, CocoaPods, rustup iOS targets |
@@ -255,10 +290,19 @@ Tauri v2 needs **WebKitGTK 4.1** on Linux (`webkit2gtk-4.0` is v1). Re-check pac
 
 ---
 
+## Security and Release
+
+- **Dependency audit:** `cargo audit` (RustSec advisories), or `cargo deny check` when the project has a `deny.toml`; plus `npm audit` or the package manager's equivalent (`pnpm audit`, `yarn npm audit`). Upgrade the affected dependency; ignoring an advisory needs a written reason and the user's approval.
+- **Windows:** sign installers and binaries with an **Authenticode** certificate (`bundle.windows.certificateThumbprint`, `digestAlgorithm`, `timestampUrl`, or `bundle.windows.signCommand` for cloud/HSM signing). Unsigned apps trigger SmartScreen warnings.
+- **macOS:** sign with a **Developer ID** certificate and **notarize** (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`; notarization through `APPLE_ID` + `APPLE_PASSWORD` + `APPLE_TEAM_ID` or an App Store Connect API key). Unnotarized apps are blocked by Gatekeeper.
+- Certificates, passwords and API keys come from CI secrets only — never commit them or put them in `tauri.conf.json`.
+
+---
+
 ## CI Basics
 
 - Linux runners install the WebKitGTK 4.1 build dependencies first (the official workflow uses `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils` on Ubuntu 22.04).
-- Order: install frontend deps → frontend lint/test/build → `cargo fmt --check` → `cargo clippy` → `cargo test`.
+- Run the frontend checks, then the [Quality](#quality) commands.
 - Release builds use `tauri-apps/tauri-action` with a per-OS matrix; signing secrets (updater key, Apple/Windows certificates) come from CI secrets only.
 - Cache Cargo with `swatinem/rust-cache` pointed at `src-tauri`.
 
@@ -289,6 +333,8 @@ Run from the project root before reporting a task as done:
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
+(cd src-tauri && cargo audit)    # or: cargo deny --manifest-path src-tauri/Cargo.toml check
+npm audit                        # or the package manager's equivalent
 npm run tauri build -- --debug   # when the change touches config, capabilities, plugins or bundling
 ```
 

@@ -26,6 +26,8 @@ import (
 
 	"github.com/oito2/perci/internal/appstack"
 	"github.com/oito2/perci/internal/config"
+	"github.com/oito2/perci/internal/executor"
+	"github.com/oito2/perci/internal/manager/gitaccount"
 	"github.com/oito2/perci/internal/selfupdate"
 	"github.com/oito2/perci/internal/ui"
 	"github.com/oito2/perci/internal/version"
@@ -38,9 +40,14 @@ type HomeService struct {
 	serviceBase
 }
 
-// GetCategories returns the sidebar's categories and items.
+// GetCategories returns the sidebar's categories and items, with one item
+// per registered Git account (an unreadable config lists none).
 func (h *HomeService) GetCategories() []MenuCategory {
-	return categories
+	var accounts []config.GitAccount
+	if cfg, err := config.Load(); err == nil {
+		accounts = cfg.GitAccounts
+	}
+	return sidebarCategories(accounts)
 }
 
 // GetTheme returns the active daisyUI theme (~/.perci/config.yaml, field
@@ -265,19 +272,38 @@ func (h *HomeService) PickUninstallBackupPath() (string, error) {
 	}).PromptForSingleSelection())
 }
 
+// PickUninstallReposBackupPath opens the native "Salvar Como" dialog for
+// the uninstall's "Fazer backup dos repositórios" checkbox — the file
+// "Repositórios :: Gerenciar Repositórios" imports.
+func (h *HomeService) PickUninstallReposBackupPath() (string, error) {
+	return approvePath(h.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:    "Salvar backup dos repositórios",
+		Filename: "perci-repositorios-" + time.Now().Format("2006-01-02-150405") + ".yaml",
+		Filters:  []application.FileFilter{{DisplayName: "YAML (*.yaml)", Pattern: "*.yaml;*.yml"}},
+	}).PromptForSingleSelection())
+}
+
 // RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
-// Two steps run first, both optional:
+// Three steps run first, all optional:
 //
 //   - backupPath != "": exports cfg.Docker and the Moodle plugin mounts to
 //     that path first (appstack.ExportConfig) — reimportable later via
-//     "Docker :: Exportar/Importar". A
-//     failed backup aborts the uninstall before anything is removed; only
-//     "nothing to export" (appstack.ErrNothingToExport) is a warning.
+//     "Docker :: Exportar/Importar".
+//   - reposBackupPath != "": exports the Git accounts and their
+//     repositories to that path (gitaccount.Exportable/WriteTransfer) —
+//     reimportable via "Repositórios :: Gerenciar Repositórios".
 //   - removeDocker: removes every registered container (apps, then
 //     MariaDB, then Nginx — apps first so nothing routes through infra
 //     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
 //     DeleteNginx — disk data (workspace/localhost/...) is left
 //     untouched.
+//
+// A failed backup aborts the uninstall before anything is removed; only
+// "nothing to export" is a warning.
+//
+// With removeConfig, once the binary is removed, the includeIf rules,
+// gitconfig files and API tokens of the Git accounts go too
+// (gitaccount.Forget); their SSH keys and repositories stay.
 //
 // Doesn't go through runAction: a successful uninstall must also close the
 // GUI window, and runAction's generic "ok/error" event has no notion of
@@ -287,12 +313,14 @@ func (h *HomeService) PickUninstallBackupPath() (string, error) {
 // error (ok:true) before the "action-done" event is sent; the window
 // closes a short moment later (time enough to read the success line in
 // the terminal panel).
-func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPath string) error {
-	// A backup path not chosen in PickUninstallBackupPath refuses the whole
-	// uninstall — checked before anything destructive starts.
-	if backupPath != "" {
-		if err := requireApprovedPath(backupPath); err != nil {
-			return err
+func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPath, reposBackupPath string) error {
+	// A backup path not chosen in its picker refuses the whole uninstall —
+	// checked before anything destructive starts.
+	for _, p := range []string{backupPath, reposBackupPath} {
+		if p != "" {
+			if err := requireApprovedPath(p); err != nil {
+				return err
+			}
 		}
 	}
 	if !runMu.TryLock() {
@@ -303,7 +331,7 @@ func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPa
 		w := h.newEventWriter()
 		quit := false
 		err := runRecovered(func() error {
-			err := h.selfUninstall(w, removeConfig, removeDocker, backupPath)
+			err := h.selfUninstall(w, removeConfig, removeDocker, backupPath, reposBackupPath)
 			if errors.Is(err, selfupdate.ErrUninstalled) {
 				quit = true
 				return nil
@@ -329,11 +357,12 @@ const uninstallQuitDelay = 1500 * time.Millisecond
 // so tests never remove the test binary.
 var uninstallPerci = selfupdate.Uninstall
 
-// selfUninstall is RunSelfUninstall's body: optional backup, optional
+// selfUninstall is RunSelfUninstall's body: optional backups, optional
 // Docker cleanup, then selfupdate.Uninstall (whose ErrUninstalled means
-// success). The tray's autostart entry is removed only once the uninstall
-// itself succeeded.
-func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool, backupPath string) error {
+// success). The tray's autostart entry — and, with removeConfig, the Git
+// accounts' rules and tokens — are removed only once the uninstall itself
+// succeeded.
+func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool, backupPath, reposBackupPath string) error {
 	ctx := context.Background()
 
 	if backupPath != "" {
@@ -344,6 +373,16 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 			ui.Warning(w, "Nada para exportar no backup: "+err.Error())
 		} else {
 			ui.Success(w, "Backup salvo em "+backupPath+".")
+		}
+	}
+	if reposBackupPath != "" {
+		if err := backupRepositories(ctx, h.exe, reposBackupPath); err != nil {
+			if !errors.Is(err, gitaccount.ErrNothingToExport) {
+				return fmt.Errorf("o backup dos repositórios falhou, nada foi removido: %w", err)
+			}
+			ui.Warning(w, "Nada para exportar no backup dos repositórios: "+err.Error())
+		} else {
+			ui.Success(w, "Backup dos repositórios salvo em "+reposBackupPath+".")
 		}
 	}
 
@@ -365,8 +404,21 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 		}
 	}
 
+	// The accounts are read before ~/.perci goes away with removeConfig.
+	var accounts []config.GitAccount
+	if removeConfig {
+		if cfg, err := config.Load(); err == nil {
+			accounts = cfg.GitAccounts
+		} else {
+			ui.Warning(w, "Falha ao carregar as contas Git: "+err.Error())
+		}
+	}
+
 	err := uninstallPerci(ctx, h.exe, w, removeConfig)
 	if errors.Is(err, selfupdate.ErrUninstalled) {
+		if fErr := gitaccount.Forget(ctx, h.exe, w, accounts); fErr != nil {
+			ui.Warning(w, "Falha ao remover as regras das contas Git: "+fErr.Error())
+		}
 		// Tray autostart (~/.config/autostart/perci.desktop) — removed regardless
 		// of TrayEnabled: with the binary gone, it would be a "ghost" autostart
 		// entry (same class of problem as the app-menu .desktop entry, handled
@@ -376,4 +428,18 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 		}
 	}
 	return err
+}
+
+// backupRepositories writes every Git account and its repositories to
+// path, in the format of "Repositórios :: Gerenciar Repositórios".
+func backupRepositories(ctx context.Context, exe *executor.Executor, path string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	file, _, err := gitaccount.Exportable(ctx, exe, cfg.GitAccounts)
+	if err != nil {
+		return err
+	}
+	return gitaccount.WriteTransfer(path, file)
 }

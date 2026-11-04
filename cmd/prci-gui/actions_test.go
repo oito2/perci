@@ -16,7 +16,6 @@
 package main
 
 import (
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -80,7 +79,7 @@ func TestActions_ReachTheirDomainCode(t *testing.T) {
 		{"RunSystemUpdate", func(b *serviceBase) error { return (&LinuxService{*b}).RunSystemUpdate(false, false) },
 			[]string{"[dry-run] /usr/bin/sudo", "update"}},
 		{"ApplyGlobalGitIdentity", func(b *serviceBase) error {
-			return (&DevToolsService{*b}).ApplyGlobalGitIdentity("Dev", "dev@example.com")
+			return (&RepositoriesService{serviceBase: *b}).ApplyGlobalGitIdentity("Dev", "dev@example.com")
 		}, []string{"config --global -- user.name Dev"}},
 		{"InstallAgentSkill", func(b *serviceBase) error {
 			return (&DevToolsService{*b}).InstallAgentSkill("code-review", true, "")
@@ -149,41 +148,6 @@ func TestHomeSettings_RoundTripAndFallback(t *testing.T) {
 	}
 	if err := h.SetFlatpakScope("anything"); err != nil || h.GetSelfConfigInfo().FlatpakScope != "system" {
 		t.Errorf("unknown scope should fall back to system, got %q (err %v)", h.GetSelfConfigInfo().FlatpakScope, err)
-	}
-}
-
-// Repositórios' folder cards: add (deduplicated), list, inspect, forget —
-// forgetting never touches the folder on disk.
-func TestRepoFolders_AddListStateRemove(t *testing.T) {
-	isolateActions(t)
-	b, _ := newTestBase(t)
-	d := &DevToolsService{*b}
-	dir := t.TempDir()
-	if _, err := approvePath(dir, nil); err != nil {
-		t.Fatal(err)
-	}
-
-	for range 2 {
-		if err := d.AddRepoFolder(dir); err != nil {
-			t.Fatal(err)
-		}
-	}
-	folders := d.GetRepoFolders()
-	if len(folders) != 1 || folders[0].Path != dir {
-		t.Fatalf("folders = %+v, want just %s", folders, dir)
-	}
-	state, err := d.GetRepoFolderState(dir)
-	if err != nil || !state.IsEmpty || state.IsGitRepo {
-		t.Errorf("state = %+v (err %v), want an empty non-repo folder", state, err)
-	}
-	if err := d.RemoveRepoFolder(dir); err != nil {
-		t.Fatal(err)
-	}
-	if got := d.GetRepoFolders(); len(got) != 0 {
-		t.Errorf("folders after remove = %+v", got)
-	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Errorf("removing the card must not delete the folder: %v", err)
 	}
 }
 

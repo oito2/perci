@@ -48,12 +48,15 @@ The app container comes up automatically as part of creation — no separate "st
 
 ## 6. Clone a Moodle Install Into It
 
-**Dev Tools → Repositórios**, "Repositórios" tab → **Clonar**, with:
+Clone the Moodle code straight into the app's own `html` folder (`{{workspace_path}}/localhost/html/<folder>`, matching the `folder` you picked when creating the container), from a terminal:
 
-- URL: `https://github.com/your-org/your-moodle-site.git`
-- Folder: `~/workspace/localhost/html/mdle`
+```bash
+git clone https://github.com/your-org/your-moodle-site.git ~/workspace/localhost/html/mdle
+```
 
-Clone straight into the app's own `html` folder (`{{workspace_path}}/localhost/html/<folder>`, matching the `folder` you picked when creating the container) — the container was already routed to it, no re-run/restart needed. A second Moodle site is a second, independent Container Aplicativo (its own folder, URL, and container), not a new entry added to a shared one.
+The container was already routed to that folder — no re-run/restart needed. A second Moodle site is a second, independent Container Aplicativo (its own folder, URL, and container), not a new entry added to a shared one.
+
+For repositories of your own GitHub/GitLab account, set the account up in **Repositórios → Configurar Conta** and clone with **Novo Repositório** on the account's screen instead: the clone gets the account's commit identity and SSH key. See [Git accounts and repositories](./repositories.md). The Repositórios menu only clones repositories the account user owns, which is why an organization's Moodle site is cloned with `git` above.
 
 ## 7. Database Housekeeping
 
@@ -65,7 +68,7 @@ Both use `cfg.Docker.MariaDB.*` credentials against the shared MariaDB container
 
 **Dev Tools → IA: Contextos**, pick the cloned project's folder, check **Moodle**, then click **Aplicar**.
 
-This generates `AGENTS.md`/`CLAUDE.md`/`.instructions/MOODLE.md` (with `{{MOODLE_VERSION}}` etc. auto-filled from `version.php`). (The `php` model was removed 2026-09-11 — generic PHP guidance is now covered by third-party skills instead, e.g. "PHP: Specialist"/"PHP: Pro 8.3+" via `Dev Tools :: IA: SKILLs` in the GUI, which also replaced the old skills-apply flow — "Claude Code Mode" and the rest of `internal/manager/skills`'s own catalog were removed the same day.)
+This generates `AGENTS.md`, `.instructions/MOODLE.md` (with the Moodle version filled from `version.php`) and `.instructions/PROJECT.md`, plus each checked agent's files (e.g. `CLAUDE.md` and `.claude/rules/perci/MOODLE.md` for Claude Code). (The `php` model was removed 2026-09-11 — generic PHP guidance is now covered by third-party skills instead, e.g. "PHP: Specialist"/"PHP: Pro 8.3+" via `Dev Tools :: IA: SKILLs` in the GUI, which also replaced the old skills-apply flow — "Claude Code Mode" and the rest of `internal/manager/skills`'s own catalog were removed the same day.)
 
 ## 9. Keep Everything Up to Date
 

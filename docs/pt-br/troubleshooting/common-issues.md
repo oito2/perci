@@ -100,16 +100,48 @@ Uma imagem `perci-php<versão>`/`perci-php<versão>-node<versão>`/`perci-node<v
 **`composer-<pasta>`/`npm-<pasta>` falha com "Permission denied" ao gravar em `vendor/` ou `node_modules/`**
 Wrappers criados por versões anteriores rodavam como root dentro dos containers da família PHP e combo, deixando essas pastas com dono root no host; os wrappers atuais rodam como `www-data` (o seu próprio UID). Devolva as pastas ao seu usuário uma vez, a partir da pasta do projeto: `sudo chown -R "$USER": vendor node_modules`.
 
+## Contas Git e Repositórios
+
+**Verificar, Baixar ou um clone falha com "confirme a chave do servidor … em Configurar Conta"**
+A chave do servidor da conta ainda não é confiável. As do github.com e do gitlab.com passam a ser quando a conta é salva; para um servidor próprio, abra a conta em **Configurar Conta**, use **Verificar chave do servidor** e confirme as impressões digitais depois de compará-las com as que o administrador do servidor publica.
+
+**"a chave está bloqueada — desbloqueie-a em Configurar Conta" ou "a chave tem senha e não há agente SSH nesta sessão"**
+A chave tem senha e não está carregada no agente SSH da sessão; o Perci nunca pede senha durante uma ação de rede. Use **Desbloquear chave** nos detalhes da conta. Sem agente SSH na sessão (sem `SSH_AUTH_SOCK`), use uma chave sem senha ou inicie um agente para a sua sessão de desktop.
+
+**"o servidor recusou a chave — cadastre a chave pública …" ou "a chave pertence ao usuário …"**
+A chave pública não está cadastrada no provedor, ou está cadastrada em outro usuário. Copie-a nos detalhes da conta, adicione-a na página de chaves SSH do provedor (o link fica ao lado) e use **Testar conexão**.
+
+**Um repositório da pasta da conta não aparece na tabela**
+Repositórios cujo `origin` é de outro dono ou de outro host — repositórios de organizações, de outros usuários, remotes com apelido de host SSH como `git@github-trabalho:` — aparecem à parte, abaixo da tabela, como ocultos. As contas são pessoais por design. Uma pasta dentro de outro repositório, pastas ocultas, `node_modules` e `vendor` não são vasculhadas.
+
+**Todos os repositórios aparecem como "HTTPS"**
+O `origin` deles usa uma URL HTTPS. **Ajustar todas as URLs** troca cada um pela URL SSH do mesmo repositório, depois de conferir que a chave da conta o alcança; um repositório que a chave não alcança mantém a URL.
+
+**Baixar pulou um repositório**
+Baixar só avança a branch (fast-forward). Um repositório com alterações não commitadas em arquivos rastreados, sem branch upstream, com HEAD solto ou que divergiu do remoto é pulado, com o motivo na aba Execução. Faça commit, stash ou merge com o `git` num terminal.
+
+**A lista de repositórios da conta diz que o token foi recusado, ou que a consulta foi recusada (limite de requisições)**
+Um token recusado expirou ou foi revogado: crie um novo no provedor e salve-o em **Configurar Conta**. Sem token, o GitHub limita as requisições anônimas à API; salvar um token aumenta o limite e inclui os repositórios privados.
+
+**Novo Repositório recusa uma URL ("não é um repositório de …")**
+Só repositórios de que o usuário da conta é dono podem ser clonados pela tela da conta. Clone os outros com `git clone` numa pasta fora das pastas das contas.
+
 ## Contexto IA / Skills
 
-**Clicar em "Aplicar" em IA: Contextos sobrescreveu meu `AGENTS.md` personalizado**
-Isso é por design — **Aplicar** sempre regenera e sobrescreve `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md` de todo modelo marcado, sem nenhuma caixa de confirmação; o próprio clique já é a confirmação, mesma convenção de toda ação não-interativa da GUI. Faça backup de qualquer edição manual nesses arquivos antes de clicar em Aplicar de novo, ou mantenha suas personalizações num arquivo que o gerador não toca.
+**Clicar em "Aplicar" em IA: Contextos substituiu meu `AGENTS.md` personalizado**
+O `AGENTS.md` e os guias em `.instructions/` são regenerados a cada Aplicar (a confirmação os lista antes, e um `.perci-bak` guarda a versão anterior). Regras suas ficam em `.instructions/PROJECT.md`, que o Perci nunca reescreve; no primeiro Aplicar da 1.7.0, as linhas que você tinha acrescentado ao `AGENTS.md` são movidas para lá automaticamente. Um guia marcado como **editado** na tela foi alterado à mão e será substituído.
 
 **Aplicar falha com "pasta não escolhida no seletor"**
 As pastas passadas às telas de Contexto IA, Repositórios e MCP precisam ter sido escolhidas no diálogo nativo de pastas nesta sessão (ou já estar registradas). Use o botão do seletor de pastas (**Selecionar pasta**) em vez de digitar ou colar um caminho.
 
 **Não existe mais `.claudeignore`, e apareceram arquivos `*.perci-bak`**
-O Claude Code ignora o `.claudeignore`, então o Perci parou de gerá-lo: as regras de leitura equivalentes são mescladas no `.claude/settings.json` do projeto (`permissions.deny`), ao lado do `.aiexclude`. Se um `.claudeignore` antigo for encontrado, um aviso diz que ele pode ser apagado. Um `<arquivo>.perci-bak` é a versão anterior de um arquivo gerado que o Perci substituiu por conteúdo diferente — apague-o quando não precisar mais.
+O Claude Code ignora o `.claudeignore`, então o Perci parou de gerá-lo: as regras de leitura equivalentes são mescladas no `.claude/settings.json` do projeto (`permissions.deny`); o `.aiexclude` e o `.geminiignore` são só para o Gemini. Se um `.claudeignore` antigo for encontrado, um aviso diz que ele pode ser apagado. Um `<arquivo>.perci-bak` é a versão anterior de um arquivo gerado que o Perci substituiu por conteúdo diferente — apague-o quando não precisar mais.
+
+**Um arquivo foi "mantido" com o aviso "não foi gerado pelo Perci ou foi editado"**
+Desmarcar um agente ou um guia remove só arquivos que ainda são exatamente o que o Perci escreveu. Um `CLAUDE.md`, `GEMINI.md`, `.aiexclude` ou arquivo de regra que você escreveu ou alterou fica; apague-o à mão se não precisar mais dele.
+
+**O agente não consegue ler imagens, lockfiles ou uma pasta vendorizada**
+Gere o contexto de novo com **Aplicar**: as versões atuais deixam imagens, PDFs e lockfiles legíveis, e mantêm `vendor/`, `dist/`, `build/`, `out/`, `env/` e `.next/` legíveis quando o git versiona arquivos neles; as regras de leitura que versões antigas adicionaram são removidas. OpenCode, Codex e Antigravity não recebem regra de leitura nenhuma.
 
 **Registrar um servidor MCP falha com "já existe um servidor com esse nome que não foi registrado pelo Perci"**
 Um agente (Antigravity, Claude Code ou Codex) já tem um servidor com esse nome que o Perci não criou; o Perci nunca sobrescreve nem remove esses. Renomeie ou remova-o na configuração do próprio agente e registre de novo.
@@ -117,8 +149,8 @@ Um agente (Antigravity, Claude Code ou Codex) já tem um servidor com esse nome 
 **Uma linha de servidor MCP ou SKILL diz "parcial: …"**
 O registro chegou só aos agentes listados depois de "parcial"; os outros falharam ou não estavam disponíveis. Veja a saída do terminal da execução, corrija a causa (por exemplo um CLI ausente) e rode a ação dessa linha de novo.
 
-**Placeholders do Moodle (`{{MOODLE_VERSION}}`, etc.) não foram preenchidos**
-O gerador procura por `version.php` (ou `public/version.php`) na pasta que você escolheu em **IA: Contextos**. Se não encontrar, a GUI deixa os placeholders literais no lugar e registra um aviso em vez de perguntar os valores — preencha na mão, ou escolha a raiz real do projeto e clique em Aplicar de novo.
+**O MOODLE.md diz que a versão do Moodle é "unknown"**
+O gerador lê a versão do `version.php` de um checkout do Moodle (ou `public/version.php`) ou do `$plugin->requires` de um plugin, na pasta que você escolheu em **IA: Contextos**. Sem nenhum dos dois, ele escreve "unknown (…)" e registra um aviso — escolha a raiz real do projeto e clique em Aplicar de novo, ou diga ao agente a versão alvo.
 
 **Remover DaisyUI, "Dart: Oficial" ou "Flutter: Oficial" em IA: SKILLs removeu minhas outras skills também**
 Corrigido: versões anteriores removiam essas três entradas (que instalam todas as skills do repositório) com `skills remove --skill '*'`, que a CLI `skills` trata como "todas as skills instaladas desses agentes" no escopo escolhido. Agora o Perci consulta, com `skills list --json`, quais skills instaladas vieram do repositório da entrada e remove só essas, pelo nome — e recusa a remoção se essa consulta falhar. Reinstale pela mesma tela as skills que você perdeu.

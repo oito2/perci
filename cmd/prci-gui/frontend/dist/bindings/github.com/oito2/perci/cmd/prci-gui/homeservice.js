@@ -48,7 +48,8 @@ export function GetAppVersion() {
 }
 
 /**
- * GetCategories returns the sidebar's categories and items.
+ * GetCategories returns the sidebar's categories and items, with one item
+ * per registered Git account (an unreadable config lists none).
  * @returns {$CancellablePromise<$models.MenuCategory[]>}
  */
 export function GetCategories() {
@@ -133,6 +134,16 @@ export function PickUninstallBackupPath() {
 }
 
 /**
+ * PickUninstallReposBackupPath opens the native "Salvar Como" dialog for
+ * the uninstall's "Fazer backup dos repositórios" checkbox — the file
+ * "Repositórios :: Gerenciar Repositórios" imports.
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickUninstallReposBackupPath() {
+    return $Call.ByName("main.HomeService.PickUninstallReposBackupPath");
+}
+
+/**
  * PickWorkspaceFolder opens the native folder picker for the workspace
  * path, with CanCreateDirectories enabled.
  * @returns {$CancellablePromise<string>}
@@ -143,18 +154,26 @@ export function PickWorkspaceFolder() {
 
 /**
  * RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
- * Two steps run first, both optional:
+ * Three steps run first, all optional:
  * 
  *   - backupPath != "": exports cfg.Docker and the Moodle plugin mounts to
  *     that path first (appstack.ExportConfig) — reimportable later via
- *     "Docker :: Exportar/Importar". A
- *     failed backup aborts the uninstall before anything is removed; only
- *     "nothing to export" (appstack.ErrNothingToExport) is a warning.
+ *     "Docker :: Exportar/Importar".
+ *   - reposBackupPath != "": exports the Git accounts and their
+ *     repositories to that path (gitaccount.Exportable/WriteTransfer) —
+ *     reimportable via "Repositórios :: Gerenciar Repositórios".
  *   - removeDocker: removes every registered container (apps, then
  *     MariaDB, then Nginx — apps first so nothing routes through infra
  *     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
  *     DeleteNginx — disk data (workspace/localhost/...) is left
  *     untouched.
+ * 
+ * A failed backup aborts the uninstall before anything is removed; only
+ * "nothing to export" is a warning.
+ * 
+ * With removeConfig, once the binary is removed, the includeIf rules,
+ * gitconfig files and API tokens of the Git accounts go too
+ * (gitaccount.Forget); their SSH keys and repositories stay.
  * 
  * Doesn't go through runAction: a successful uninstall must also close the
  * GUI window, and runAction's generic "ok/error" event has no notion of
@@ -167,10 +186,11 @@ export function PickWorkspaceFolder() {
  * @param {boolean} removeConfig
  * @param {boolean} removeDocker
  * @param {string} backupPath
+ * @param {string} reposBackupPath
  * @returns {$CancellablePromise<void>}
  */
-export function RunSelfUninstall(removeConfig, removeDocker, backupPath) {
-    return $Call.ByName("main.HomeService.RunSelfUninstall", removeConfig, removeDocker, backupPath);
+export function RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath) {
+    return $Call.ByName("main.HomeService.RunSelfUninstall", removeConfig, removeDocker, backupPath, reposBackupPath);
 }
 
 /**

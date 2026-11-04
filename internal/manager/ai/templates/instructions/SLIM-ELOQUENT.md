@@ -1,8 +1,10 @@
 # Slim + Eloquent (illuminate/database)
 
 Complement to `PHP-SLIM.md` — use it **together with** that standard, never on its own.
-Covers Slim 4 projects that use Laravel's Eloquent ORM standalone through `illuminate/database` (the Capsule manager), without the Laravel framework: setup, models, mass assignment, relationships and N+1, migrations and database tests.
-MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`; apply it as well when the database is MySQL or MariaDB.
+Covers Slim 4 projects that use Laravel's Eloquent ORM standalone through `illuminate/database` (the Capsule manager), without the Laravel framework: setup, models, mass assignment, relationships and N+1, and migrations.
+Rules shared by every data layer (transaction ownership, migrations, test database) live in `PHP-SLIM.md` → **Database Access**; MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -10,12 +12,14 @@ MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MAR
 
 `illuminate/database` follows Laravel's major versions; its minimum PHP rises with each major:
 
-| `illuminate/database` | PHP requirement |
-|---|---|
-| 13.x (current) | 8.3+ |
-| 12.x | 8.2+ |
-| 11.x | 8.2+ |
-| 10.x | 8.1+ |
+| `illuminate/database` | PHP requirement | Status |
+|---|---|---|
+| 13.x (current) | 8.3+ | Supported |
+| 12.x | 8.2+ | Security fixes only, until 2027-02-24 |
+| 11.x | 8.2+ | **Legacy** — out of security support since 2026-03-12 |
+| 10.x | 8.1+ | **Legacy** — out of security support since 2025-02-04 |
+
+- New projects use 13.x. On a legacy major, do not upgrade as a side effect of another task, but tell the user the major no longer receives security fixes.
 
 - Keep every `illuminate/*` package (`database`, `events`, ...) on the **same major**.
 - Laravel framework features (facades, `artisan`, service providers, `config()`/`env()` helpers) are not available — do not copy them from Laravel docs.
@@ -109,31 +113,19 @@ $posts = Post::query()
 
 ## Migrations
 
-`artisan migrate` does not exist outside Laravel. Use the project's existing mechanism; when there is none, ask the user which to adopt:
+`artisan migrate` does not exist outside Laravel. Use Phinx or plain SQL files as described in `PHP-SLIM.md` → **Database Access**, or this Eloquent-specific option:
 
 | Option | When |
 |---|---|
-| **Phinx** (`robmorgan/phinx`, 0.16.x: 64-bit PHP 8.1+) | Versioned migrations with up/down, status and seeds; independent of Eloquent |
 | **Schema builder scripts** | `Capsule::schema()->create('users', fn (Blueprint $t) => ...)` in numbered scripts, plus a table recording which scripts ran |
-
-```bash
-vendor/bin/phinx create CreateUsersTable
-vendor/bin/phinx migrate -e development
-vendor/bin/phinx status
-```
-
-- Set `utf8mb4` in the migration tool's connection config (Phinx generates `'charset' => 'utf8'` by default).
-- Never edit a migration that has already run in a shared environment — add a new one.
 
 ---
 
 ## Testing
 
-- Unit-test services against repository interfaces with fakes; do not mock Eloquent models.
-- Integration tests use a **dedicated test database** (same engine and major version as production), configured through test-only environment values — never the development or production database.
-- Migrate the test database before the suite; isolate tests with `Capsule::connection()->beginTransaction()` in `setUp()` and `rollBack()` in `tearDown()`.
-- Keep strict mode on in tests so N+1 and mass-assignment mistakes fail the suite.
-- Do not swap in SQLite when queries rely on MySQL/MariaDB-specific SQL.
+- Do not mock Eloquent models; unit tests use fakes of the repository interfaces.
+- Isolate integration tests with `Capsule::connection()->beginTransaction()` in `setUp()` and `rollBack()` in `tearDown()`.
+- Keep `Model::shouldBeStrict()` on in tests so N+1 and mass-assignment mistakes fail the suite.
 
 ---
 
@@ -153,11 +145,9 @@ vendor/bin/phinx status
 
 ## Quality
 
-In addition to the checks in `PHP-SLIM.md`:
+Adds to the checks in `PHP-SLIM.md` → Quality (run the test suite with strict mode on):
 
 ```bash
-vendor/bin/phinx status -e testing   # when Phinx is used: no pending migrations
-vendor/bin/phpunit                   # including integration tests with strict mode on
+grep -rn 'guarded = \[\]' src/                 # must print nothing: every model declares $fillable
+grep -rnE 'Raw\(' src/                        # review every hit: values only through the bindings array
 ```
-
-- Every model declares `$fillable`; every relationship used in a loop is eager loaded.

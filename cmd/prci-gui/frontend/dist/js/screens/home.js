@@ -94,52 +94,64 @@ btnSuUpdate.addEventListener("click", function () {
   });
 });
 
-// --- "Desinstalar Perci" (embedded in Visão Geral) — three independent
-// checkboxes (also remove config / remove Docker containers / back up
-// config before uninstalling), a "Desinstalar" button after them. The
-// backup is a full export, in the format "Docker :: Exportar/Importar"
-// reads (appstack.ExportConfig, via
-// App.PickUninstallBackupPath + the path passed to RunSelfUninstall) — if
-// the user checks that option and then cancels the "Salvar Como" dialog,
-// the whole uninstall is aborted instead of proceeding without the
-// requested backup. Success closes the GUI's own window
-// (App.RunSelfUninstall handles that). -------------------------------
+// --- "Desinstalar Perci" (embedded in Visão Geral) — four independent
+// checkboxes (back up config / back up repositories / remove Docker
+// containers / also remove config), a "Desinstalar" button after them. The
+// config backup is a full export, in the format "Docker ::
+// Exportar/Importar" reads (App.PickUninstallBackupPath); the repositories
+// backup is a separate file, in the format "Repositórios :: Gerenciar
+// Repositórios" reads (App.PickUninstallReposBackupPath). If the user checks
+// a backup and then cancels its "Salvar Como" dialog, the whole uninstall
+// is aborted instead of proceeding without the requested backup. Success
+// closes the GUI's own window (App.RunSelfUninstall handles that). ------
 btnSu2Uninstall.addEventListener("click", function () {
   if (running) return;
   const removeConfig = su2RemoveConfig.checked;
   const removeDocker = su2RemoveDocker.checked;
   const backupConfig = su2BackupConfig.checked;
+  const backupRepos = su2BackupRepos.checked;
 
   let message = "O binário do Perci será removido do sistema.";
   if (backupConfig) message += "\nUm backup das configurações será salvo antes.";
+  if (backupRepos) message += "\nUm backup das contas Git e dos repositórios será salvo antes.";
   if (removeDocker) message += "\nOs contêineres Docker registrados serão removidos (dados em disco são mantidos).";
   message += removeConfig
-    ? "\nAs configurações em ~/.perci também serão removidas."
+    ? "\nAs configurações em ~/.perci também serão removidas, junto com as regras das contas Git no ~/.gitconfig e os tokens do chaveiro (chaves SSH e repositórios ficam)."
     : "\nAs configurações em ~/.perci serão mantidas.";
   message += "\n\nEsta ação não pode ser desfeita.";
 
   openConfirm("Desinstalar o Perci?", message, function () {
-    function startUninstall(backupPath) {
+    function startUninstall(backupPath, reposBackupPath) {
       if (running || activeRun) return; // re-checked: the dialogs are async
       dashboardRunningAction = "self-uninstall";
-      beginRun("Desinstalar", function () { return App.RunSelfUninstall(removeConfig, removeDocker, backupPath || ""); }, {
+      beginRun("Desinstalar", function () {
+        return App.RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath);
+      }, {
         buttons: [btnSu2Uninstall],
         maxSteps: 1,
         announce: "Desinstalando o Perci...",
       });
     }
 
-    if (!backupConfig) {
-      startUninstall("");
-      return;
+    // pick asks for one backup's path when wanted is set; "" means not
+    // wanted, null means the dialog was cancelled.
+    function pick(wanted, picker) {
+      if (!wanted) return Promise.resolve("");
+      return picker().then(function (path) { return path || null; });
     }
-    App.PickUninstallBackupPath().then(function (path) {
-      if (!path) {
+
+    pick(backupConfig, App.PickUninstallBackupPath).then(function (backupPath) {
+      if (backupPath === null) return [null, null];
+      return pick(backupRepos, App.PickUninstallReposBackupPath).then(function (reposPath) {
+        return [backupPath, reposPath];
+      });
+    }).then(function (paths) {
+      if (paths[0] === null || paths[1] === null) {
         openMessage("Desinstalação cancelada", "Nenhum caminho foi escolhido para o backup — a desinstalação não foi iniciada.", false);
         return;
       }
-      startUninstall(path);
-    });
+      startUninstall(paths[0], paths[1]);
+    }).catch(function (err) { openError("Falha ao escolher o arquivo de backup: " + err); });
   });
 });
 

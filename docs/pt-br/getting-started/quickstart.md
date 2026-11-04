@@ -16,7 +16,7 @@ Isso abre a janela do Perci. Não tem nada pra digitar depois disso — toda aç
 
 ## O Que Você Vai Ver
 
-Uma barra lateral à esquerda com cinco categorias, e um painel principal à direita mostrando o item selecionado:
+Uma barra lateral à esquerda com seis categorias, e um painel principal à direita mostrando o item selecionado:
 
 | Categoria | Cobre |
 |---|---|
@@ -24,7 +24,8 @@ Uma barra lateral à esquerda com cinco categorias, e um painel principal à dir
 | **Linux** | Atualizações de sistema, pós-instalação sensível a distro/DE, fontes, modelos de arquivos, aplicativos Flatpak. |
 | **Desenvolvimento** | Pré-requisitos de build, SDKs de linguagens, aplicativos de IA/terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Criar e gerenciar a stack Docker de aplicativos por projeto. |
-| **Dev Tools** | Montagem de plugins Moodle, repositórios Git, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |
+| **Repositórios** | Contas do GitHub/GitLab e seus repositórios: identidade e chave SSH por pasta de conta, buscar/baixar alterações, clonar, exportar/importar. |
+| **Dev Tools** | Montagem de plugins Moodle, geração de contexto de IA, skills de agente de IA, registro de servidores MCP. |
 
 A janela abre em **Home :: Visão Geral** — um dashboard que resume o estado do seu sistema (distro/DE, ferramentas de dev instaladas, containers Docker, etc.), além de atalhos pra atualizar ou desinstalar o próprio Perci. Veja [Como o perci.gnl funciona](../concepts/how-perci-works.md) para o que tem dentro de cada categoria.
 
@@ -39,4 +40,4 @@ O Perci cria o `~/.perci/config.yaml` na primeira vez que você altera uma confi
 3. **Linux :: Pós-instalação** — os itens da sua distro/DE detectada, cada um com seu próprio botão **Aplicar** (que vira **Aplicado** quando o item já está aplicado).
 4. **Desenvolvimento :: Pré-requisitos** — instale o toolchain de compilação, Git, curl, Docker Engine, mkcert e NPM; cada linha tem seus próprios botões **Instalar**, **Atualizar** e **Desinstalar**, e um item que precisa de outro fica desabilitado ("Requer: …") até esse outro estar instalado.
 5. **Docker :: Criar Container** — crie os containers Nginx e MariaDB, depois seu primeiro container de aplicativo (veja o [guia da stack Docker de aplicativos](../guides/environments/docker.md) para o ciclo de vida completo).
-6. **Dev Tools :: IA: Contextos** — já dentro de um projeto real, escolha o **Tipo de projeto** (ou marque os padrões à mão) e gere `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.
+6. **Dev Tools :: IA: Contextos** — já dentro de um projeto real, marque os agentes de IA que você usa, escolha o **Tipo de projeto** (sugerido pelos arquivos da pasta) ou marque os guias à mão e clique em **Aplicar**: ele lista os arquivos que vai criar ou alterar antes de gravá-los.

@@ -4,6 +4,8 @@ Standard for building 2D and 3D games with **Godot 4** and **GDScript**, shipped
 
 This standard assumes **Godot 4.7** (current stable line: 4.7.x) as the minimum. Before applying any rule, read `config/features` in `project.godot` to confirm the project's engine version; if the project targets an older 4.x release, check that each setting below exists in that version before using it.
 
+Last verified: 2026-11-04
+
 ---
 
 ## 1. Project Layout
@@ -184,7 +186,7 @@ extends Resource
 ## 9. UI and Multiple Resolutions
 
 - Set a base resolution (`display/window/size/viewport_width`/`viewport_height`) matching the main orientation (`display/window/handheld/orientation`); a portrait game swaps width and height manually.
-- `display/window/stretch/mode`: `canvas_items` for most games, `viewport` for pixel art. `display/window/stretch/aspect`: `expand` so any aspect ratio shows more of the world instead of black bars. Both are the defaults for projects created in Godot 4.7; set them explicitly in older projects.
+- Set the stretch settings **explicitly** — the engine defaults are `display/window/stretch/mode="disabled"` and `display/window/stretch/aspect="keep"`, which suit neither a mobile game nor varied screen ratios. Use `mode` `canvas_items` for most games, `viewport` for pixel art; `aspect` `expand` so any aspect ratio shows more of the world instead of black bars.
 - Pixel art: `viewport` mode, `display/window/stretch/scale_mode="integer"`, and `rendering/textures/canvas_textures/default_texture_filter` set to Nearest.
 - Lay out UI with **Containers** and **anchors** — never absolute positions. Test at least 16:9, 19.5:9 and 4:3 (tablet), portrait and landscape as applicable, using the editor's window size override.
 - Keep interactive controls inside the safe area (notches, rounded corners) and size touch targets for fingers.
@@ -258,7 +260,7 @@ Use the `.gitignore` and `.gitattributes` Godot generates (**Project → Version
 - Use the framework the project already has; for a new project, ask which one to adopt.
 - Test pure logic (resources, state machines, damage formulas, save migration) in unit tests; test scenes by instantiating them in the test and asserting on signals and state.
 - Tests live under `test/`, files prefixed `test_` (GUT default prefix).
-- Run headless (exit code `0` = all passed):
+- Run headless. Exit codes: `0` = all passed; gdUnit4 also returns `100` for test failures and `101` for warnings only (treat `101` as a failure in CI only if the project decides so):
 
 ```bash
 # GUT
@@ -301,7 +303,15 @@ GODOT_BIN=/path/to/godot ./addons/gdUnit4/runtest.sh -a res://test
 
 ## Quality
 
+Run before reporting a Godot change as done (folder names are examples — list the project's own, never `addons/`):
+
+```bash
+godot --headless --path . --import                       # fresh checkout/CI: import resources, check the Output for errors
+gdformat --check characters levels ui autoloads resources test
+gdlint characters levels ui autoloads resources test
+# tests: the GUT or gdUnit4 command from section 13 (exit code 0)
+godot --headless --path . --export-debug "Android" build/android/game-debug.apk
+```
+
 - Zero GDScript errors and warnings in the editor's Output/Debugger on project load and on running the main scene.
-- `gdformat --check` and `gdlint` clean on project folders.
-- All tests pass headless.
-- A debug export for Android succeeds (`--export-debug`) whenever a task changes export presets, project settings or Android-specific code; install and run it on a device when one is available, and report when it was not possible.
+- Run the Android debug export whenever a task changes export presets, project settings or Android-specific code; install and run it on a device when one is available, and report when it was not possible.

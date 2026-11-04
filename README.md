@@ -36,15 +36,16 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 
 ![Perci — Home → Visão Geral](docs/img/screenshots/main-window.png)
 
-A desktop GUI (Go + [Wails](https://wails.io)), five sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
+A desktop GUI (Go + [Wails](https://wails.io)), six sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
 
 - **Home** — an overview of your system, update/uninstall Perci itself, settings (theme, sidebar mascot, workspace, Flatpak scope, system tray).
 - **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps.
 - **Desenvolvimento** — build prerequisites, Go/Rust/Flutter SDKs, AI apps, terminals, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — a per-project Docker application stack (Nginx/MariaDB/PHP/Node/PHP+Node containers, with Moodle routing), create and manage containers.
-- **Dev Tools** — Moodle plugin development folders mounted into Moodle containers, Git repository control, AI context generation (`AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`), AI agent skills, MCP server registration.
+- **Repositórios** — GitHub/GitLab accounts, each with its folder, commit identity and SSH key (also used by `git` in the terminal); fetch, fast-forward and clone the account's repositories; export/import accounts and repositories to another machine.
+- **Dev Tools** — Moodle plugin development folders mounted into Moodle containers, AI context generation for Claude Code, Gemini, Codex, OpenCode and Antigravity (`AGENTS.md`, `.instructions/*.md` and each agent's own files), AI agent skills, MCP server registration.
 
-An optional system tray icon gives quick access to containers, repositories, and system updates from a compact window.
+An optional system tray icon gives quick access to containers and system updates from a compact window.
 
 ---
 

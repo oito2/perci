@@ -6,13 +6,14 @@
 
 ## Built-in Uninstaller (Recommended)
 
-Open Perci, go to **Home → Visão Geral**, and use the **Desinstalar Perci** section. A confirmation dialog offers three optional steps before the binary itself is removed:
+Open Perci, go to **Home → Visão Geral**, and use the **Desinstalar Perci** section. Four options, all optional, come before the binary itself is removed:
 
 | Option | What it does |
 |---|---|
 | Back up configuration | Exports the Docker stack definition (Nginx, MariaDB credentials, every app) and the Moodle plugin mounts to a YAML file you pick — the same format as **Docker → Exportar/Importar**, so it can be imported on a new install. If the backup fails, **nothing** is removed and the uninstall stops; only "nothing to export" (no container or plugin mount registered yet) is a warning. |
+| Back up repositories | Exports the Git accounts and their repositories to another YAML file you pick — the same format as **Repositórios → Gerenciar Repositórios**. It is a file of its own, separate from the configuration backup. A failure stops the uninstall the same way. |
 | Remove Docker containers | Removes every registered container (apps first, then MariaDB, then Nginx). Project data on disk is **not** touched. |
-| Remove `~/.perci` | Deletes Perci's configuration directory, including the automatic MariaDB dumps in `~/.perci/appstack/backups` — copy them elsewhere first if you want to keep them. |
+| Remove `~/.perci` | Deletes Perci's configuration directory, including the automatic MariaDB dumps in `~/.perci/appstack/backups` — copy them elsewhere first if you want to keep them. Once the binary is removed, it also removes each Git account's `includeIf` rule from `~/.gitconfig` and its API token from the system keyring. Without this option, the accounts keep working with plain `git`. |
 
 Whatever you choose, the uninstaller always removes:
 
@@ -34,6 +35,14 @@ rm -f ~/.config/autostart/perci.desktop
 rm -rf ~/.perci    # optional: configuration
 ```
 
+Removing `~/.perci` by hand leaves the Git accounts' rules in `~/.gitconfig` pointing to files that no longer exist (Git ignores them, so the accounts' identity and key stop applying). List and remove them, and the tokens:
+
+```bash
+git config --global --get-regexp '^includeif\.gitdir:.*\.path$'       # one line per account
+git config --global --unset-all 'includeIf.gitdir:<folder>/.path'      # for each <folder> listed
+secret-tool clear service perci-git account <id>                      # for each account with a token
+```
+
 ## What Stays on the System
 
 Perci never removes what it installed or created **for you** — that belongs to your system, not to Perci. After uninstalling, these remain until you remove them yourself:
@@ -51,4 +60,6 @@ Perci never removes what it installed or created **for you** — that belongs to
 | MEGAsync installed by an older Perci (Perci no longer installs or removes it), with MEGA's repository and signing key | Debian/Ubuntu/Mint/Zorin: `sudo apt-get purge megasync`, then `sudo rm /etc/apt/sources.list.d/mega.nz.list /etc/apt/keyrings/mega.nz.gpg`. Fedora: `sudo dnf remove megasync`, then `sudo rm /etc/yum.repos.d/megasync.repo /etc/pki/rpm-gpg/RPM-GPG-KEY-megasync` (MEGA's key in the rpm database is listed by `rpm -qa 'gpg-pubkey*'`). |
 | Fonts downloaded by Perci (JetBrains Mono NF and similar): `~/.local/share/fonts/perci/<font>/` | Uninstalling the font on **Linux → Gerenciar Fontes** deletes its folder; otherwise `rm -r ~/.local/share/fonts/perci` and `fc-cache -f`. |
 | `~/.config/starship.toml.perci-bak`, the backup **Remover Starship** makes of your Starship configuration, and `<file>.perci-bak` copies next to generated project files (AI context, `.claude/settings.json`, code of conduct, …) | They hold the previous version of a file Perci replaced. Restore or delete them as you wish — Perci never removes them. |
+| SSH keys generated for the Git accounts: `~/.ssh/perci_<id>` and `~/.ssh/perci_<id>.pub` | They may still be registered on GitHub/GitLab: remove them there, then delete the files. |
+| Repositories under the Git account folders | They are your files: Perci never deletes them. |
 | Everything installed through Perci's screens (packages, fonts, Flatpak apps, SDKs, IDEs, AI context files, …) | Uninstall each one through its own package manager or tool — or, for most of them, through the matching Perci screen **before** uninstalling Perci. |

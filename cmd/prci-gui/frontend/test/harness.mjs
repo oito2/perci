@@ -159,6 +159,7 @@ export function loadScripts(files, { fixtures = {} } = {}) {
     App,
     Events: { On(name, fn) { (handlers[name] ||= []).push(fn); }, Emit() {} },
     Browser: { OpenURL() {} },
+    Clipboard: { SetText: () => Promise.resolve() },
     Terminal: class { constructor() { return inert; } },
     FitAddon: { FitAddon: class { fit() {} } },
     ResizeObserver: class { observe() {} },

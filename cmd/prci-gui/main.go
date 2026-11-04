@@ -16,7 +16,7 @@
 // Command prci-gui is Perci's graphical interface, built on Wails v3 (GTK4
 // + WebKitGTK 6.0 on Linux), wiring together the domain services
 // (HomeService/LinuxService/DevSetupService/DockerService/DevToolsService/
-// TrayService) and the main window.
+// RepositoriesService/TrayService) and the main window.
 package main
 
 import (
@@ -32,6 +32,7 @@ import (
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/dev/localbin"
 	"github.com/oito2/perci/internal/executor"
+	"github.com/oito2/perci/internal/manager/gitaccount"
 	"github.com/oito2/perci/internal/ui"
 	"github.com/oito2/perci/packaging"
 )
@@ -85,11 +86,18 @@ func handleSecondInstance(args []string, focus func()) {
 }
 
 func main() {
+	// Started by ssh-keygen/ssh-add as their askpass program: answer the
+	// passphrase prompt and exit without starting the GUI.
+	if gitaccount.IsAskpassCall() {
+		os.Exit(gitaccount.RespondAskpass(os.Stdout))
+	}
+
 	home := &HomeService{}
 	linux := &LinuxService{}
 	devSetup := &DevSetupService{}
 	docker := &DockerService{}
 	devTools := &DevToolsService{}
+	repos := &RepositoriesService{}
 	tray := &TrayService{}
 
 	cfg, cfgErr := config.Load()
@@ -114,6 +122,7 @@ func main() {
 			application.NewService(devSetup),
 			application.NewService(docker),
 			application.NewService(devTools),
+			application.NewService(repos),
 			application.NewService(tray),
 		},
 		Assets: application.AssetOptions{
@@ -139,11 +148,16 @@ func main() {
 	// no benefit to sharing one).
 	for _, b := range []*serviceBase{
 		&home.serviceBase, &linux.serviceBase, &devSetup.serviceBase,
-		&docker.serviceBase, &devTools.serviceBase, &tray.serviceBase,
+		&docker.serviceBase, &devTools.serviceBase, &repos.serviceBase, &tray.serviceBase,
 	} {
 		b.wailsApp = wailsApp
 		b.exe = executor.New(nil, nil)
 		b.exe.UsePolicyKit = true
+	}
+	// ssh-keygen and ssh-add read passphrases from Perci's own executable
+	// (see the askpass check at the top of main).
+	if self, err := os.Executable(); err == nil {
+		repos.askpass = gitaccount.Askpass{Program: self}
 	}
 
 	// A GUI started from the desktop doesn't get the PATH a login shell

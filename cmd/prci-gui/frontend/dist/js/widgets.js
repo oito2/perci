@@ -277,7 +277,7 @@ function checkboxFieldHTML(id, label, checked, disabled, hint) {
 
 // reconcileKeyedList keeps container in sync with items (array), avoiding
 // innerHTML="" + full rebuild on every update — used by
-// renderAgentSkillsTable/renderMCPServersTable/renderRepoCards. keyOf(item)
+// renderAgentSkillsTable/renderMCPServersTable. keyOf(item)
 // identifies each node across calls (e.g. slug/path); signatureOf(item)
 // summarizes every field that affects the node (content, button state,
 // text) — when it hasn't changed since the last render, the existing node

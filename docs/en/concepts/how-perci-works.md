@@ -10,9 +10,9 @@
 
 This means every domain function in `internal/system`, `internal/dev`, `internal/appstack`, and `internal/manager` takes plain parameters and is called directly by a Go method bound to the GUI's frontend — there are no interactive prompts anywhere in that code, and no separate scriptable path: the GUI is the only way in.
 
-## The Five Categories
+## The Six Categories
 
-The GUI groups every action into five sidebar categories:
+The GUI groups every action into six sidebar categories:
 
 | # | Category | Covers |
 |---|---|---|
@@ -20,7 +20,8 @@ The GUI groups every action into five sidebar categories:
 | 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, WebApps. |
 | 3 | **Desenvolvimento** | Building a dev environment: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals. |
 | 4 | **Docker** | The per-project Docker application stack: creating and managing Nginx/MariaDB/PHP/Node containers, export/import. |
-| 5 | **Dev Tools** | Working inside an already-set-up project: Moodle plugin development folders mounted into Moodle containers, Git repository control, AI Context generation, AI skills, MCP server registration. |
+| 5 | **Repositórios** | GitHub/GitLab accounts, each with its folder, commit identity and SSH key; one screen per account with its repositories; export/import of accounts and repositories. See [Git accounts and repositories](../guides/workflows/repositories.md). |
+| 6 | **Dev Tools** | Working inside an already-set-up project: Moodle plugin development folders mounted into Moodle containers, AI Context generation, AI skills, MCP server registration. |
 
 ### Screens
 
@@ -35,7 +36,10 @@ The GUI groups every action into five sidebar categories:
 
 ![Docker → Gerenciar Contêineres](../../img/screenshots/perci-docker.png)
 
-![Dev Tools → Repositórios](../../img/screenshots/devtools-window.png)
+![Dev Tools → IA: Contextos](../../img/screenshots/devtools-window.png)
+<!-- TODO: recapture devtools-window.png with a folder picked, to show the agent checkboxes and the grouped standards -->
+
+![Repositórios → an account's repositories](../../img/screenshots/repositories-window.png)
 
 #### Themes
 
@@ -60,7 +64,7 @@ The GUI groups every action into five sidebar categories:
   </tr>
 </table>
 
-![System tray menu — Abrir Aplicativo shows the main window; Contêineres, Repositórios and Atualizar Sistema open the compact window](../../img/screenshots/tray-window.png)
+![System tray menu — Abrir Aplicativo shows the main window; Contêineres and Atualizar Sistema open the compact window](../../img/screenshots/tray-window.png)
 
 Only one Perci instance runs per session: opening it again from the distro menu (or running `prci`) brings the running window to the front instead of starting a second copy with its own tray icon.
 

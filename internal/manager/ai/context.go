@@ -24,7 +24,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/fsutil"
 	"github.com/oito2/perci/internal/ui"
 )
@@ -48,6 +47,13 @@ type Model struct {
 	// DetectActiveModels, and are deleted once the current file is written
 	// (or when the model is removed).
 	Legacy []string
+	// Description says, in Portuguese, what the standard covers; shown on
+	// the IA: Contextos screen.
+	Description string
+	// Paths lists globs of the files the standard covers: Claude Code gets
+	// it as a rule that loads only when it works on a matching file. Empty
+	// for a standard tied to a kind of task rather than to file types.
+	Paths []string
 }
 
 // docsBase is the base documentation standard every "Documentação: *"
@@ -63,55 +69,80 @@ const (
 
 // models is the catalog of supported instruction models, in output order.
 var models = []Model{
-	{Name: "Linux Bash", Instruction: "templates/instructions/BASH.md",
-		AppliesTo: "Writing or reviewing Bash/shell scripts, CLI tools and installers"},
-	{Name: goBase, Instruction: "templates/instructions/GO.md",
-		AppliesTo: "Writing Go code (CLI tools, MCP servers, desktop backends): layout, errors, concurrency, tests, linting, releases"},
-	{Name: "Go: Servidor MCP", Instruction: "templates/instructions/GO-MCP.md", Requires: goBase,
-		AppliesTo: "Building an MCP server with the official Go SDK — together with GO.md"},
-	{Name: "Go: Wails v3", Instruction: "templates/instructions/WAILS.md", Requires: goBase,
-		AppliesTo: "Building a Wails v3 desktop app (services, bindings, frontend, packaging) — together with GO.md"},
-	{Name: tauriBase, Instruction: "templates/instructions/TAURI.md",
-		AppliesTo: "Building a Rust + Tauri v2 app (commands, capabilities, CSP, build, updater)"},
-	{Name: "Tauri: Vanilla TS + Vite", Instruction: "templates/instructions/TAURI-VANILLA.md", Requires: tauriBase,
-		AppliesTo: "Frontend of a Tauri v2 app in vanilla TypeScript + Vite — together with TAURI.md"},
-	{Name: "Tauri: SvelteKit", Instruction: "templates/instructions/TAURI-SVELTEKIT.md", Requires: tauriBase,
-		AppliesTo: "Frontend of a Tauri v2 app in SvelteKit (static) — together with TAURI.md"},
-	{Name: "Tauri: React + Vite", Instruction: "templates/instructions/TAURI-REACT.md", Requires: tauriBase,
-		AppliesTo: "Frontend of a Tauri v2 app in React + TypeScript + Vite — together with TAURI.md"},
-	{Name: slimBase, Instruction: "templates/instructions/PHP-SLIM.md",
-		AppliesTo: "Building PHP systems with Slim 4 (layout, routing, middleware, DI, security, tests)"},
-	{Name: "Slim: PDO", Instruction: "templates/instructions/SLIM-PDO.md", Requires: slimBase,
-		AppliesTo: "Data access with PDO in a Slim 4 system — together with PHP-SLIM.md"},
-	{Name: "Slim: Doctrine DBAL", Instruction: "templates/instructions/SLIM-DBAL.md", Requires: slimBase,
-		AppliesTo: "Data access with Doctrine DBAL in a Slim 4 system — together with PHP-SLIM.md"},
-	{Name: "Slim: Eloquent", Instruction: "templates/instructions/SLIM-ELOQUENT.md", Requires: slimBase,
-		AppliesTo: "Data access with Eloquent (illuminate/database) in a Slim 4 system — together with PHP-SLIM.md"},
-	{Name: "Moodle", Instruction: "templates/instructions/MOODLE.md",
-		AppliesTo: "Developing Moodle plugins (file structure, Moodle APIs, architecture)"},
-	{Name: "Dart + Flutter - oito2", Instruction: "templates/instructions/FLUTTER.md",
-		AppliesTo: "Building Dart/Flutter apps (oito2 stack: flutter_bloc, shadcn_ui, l10n)"},
-	{Name: "Godot 4 (GDScript)", Instruction: "templates/instructions/GODOT.md",
-		AppliesTo: "Building games in Godot 4 with GDScript, targeting Android"},
-	{Name: "MySQL/MariaDB", Instruction: "templates/instructions/MYSQL-MARIADB.md",
-		AppliesTo: "MySQL/MariaDB schema design, migrations, query tuning and configuration"},
-	{Name: "Website", Instruction: "templates/instructions/WEBSITE.md",
+	{Name: "Linux Bash", Description: "Scripts Bash/shell, ferramentas de linha de comando e instaladores.", Instruction: "templates/instructions/BASH.md",
+		AppliesTo: "Writing or reviewing Bash/shell scripts, CLI tools and installers",
+		Paths:     []string{"**/*.sh", "**/*.bash"}},
+	{Name: goBase, Description: "Código Go: estrutura, erros, concorrência, testes, lint e releases.", Instruction: "templates/instructions/GO.md",
+		AppliesTo: "Writing Go code (CLI tools, MCP servers, desktop backends): layout, errors, concurrency, tests, linting, releases",
+		Paths:     []string{"**/*.go", "go.mod", "go.sum", ".golangci.yml"}},
+	{Name: "Go: Servidor MCP", Description: "Servidor MCP com o SDK oficial em Go. Complementa o guia Go.", Instruction: "templates/instructions/GO-MCP.md", Requires: goBase,
+		AppliesTo: "Building an MCP server with the official Go SDK — together with GO.md",
+		Paths:     []string{"**/*.go"}},
+	{Name: "Go: Wails v3", Description: "Aplicativo desktop com Wails v3: serviços, bindings, frontend e empacotamento. Complementa o guia Go.", Instruction: "templates/instructions/WAILS.md", Requires: goBase,
+		AppliesTo: "Building a Wails v3 desktop app (services, bindings, frontend, packaging) — together with GO.md",
+		Paths:     []string{"**/*.go", "frontend/**"}},
+	{Name: tauriBase, Description: "Aplicativo Rust + Tauri v2: comandos, permissões, CSP, build e atualizador.", Instruction: "templates/instructions/TAURI.md",
+		AppliesTo: "Building a Rust + Tauri v2 app (commands, capabilities, CSP, build, updater)",
+		Paths:     []string{"src-tauri/**", "**/*.rs"}},
+	{Name: "Tauri: Vanilla TS + Vite", Description: "Frontend em TypeScript puro com Vite. Complementa o guia Tauri.", Instruction: "templates/instructions/TAURI-VANILLA.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in vanilla TypeScript + Vite — together with TAURI.md",
+		Paths:     []string{"src/**/*.ts", "index.html", "vite.config.*"}},
+	{Name: "Tauri: SvelteKit", Description: "Frontend em SvelteKit (estático). Complementa o guia Tauri.", Instruction: "templates/instructions/TAURI-SVELTEKIT.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in SvelteKit (static) — together with TAURI.md",
+		Paths:     []string{"src/**/*.{ts,svelte}", "svelte.config.*", "vite.config.*"}},
+	{Name: "Tauri: React + Vite", Description: "Frontend em React + TypeScript com Vite. Complementa o guia Tauri.", Instruction: "templates/instructions/TAURI-REACT.md", Requires: tauriBase,
+		AppliesTo: "Frontend of a Tauri v2 app in React + TypeScript + Vite — together with TAURI.md",
+		Paths:     []string{"src/**/*.{ts,tsx}", "index.html", "vite.config.*"}},
+	{Name: slimBase, Description: "Sistemas PHP com Slim 4: estrutura, rotas, middleware, injeção de dependências, segurança e testes.", Instruction: "templates/instructions/PHP-SLIM.md",
+		AppliesTo: "Building PHP systems with Slim 4 (layout, routing, middleware, DI, security, tests)",
+		Paths:     []string{"**/*.php", "composer.json"}},
+	{Name: "Slim: PDO", Description: "Acesso a dados com PDO. Complementa o guia Slim.", Instruction: "templates/instructions/SLIM-PDO.md", Requires: slimBase,
+		AppliesTo: "Data access with PDO in a Slim 4 system — together with PHP-SLIM.md",
+		Paths:     []string{"**/*.php"}},
+	{Name: "Slim: Doctrine DBAL", Description: "Acesso a dados com Doctrine DBAL. Complementa o guia Slim.", Instruction: "templates/instructions/SLIM-DBAL.md", Requires: slimBase,
+		AppliesTo: "Data access with Doctrine DBAL in a Slim 4 system — together with PHP-SLIM.md",
+		Paths:     []string{"**/*.php"}},
+	{Name: "Slim: Eloquent", Description: "Acesso a dados com Eloquent. Complementa o guia Slim.", Instruction: "templates/instructions/SLIM-ELOQUENT.md", Requires: slimBase,
+		AppliesTo: "Data access with Eloquent (illuminate/database) in a Slim 4 system — together with PHP-SLIM.md",
+		Paths:     []string{"**/*.php"}},
+	{Name: "Moodle", Description: "Plugins Moodle: estrutura de arquivos, APIs e arquitetura.", Instruction: "templates/instructions/MOODLE.md",
+		AppliesTo: "Developing Moodle plugins (file structure, Moodle APIs, architecture)",
+		Paths:     []string{"**/*.php", "db/**", "templates/**/*.mustache", "amd/**", "lang/**"}},
+	{Name: "Dart + Flutter", Description: "Apps Dart/Flutter: arquitetura, estado, testes e publicação.", Instruction: "templates/instructions/FLUTTER.md",
+		AppliesTo: "Building Dart/Flutter apps (architecture, state, testing, release)",
+		Paths:     []string{"**/*.dart", "pubspec.yaml", "analysis_options.yaml"}},
+	{Name: "Godot 4 (GDScript)", Description: "Jogos em Godot 4 com GDScript, publicados no Android.", Instruction: "templates/instructions/GODOT.md",
+		AppliesTo: "Building games in Godot 4 with GDScript, targeting Android",
+		Paths:     []string{"**/*.gd", "**/*.tscn", "**/*.tres", "project.godot"}},
+	{Name: "MySQL/MariaDB", Description: "Esquema, migrations, otimização de consultas e configuração de MySQL/MariaDB.", Instruction: "templates/instructions/MYSQL-MARIADB.md",
+		AppliesTo: "MySQL/MariaDB schema design, migrations, query tuning and configuration",
+		Paths:     []string{"**/*.sql", "**/migrations/**"}},
+	{Name: "TypeScript/Node", Description: "TypeScript e Node.js: backends, CLIs e bibliotecas — tsconfig, módulos, tipos, erros, segurança e testes.", Instruction: "templates/instructions/TYPESCRIPT-NODE.md",
+		AppliesTo: "Writing TypeScript or Node.js code (backends, CLIs, libraries): tsconfig, modules, typing, errors, security, tests",
+		Paths:     []string{"**/*.{ts,tsx,js,mjs,cjs}", "package.json", "tsconfig*.json"}},
+	{Name: "Docker/Compose", Description: "Dockerfiles e Compose do projeto: imagens, build, segurança e execução.", Instruction: "templates/instructions/DOCKER.md",
+		AppliesTo: "Writing Dockerfiles and Compose files (images, builds, security, runtime)",
+		Paths:     []string{"**/Dockerfile*", "**/*compose*.y*ml", ".dockerignore"}},
+	{Name: "CI (GitHub Actions)", Description: "Workflows do GitHub Actions: gatilhos, permissões, segurança, cache e releases.", Instruction: "templates/instructions/GITHUB-ACTIONS.md",
+		AppliesTo: "Writing GitHub Actions workflows (triggers, permissions, security, caching, releases)",
+		Paths:     []string{".github/workflows/**"}},
+	{Name: "Website", Description: "Sites: estrutura, acessibilidade, desempenho, SEO e hospedagem.", Instruction: "templates/instructions/WEBSITE.md",
 		AppliesTo: "Building websites (structure, accessibility, performance, SEO, hosting)"},
-	{Name: "Landing Page Design", Instruction: "templates/instructions/LANDING-PAGE.md",
+	{Name: "Landing Page Design", Description: "Design e construção de landing pages.", Instruction: "templates/instructions/LANDING-PAGE.md",
 		AppliesTo: "Designing or building landing pages"},
-	{Name: docsBase, Instruction: "templates/instructions/PROJECT-DOCUMENTATION.md", Legacy: []string{"DOCUMENTATION-SITE.md"},
+	{Name: docsBase, Description: "Documentação do projeto: README, docs/, CONTRIBUTING, licença, arquivos do GitHub e releases.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION.md", Legacy: []string{"DOCUMENTATION-SITE.md"},
 		AppliesTo: "Creating or updating project documentation (README, docs/, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE, license headers, GitHub community files, repository metadata, releases)"},
-	{Name: "Documentação: Servidor MCP", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MCP.md", Requires: docsBase,
+	{Name: "Documentação: Servidor MCP", Description: "Documentação de um servidor MCP. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MCP.md", Requires: docsBase,
 		AppliesTo: "Documentation of an MCP server — together with PROJECT-DOCUMENTATION.md"},
-	{Name: "Documentação: Plugin Moodle", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MOODLE.md", Requires: docsBase,
+	{Name: "Documentação: Plugin Moodle", Description: "Documentação de um plugin Moodle. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MOODLE.md", Requires: docsBase,
 		AppliesTo: "Documentation of a Moodle plugin — together with PROJECT-DOCUMENTATION.md"},
-	{Name: "Documentação: Aplicação Desktop", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-DESKTOP.md", Requires: docsBase,
+	{Name: "Documentação: Aplicação Desktop", Description: "Documentação de um aplicativo desktop. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-DESKTOP.md", Requires: docsBase,
 		AppliesTo: "Documentation of a desktop application — together with PROJECT-DOCUMENTATION.md"},
-	{Name: "Documentação: Aplicação Mobile", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MOBILE.md", Requires: docsBase,
+	{Name: "Documentação: Aplicação Mobile", Description: "Documentação de um aplicativo mobile. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-MOBILE.md", Requires: docsBase,
 		AppliesTo: "Documentation of a mobile application — together with PROJECT-DOCUMENTATION.md"},
-	{Name: "Documentação: Aplicação Web", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-WEB.md", Requires: docsBase,
+	{Name: "Documentação: Aplicação Web", Description: "Documentação de uma aplicação web. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-WEB.md", Requires: docsBase,
 		AppliesTo: "Documentation of a web application — together with PROJECT-DOCUMENTATION.md"},
-	{Name: "Documentação: Jogo", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-GAME.md", Requires: docsBase,
+	{Name: "Documentação: Jogo", Description: "Documentação de um jogo. Complementa a Documentação de projeto.", Instruction: "templates/instructions/PROJECT-DOCUMENTATION-GAME.md", Requires: docsBase,
 		AppliesTo: "Documentation of a game — together with PROJECT-DOCUMENTATION.md"},
 }
 
@@ -194,7 +225,12 @@ var (
 	moodleVersionRe    = regexp.MustCompile(`\$version\s*=\s*([\d.]+)\s*;`)
 	moodleReleaseRe    = regexp.MustCompile(`\$release\s*=\s*'([^']+)'\s*;`)
 	moodleMajorMinorRe = regexp.MustCompile(`^(\d+\.\d+)`)
+	pluginRequiresRe   = regexp.MustCompile(`\$plugin->requires\s*=\s*([\d.]+)\s*;`)
 )
+
+// moodleUnknown fills MOODLE.md's placeholders when no version.php gives
+// them, so the file never carries raw {{…}} markers.
+const moodleUnknown = "unknown (read `$plugin->requires` in the plugin's version.php, or ask the user)"
 
 // maxVersionPHPSize caps how much of version.php is read — it's a project
 // file the user controls, not something perci generates, so a corrupted
@@ -212,9 +248,11 @@ func readCapped(path string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, maxVersionPHPSize))
 }
 
-// detectMoodleVars reads version.php (or public/version.php, the Moodle 5.1+
-// layout) from projectDir and extracts the values MOODLE.md's placeholders need.
-// ok is false when the file is missing or doesn't match the expected format.
+// detectMoodleVars reads the values of MOODLE.md's placeholders from
+// projectDir: from a Moodle checkout's version.php (or public/version.php,
+// the Moodle 5.1+ layout) — its $version and $release — or from a plugin's
+// version.php — the Moodle version its $plugin->requires names. ok is false
+// when neither is found.
 func detectMoodleVars(projectDir string) (vars map[string]string, ok bool) {
 	data, err := readCapped(filepath.Join(projectDir, "version.php"))
 	if err != nil {
@@ -224,78 +262,86 @@ func detectMoodleVars(projectDir string) (vars map[string]string, ok bool) {
 		}
 	}
 
+	if m := pluginRequiresRe.FindSubmatch(data); m != nil {
+		return map[string]string{
+			"MOODLE_VERSION":     "the release `$plugin->requires` (" + string(m[1]) + ") names",
+			"MOODLE_FULLVERSION": string(m[1]),
+		}, true
+	}
+
 	versionMatch := moodleVersionRe.FindSubmatch(data)
 	releaseMatch := moodleReleaseRe.FindSubmatch(data)
 	if versionMatch == nil || releaseMatch == nil {
 		return nil, false
 	}
-
 	majorMinor := moodleMajorMinorRe.FindString(string(releaseMatch[1]))
 	if majorMinor == "" {
 		return nil, false
 	}
-
 	return map[string]string{
 		"MOODLE_VERSION":     majorMinor,
 		"MOODLE_FULLVERSION": string(versionMatch[1]),
-		"MOODLE_PATH":        ".",
-		"WORKSPACE_PATH":     workspacePath(),
 	}, true
 }
 
-// moodleVars resolves MOODLE.md's placeholders from dir's version.php. When
-// it can't be found or parsed, the file goes out with its placeholders
-// unsubstituted and the user is told so.
+// moodleVarsFor is detectMoodleVars of dir ("" for the current folder),
+// with moodleUnknown for both placeholders when nothing was detected.
+func moodleVarsFor(dir string) (vars map[string]string, detected bool) {
+	if dir == "" {
+		dir = "."
+	}
+	if vars, ok := detectMoodleVars(dir); ok {
+		return vars, true
+	}
+	return map[string]string{"MOODLE_VERSION": moodleUnknown, "MOODLE_FULLVERSION": moodleUnknown}, false
+}
+
+// moodleVars is moodleVarsFor, telling the user when nothing was detected.
 func moodleVars(stdout io.Writer, dir string) map[string]string {
-	projectDir := dir
-	if projectDir == "" {
-		if wd, err := os.Getwd(); err == nil {
-			projectDir = wd
-		} else {
-			projectDir = "."
-		}
+	vars, detected := moodleVarsFor(dir)
+	if !detected {
+		ui.Warning(stdout, "version.php não encontrado — a versão do Moodle ficou como \"unknown\" no MOODLE.md.")
 	}
-	if vars, ok := detectMoodleVars(projectDir); ok {
-		return vars
-	}
-	ui.Warning(stdout, "version.php não encontrado — MOODLE.md gerado sem substituir {{MOODLE_VERSION}} e os demais marcadores.")
-	return nil
+	return vars
 }
 
-// workspacePath is the configured workspace folder (config.Workspace:
-// ~/workspace when unset), or "" if the config can't be loaded.
-func workspacePath() string {
-	cfg, err := config.Load()
-	if err != nil {
-		return ""
+// standardsHeader opens AGENTS.md's list of active standards. The list
+// names each file without an "@" import, so no agent loads every standard
+// on every session: each entry says which tasks it covers, and agents are
+// told to read the file themselves before such a task. With claudeRules,
+// it adds that Claude Code loads the file-type standards by itself.
+func standardsHeader(claudeRules bool) string {
+	h := "\n\n## Language-Specific Standards\n\nThe standards below are **mandatory** for the tasks they cover. **Before starting a task one of them applies to, read the whole file.** When several apply, follow all of them. They complement the rules above and never override them, nor `.instructions/PROJECT.md`.\n"
+	if claudeRules {
+		h += "\nClaude Code loads the standards that cover file types by itself, from `.claude/rules/perci/`, when it works on a matching file.\n"
 	}
-	ws, err := cfg.Workspace()
-	if err != nil {
-		return ""
-	}
-	return ws
+	return h
 }
 
-// standardsHeader opens AGENTS.md's list of active standards. Only Claude
-// Code resolves "@path" imports into content, so the list also has to work
-// as plain instructions: each entry says which tasks it covers, and agents
-// are told to read the file themselves before such a task. Inlining the
-// files instead isn't viable — it would overflow Codex's 32 KiB AGENTS.md
-// budget and Antigravity's 24 KB per-rule cap with just two standards.
-const standardsHeader = `
+// GenerateSharedFiles writes, for the agents named by agentIDs (see
+// Agents), AGENTS.md listing every active model, each active model's
+// instruction file under dir/.instructions/, the project rules file
+// .instructions/PROJECT.md (created once, see ensureProjectRules) and each
+// agent's own files: CLAUDE.md, the path-scoped .claude/rules/perci/*.md
+// and the .claude/settings.json read rules for Claude Code; GEMINI.md and
+// .aiexclude for Gemini; the project rules entry of opencode.json for
+// OpenCode. Codex and Antigravity read AGENTS.md as is. The files of the
+// agents not named are removed while they are still what Perci wrote. If
+// overwrite is true, existing files are replaced without confirmation. dir
+// empty means the current directory. Progress and warnings go to stdout
+// (the GUI's terminal panel).
+func GenerateSharedFiles(dir string, active []Model, agentIDs []string, overwrite bool, stdout io.Writer) error {
+	return generate(dir, dir, active, agentIDs, overwrite, stdout)
+}
 
-## Language-Specific Standards
-
-The standards below are **mandatory** for the tasks they cover. **Before starting a task one of them applies to, read the whole file** (Claude Code already loads them through the ` + "`@`" + ` imports; Codex, Antigravity and other agents must open the file themselves). When several apply, follow all of them. They complement the rules above and never override them.
-`
-
-// GenerateSharedFiles writes CLAUDE.md, AGENTS.md and the ignore/exclude files
-// referencing all active models, and physically writes each active model's
-// instruction file to dir/.instructions/. If overwrite is true, existing
-// files are replaced without confirmation. dir empty means the current
-// directory (same convention as the rest of this file). Progress and
-// warnings go to stdout (the GUI's terminal panel).
-func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.Writer) error {
+// generate is GenerateSharedFiles writing into dir while taking the list
+// of files git tracks from gitDir (the project itself when dir is a
+// preview copy of it).
+func generate(dir, gitDir string, active []Model, agentIDs []string, overwrite bool, stdout io.Writer) error {
+	selected, err := agentSet(agentIDs)
+	if err != nil {
+		return err
+	}
 	active, added := withRequired(active)
 	for _, name := range added {
 		ui.Info(stdout, "Contexto \""+name+"\" incluído automaticamente (necessário para os complementos selecionados).")
@@ -305,18 +351,21 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 	if err != nil {
 		return err
 	}
-	claudeStub, err := readTpl("templates/CLAUDE-STUB.md")
-	if err != nil {
+
+	// Rules hand-written into AGENTS.md move to PROJECT.md before AGENTS.md
+	// is regenerated.
+	if err := ensureProjectRules(dir, overwrite, stdout); err != nil {
 		return err
 	}
 
-	// Build the @-reference block (one line per active model) and write each
-	// referenced instruction file to disk — without this, AGENTS.md ends up
-	// pointing at .instructions/*.md files that were never actually created.
-	var refBlock strings.Builder
-	refBlock.WriteString(standardsHeader)
+	// The list of standards (one line per active model, the file named in
+	// a code span so no agent imports it) and each referenced file on disk.
+	claudeRules := false
+	rendered := make(map[string]string, len(active))
+	var list strings.Builder
 	for _, m := range active {
-		fmt.Fprintf(&refBlock, "\n- %s: @.instructions/%s", m.AppliesTo, filepath.Base(m.Instruction))
+		fmt.Fprintf(&list, "\n- %s: `.instructions/%s`", m.AppliesTo, filepath.Base(m.Instruction))
+		claudeRules = claudeRules || (selected[AgentClaude] && len(m.Paths) > 0)
 
 		var vars map[string]string
 		if m.Name == "Moodle" {
@@ -325,49 +374,24 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 		if err := WriteInstruction(dir, m, overwrite, stdout, vars); err != nil {
 			return err
 		}
-	}
-
-	agentsContent := rawBasic
-	if len(active) > 0 {
-		agentsContent += refBlock.String()
-	}
-
-	type entry struct {
-		filename string
-		content  string
-	}
-	files := []entry{
-		{"CLAUDE.md", claudeStub},
-		{"AGENTS.md", agentsContent},
-	}
-	for _, f := range files {
-		// A CLAUDE.md that already resolves to AGENTS.md gives Claude Code
-		// the rules as is; writing the stub through it would replace
-		// AGENTS.md.
-		if f.filename == "CLAUDE.md" && sameFile(filepath.Join(dir, "CLAUDE.md"), filepath.Join(dir, "AGENTS.md")) {
-			ui.Info(stdout, "CLAUDE.md é um link para AGENTS.md — mantido.")
-			continue
-		}
-		if err := WriteFile(filepath.Join(dir, f.filename), f.content, overwrite, stdout); err != nil {
+		content, err := readTpl(m.Instruction)
+		if err != nil {
 			return err
 		}
+		rendered[m.Name] = substitute(content, vars)
 	}
 
-	// Ignore file for the agents that read it (.geminiignore is not
-	// generated), and Claude Code's equivalent read rules, which live in
-	// its settings: it does not read an ignore file at all.
-	aiexclude, err := readTpl("templates/.aiexclude")
-	if err != nil {
+	agentsContent := strings.TrimRight(rawBasic, "\n")
+	if len(active) > 0 {
+		agentsContent += standardsHeader(claudeRules) + list.String()
+	}
+	agentsContent += "\n\n" + agentsMarker(selected) + "\n"
+	if err := WriteFile(filepath.Join(dir, "AGENTS.md"), agentsContent, overwrite, stdout); err != nil {
 		return err
 	}
-	if err := WriteFile(filepath.Join(dir, ".aiexclude"), aiexclude, overwrite, stdout); err != nil {
+
+	if err := writeAgentFiles(dir, gitDir, selected, active, rendered, overwrite, stdout); err != nil {
 		return err
-	}
-	if err := writeClaudeSettings(dir, claudeDenyRules(dir, aiexclude), stdout); err != nil {
-		return err
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".claudeignore")); err == nil {
-		ui.Warning(stdout, ".claudeignore não tem efeito no Claude Code — as regras de leitura equivalentes estão em .claude/settings.json. Remova o arquivo se foi gerado por uma versão anterior do Perci.")
 	}
 
 	// Remove instruction files for models that were active before this run
@@ -401,6 +425,96 @@ func GenerateSharedFiles(dir string, active []Model, overwrite bool, stdout io.W
 	}
 
 	return nil
+}
+
+// writeAgentFiles writes the files of the selected agents and removes
+// those of the others while they are still what Perci wrote.
+func writeAgentFiles(dir, gitDir string, selected map[string]bool, active []Model, rendered map[string]string, overwrite bool, stdout io.Writer) error {
+	claudeStub, err := readTpl("templates/CLAUDE-STUB.md")
+	if err != nil {
+		return err
+	}
+	oldClaudeStub, err := readTpl("templates/legacy/CLAUDE-STUB-1.0.md")
+	if err != nil {
+		return err
+	}
+	geminiStub, err := readTpl("templates/GEMINI-STUB.md")
+	if err != nil {
+		return err
+	}
+	patterns, err := ignorePatterns(gitDir)
+	if err != nil {
+		return err
+	}
+	aiexclude, err := ignoreFile("templates/ignore/aiexclude-header", patterns)
+	if err != nil {
+		return err
+	}
+	geminiignore, err := ignoreFile("templates/ignore/geminiignore-header", patterns)
+	if err != nil {
+		return err
+	}
+
+	if selected[AgentClaude] {
+		if err := writeStub(dir, "CLAUDE.md", claudeStub, overwrite, stdout); err != nil {
+			return err
+		}
+		if err := syncClaudeRules(dir, active, rendered, overwrite, stdout); err != nil {
+			return err
+		}
+		// Claude Code does not read an ignore file at all: its equivalent
+		// read rules live in its settings.
+		if err := writeClaudeSettings(dir, denyRules(patterns), stdout); err != nil {
+			return err
+		}
+		if _, err := os.Stat(filepath.Join(dir, ".claudeignore")); err == nil {
+			ui.Warning(stdout, ".claudeignore não tem efeito no Claude Code — as regras de leitura equivalentes estão em .claude/settings.json. Remova o arquivo se foi gerado por uma versão anterior do Perci.")
+		}
+	} else {
+		removeIfPristine(filepath.Join(dir, "CLAUDE.md"), stdout, claudeStub, oldClaudeStub)
+		if err := syncClaudeRules(dir, nil, nil, overwrite, stdout); err != nil {
+			return err
+		}
+		if err := writeClaudeSettings(dir, nil, stdout); err != nil {
+			return err
+		}
+		// Only empty folders go.
+		_ = os.Remove(filepath.Join(dir, ".claude", "rules"))
+		_ = os.Remove(filepath.Join(dir, ".claude"))
+	}
+
+	if selected[AgentGemini] {
+		if err := writeStub(dir, "GEMINI.md", geminiStub, overwrite, stdout); err != nil {
+			return err
+		}
+		// .aiexclude is read by Gemini Code Assist, .geminiignore by Gemini CLI.
+		if err := WriteFile(filepath.Join(dir, ".aiexclude"), aiexclude, overwrite, stdout); err != nil {
+			return err
+		}
+		if err := WriteFile(filepath.Join(dir, ".geminiignore"), geminiignore, overwrite, stdout); err != nil {
+			return err
+		}
+	} else {
+		removeIfPristine(filepath.Join(dir, "GEMINI.md"), stdout, geminiStub)
+		oldIgnores := []string{aiexclude}
+		for _, path := range legacyIgnoreFiles {
+			old, err := readTpl(path)
+			if err != nil {
+				return err
+			}
+			oldIgnores = append(oldIgnores, old)
+		}
+		removeIfPristine(filepath.Join(dir, ".aiexclude"), stdout, oldIgnores...)
+		removeIfPristine(filepath.Join(dir, ".geminiignore"), stdout, geminiignore)
+	}
+
+	// OpenCode gets no read rules: its documented "permission" setting is
+	// marked deprecated in its configuration schema, and neither form says
+	// how a path pattern is matched.
+	if selected[AgentOpenCode] {
+		return addOpenCodeProjectRules(dir, stdout)
+	}
+	return removeOpenCodeProjectRules(dir, stdout)
 }
 
 // sameFile reports whether a and b exist and are the same file after
@@ -439,9 +553,7 @@ func WriteInstruction(dir string, model Model, overwrite bool, stdout io.Writer,
 	if err != nil {
 		return err
 	}
-	for k, v := range vars {
-		content = strings.ReplaceAll(content, "{{"+k+"}}", v)
-	}
+	content = substitute(content, vars)
 	if err := WriteFile(dest, content, overwrite, stdout); err != nil {
 		return err
 	}
@@ -491,18 +603,42 @@ func isPristine(dir string, model Model) bool {
 		return true
 	}
 	if model.Name == "Moodle" {
-		projectDir := dir
-		if projectDir == "" {
-			projectDir = "."
-		}
-		if vars, ok := detectMoodleVars(projectDir); ok {
-			for k, v := range vars {
-				tpl = strings.ReplaceAll(tpl, "{{"+k+"}}", v)
-			}
-			return string(got) == tpl
-		}
+		vars, _ := moodleVarsFor(dir)
+		return string(got) == substitute(tpl, vars)
 	}
 	return false
+}
+
+// ignoreFile is the ignore file made of the header template at header and
+// patterns.
+func ignoreFile(header, patterns string) (string, error) {
+	h, err := readTpl(header)
+	if err != nil {
+		return "", err
+	}
+	return h + patterns, nil
+}
+
+// substitute replaces each {{KEY}} of content with vars[KEY].
+func substitute(content string, vars map[string]string) string {
+	for k, v := range vars {
+		content = strings.ReplaceAll(content, "{{"+k+"}}", v)
+	}
+	return content
+}
+
+// renderInstruction is model's standard as Perci writes it for dir: for
+// MOODLE.md, with the placeholders filled (moodleVarsFor).
+func renderInstruction(dir string, model Model) (string, error) {
+	content, err := readTpl(model.Instruction)
+	if err != nil {
+		return "", err
+	}
+	if model.Name == "Moodle" {
+		vars, _ := moodleVarsFor(dir)
+		content = substitute(content, vars)
+	}
+	return content, nil
 }
 
 func readTpl(path string) (string, error) {

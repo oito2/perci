@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/oito2/perci/internal/config"
 )
@@ -320,53 +319,6 @@ func TestAppIconOrDefault(t *testing.T) {
 	}
 }
 
-func TestPruneMissingRepoFolders(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-
-	existing := t.TempDir()
-	missing := filepath.Join(t.TempDir(), "sumiu")
-
-	if err := saveConfig(&config.Config{RepoFolders: []string{existing, missing}}); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	if err := config.PruneMissingRepoFolders(); err != nil {
-		t.Fatalf("PruneMissingRepoFolders: %v", err)
-	}
-
-	got, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if want := []string{existing}; len(got.RepoFolders) != len(want) || got.RepoFolders[0] != want[0] {
-		t.Errorf("RepoFolders after prune = %v, want %v", got.RepoFolders, want)
-	}
-}
-
-// With every folder still present, the prune leaves config.yaml untouched.
-func TestPruneMissingRepoFolders_NoChangeNoWrite(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	if err := saveConfig(&config.Config{RepoFolders: []string{t.TempDir()}}); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-	path := filepath.Join(home, ".perci", "config.yaml")
-	old := time.Now().Add(-time.Hour)
-	if err := os.Chtimes(path, old, old); err != nil {
-		t.Fatal(err)
-	}
-	if err := config.PruneMissingRepoFolders(); err != nil {
-		t.Fatalf("PruneMissingRepoFolders: %v", err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !info.ModTime().Equal(old) {
-		t.Error("config.yaml was rewritten although nothing was pruned")
-	}
-}
-
 func TestGUIThemesContainsDecidedSet(t *testing.T) {
 	// The exact set of 8 themes; guards against an accidental edit to
 	// GUIThemes() dropping or adding a theme.
@@ -422,7 +374,7 @@ func TestUpdate_ConcurrentAppendsAreNotLost(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			if err := config.Update(func(cfg *config.Config) error {
-				cfg.RepoFolders = append(cfg.RepoFolders, fmt.Sprintf("/repo/%d", i))
+				cfg.GitAccounts = append(cfg.GitAccounts, config.GitAccount{ID: fmt.Sprintf("a%d", i)})
 				return nil
 			}); err != nil {
 				t.Errorf("Update: %v", err)
@@ -435,8 +387,8 @@ func TestUpdate_ConcurrentAppendsAreNotLost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.RepoFolders) != n {
-		t.Errorf("got %d repo folders, want %d", len(cfg.RepoFolders), n)
+	if len(cfg.GitAccounts) != n {
+		t.Errorf("got %d accounts, want %d", len(cfg.GitAccounts), n)
 	}
 }
 

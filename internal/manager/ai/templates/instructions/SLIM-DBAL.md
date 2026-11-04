@@ -1,8 +1,10 @@
 # Slim + Doctrine DBAL
 
 Complement to `PHP-SLIM.md` — use it **together with** that standard, never on its own.
-Covers Slim 4 projects that access the database through Doctrine DBAL (without the ORM): connection wiring, queries and the QueryBuilder, transactions, migrations with `doctrine/migrations`, and database tests.
-MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`; apply it as well when the database is MySQL or MariaDB.
+Covers Slim 4 projects that access the database through Doctrine DBAL (without the ORM): connection wiring, queries and the QueryBuilder, transactions and migrations with `doctrine/migrations`.
+Rules shared by every data layer (transaction ownership, migrations, test database) live in `PHP-SLIM.md` → **Database Access**; MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -36,7 +38,7 @@ Connection::class => static function (ContainerInterface $c): Connection {
         'dbname' => $db['name'],
         'user' => $db['user'],
         'password' => $db['pass'],
-        'charset' => 'utf8mb4',   // DBAL adds no charset by default
+        'charset' => 'utf8mb4',   // always explicit; never rely on the server default
     ]);
 },
 ```
@@ -119,9 +121,6 @@ $orderId = $this->db->transactional(function (Connection $db) use ($order): int 
 });
 ```
 
-- The service layer owns the transaction, not the action.
-- No HTTP calls, mail or file I/O inside the closure.
-
 ---
 
 ## Migrations (`doctrine/migrations`)
@@ -159,18 +158,15 @@ vendor/bin/doctrine-migrations migrate --no-interaction
 vendor/bin/doctrine-migrations migrate prev      # roll back one version
 ```
 
-- Write `up()` and `down()` with `$this->addSql(...)`; keep one logical change per migration.
-- Never edit a migration that has already run in a shared environment — add a new one.
-- Review large-table changes against the online DDL rules in `MYSQL-MARIADB.md`.
+- Write `up()` and `down()` with `$this->addSql(...)`. The general migration rules in `PHP-SLIM.md` apply.
 
 ---
 
 ## Testing
 
-- Unit-test services against repository **interfaces** with in-memory fakes.
-- Test repositories against a **dedicated test database** (same engine and major version as production), configured through test-only environment values — never the development or production database.
-- Run `doctrine-migrations migrate` against the test database before the suite; isolate tests by wrapping each in `beginTransaction()`/`rollBack()` or truncating touched tables.
-- Do not swap in SQLite (`pdo_sqlite`, `memory: true`) when the SQL uses MySQL/MariaDB-specific syntax.
+- Run `vendor/bin/doctrine-migrations migrate --no-interaction` against the test database before the suite.
+- Isolate tests with `$connection->beginTransaction()` in `setUp()` and `$connection->rollBack()` in `tearDown()`, or truncate the touched tables.
+- Never configure `pdo_sqlite` (`memory: true`) as a stand-in for the production engine.
 
 ---
 
@@ -180,22 +176,18 @@ vendor/bin/doctrine-migrations migrate prev      # roll back one version
 |---|---|
 | Values concatenated into SQL or QueryBuilder expressions | SQL injection |
 | Request data in QueryBuilder methods or CRUD array keys | Only parameter values are escaped |
-| Missing `charset` in connection params | Server default may not be `utf8mb4` |
+| Missing `charset` in connection params | Depends on the server default, which may not be `utf8mb4` |
 | `Connection` injected into actions | Mixes SQL into the HTTP layer; use repositories |
 | Manual `beginTransaction()` without rollback | Leaves an open transaction on error; prefer `transactional()` |
 | Code copied from DBAL 2/3 docs into a DBAL 4 project | Removed methods and changed signatures |
-| Editing an executed migration | Environments diverge silently |
 
 ---
 
 ## Quality
 
-In addition to the checks in `PHP-SLIM.md`:
+Adds to the checks in `PHP-SLIM.md` → Quality:
 
 ```bash
-vendor/bin/doctrine-migrations status            # no unexpected pending migrations
-vendor/bin/doctrine-migrations up-to-date
-vendor/bin/phpunit                               # including repository tests against the test database
+vendor/bin/doctrine-migrations status             # no unexpected pending migrations
+vendor/bin/doctrine-migrations up-to-date         # non-zero exit when migrations are pending
 ```
-
-- Every new query is covered by a repository test against the test database.

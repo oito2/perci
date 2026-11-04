@@ -58,10 +58,6 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 	// These also require the folder to be picked this session or already
 	// registered.
 	folderMethods := map[string]method{
-		"GetRepoFolderState": func(b *serviceBase, f string) error {
-			_, err := (&DevToolsService{*b}).GetRepoFolderState(f)
-			return err
-		},
 		"GetAgentSkillsRows": func(b *serviceBase, f string) error {
 			_, err := (&DevToolsService{*b}).GetAgentSkillsRows(false, f)
 			return err
@@ -70,8 +66,12 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 			_, err := (&DevToolsService{*b}).GetMCPServerRows(false, f)
 			return err
 		},
+		"PreviewAIContext": func(b *serviceBase, f string) error {
+			_, err := (&DevToolsService{*b}).PreviewAIContext(f, nil, []string{"claude"})
+			return err
+		},
 		"ApplyAIContext": func(b *serviceBase, f string) error {
-			return (&DevToolsService{*b}).ApplyAIContext(f, []string{"x"})
+			return (&DevToolsService{*b}).ApplyAIContext(f, []string{"x"}, []string{"claude"})
 		},
 		"InstallAgentSkill": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).InstallAgentSkill("daisyui", false, f)
@@ -91,16 +91,6 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		"UpdateMCPServer": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).UpdateMCPServer("dart-flutter", false, f, "")
 		},
-		"AddRepoFolder": func(b *serviceBase, f string) error { return (&DevToolsService{*b}).AddRepoFolder(f) },
-		"CloneRepo": func(b *serviceBase, f string) error {
-			return (&DevToolsService{*b}).CloneRepo("https://example.com/r.git", f, "", "")
-		},
-		"InitRepoAt": func(b *serviceBase, f string) error { return (&DevToolsService{*b}).InitRepoAt(f, "", "") },
-		"ApplyLocalGitIdentityAt": func(b *serviceBase, f string) error {
-			return (&DevToolsService{*b}).ApplyLocalGitIdentityAt(f, "N", "e@x")
-		},
-		"GenerateGitignoreAt": func(b *serviceBase, f string) error { return (&DevToolsService{*b}).GenerateGitignoreAt(f) },
-		"CreateConductAt":     func(b *serviceBase, f string) error { return (&DevToolsService{*b}).CreateConductAt(f, "e@x") },
 	}
 	fileMethods := map[string]method{
 		"InstallAndroidStudio":  func(b *serviceBase, p string) error { return (&DevSetupService{*b}).InstallAndroidStudio(p) },
@@ -121,7 +111,10 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		"RestoreMariaDBContainer": func(b *serviceBase, p string) error { return (&DockerService{*b}).RestoreMariaDBContainer(p) },
 		"SetWorkspacePath":        func(b *serviceBase, p string) error { return (&HomeService{*b}).SetWorkspacePath(p) },
 		"RunSelfUninstall": func(b *serviceBase, p string) error {
-			return (&HomeService{*b}).RunSelfUninstall(false, false, p)
+			return (&HomeService{*b}).RunSelfUninstall(false, false, p, "")
+		},
+		"RunSelfUninstall (repositories)": func(b *serviceBase, p string) error {
+			return (&HomeService{*b}).RunSelfUninstall(false, false, "", p)
 		},
 	}
 
@@ -167,7 +160,7 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// RunSelfUninstall treats "" as "no backup" — a valid choice.
 			bads := []string{"relative.txt", missing, unapprovedFile}
-			if name != "RunSelfUninstall" {
+			if !strings.HasPrefix(name, "RunSelfUninstall") {
 				bads = append(bads, "")
 			}
 			for _, bad := range bads {
@@ -197,9 +190,9 @@ func TestSetWorkspacePath_AcceptsOnlyPickedFolder(t *testing.T) {
 	}
 }
 
-// A folder is known when picked this session or already registered as a
-// remembered repository folder or as the folder of a local SKILL/MCP
-// record; global records and anything else do not count.
+// A folder is known when picked this session or already registered as the
+// folder of a local SKILL/MCP record (compared as cleaned paths); global
+// records and anything else do not count.
 func TestRequireKnownFolder(t *testing.T) {
 	isolateActions(t)
 	unknown := t.TempDir()
@@ -212,11 +205,10 @@ func TestRequireKnownFolder(t *testing.T) {
 		t.Errorf("picked folder: %v", err)
 	}
 
-	repoDir, skillDir, mcpDir, globalSkillDir, globalMCPDir := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	skillDir, mcpDir, globalSkillDir, globalMCPDir := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
 	if err := config.Update(func(c *config.Config) error {
-		c.RepoFolders = []string{repoDir + "/"}
 		c.AgentSkills = []config.AgentSkillInstall{
-			{Slug: "a", Folder: skillDir},
+			{Slug: "a", Folder: skillDir + "/"},
 			{Slug: "a", Global: true, Folder: globalSkillDir},
 		}
 		c.MCPServers = []config.MCPServerInstall{
@@ -227,7 +219,7 @@ func TestRequireKnownFolder(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for name, dir := range map[string]string{"repo folder": repoDir, "local skill": skillDir, "local mcp": mcpDir} {
+	for name, dir := range map[string]string{"local skill": skillDir, "local mcp": mcpDir} {
 		if err := requireKnownFolder(dir); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -242,32 +234,6 @@ func TestRequireKnownFolder(t *testing.T) {
 	}
 	if err := requireKnownFolderUnlessGlobal(true, "relative"); err != nil {
 		t.Errorf("the folder does not matter in Global scope: %v", err)
-	}
-}
-
-// AddRepoFolder only remembers a folder picked in a dialog this session,
-// compares cleaned paths and forgets by the cleaned path too.
-func TestAddRepoFolder_RequiresPickedFolderAndCleansPaths(t *testing.T) {
-	isolateActions(t)
-	d := &DevToolsService{}
-	existing := t.TempDir()
-	if err := d.AddRepoFolder(existing); err == nil {
-		t.Fatal("a folder that was not picked must be refused")
-	}
-	picked, _ := approvePath(t.TempDir(), nil)
-	for _, spelling := range []string{picked, picked + "/", picked + "/./"} {
-		if err := d.AddRepoFolder(spelling); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if got := d.GetRepoFolders(); len(got) != 1 || got[0].Path != picked {
-		t.Fatalf("folders = %+v, want the one cleaned path %s", got, picked)
-	}
-	if err := d.RemoveRepoFolder(picked + "/"); err != nil {
-		t.Fatal(err)
-	}
-	if got := d.GetRepoFolders(); len(got) != 0 {
-		t.Errorf("folders after remove = %+v", got)
 	}
 }
 

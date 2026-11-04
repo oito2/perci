@@ -1,14 +1,12 @@
-# Bash/Shell Development — Lumina Standard
+# Bash/Shell Development Standard
 
-Bash/Shell development standards for the Lumina ecosystem.
-Focused on defensive scripts, performance, and a consistent interface.
-Use for creating automation scripts, CLI tools, and installers.
+Standard for Bash scripts, CLI tools and installers: defensive code, a consistent interface, tested behavior.
+
+Last verified: 2026-11-04
 
 ---
 
-## Boilerplate — Lumina Ecosystem Scripts
-
-Use for scripts that belong to the Lumina library ecosystem and depend on `lib/utils.sh` and `lib/system.sh`. For standalone scripts, see the minimal boilerplate below.
+## Boilerplate
 
 ```bash
 #!/usr/bin/env bash
@@ -18,70 +16,85 @@ Use for scripts that belong to the Lumina library ecosystem and depend on `lib/u
 # Version     : 1.0.0
 # =============================================================================
 set -Eeuo pipefail
-shopt -s inherit_errexit
+shopt -s inherit_errexit # bash >= 4.4
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 
-# --- Cleanup and Errors ---
-trap 'printf "\n\033[0;31m❌ Error at %s:%d\033[0m\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
-trap '[[ -n "${_tmpdir:-}" ]] && rm -rf -- "$_tmpdir"' EXIT
-
-# --- Dependency Loading ---
-for _lib in utils.sh system.sh; do
-    if [[ ! -f "$SCRIPT_DIR/lib/$_lib" ]]; then
-        printf '\033[0;31m❌ Fatal error: lib/%s not found.\033[0m\n' "$_lib" >&2
-        exit 1
-    fi
-    # shellcheck source=/dev/null
-    source "$SCRIPT_DIR/lib/$_lib"
-done
-unset _lib
-
-# --- Temp Directory (auto-cleaned on EXIT) ---
-# Uncomment when the script needs a temporary workspace:
-# _tmpdir=$(mktemp -d)
-
-# --- Functions ---
-main() {
-    detect_pkg_manager
-    show_header "Optional Subtitle"
-    # Logic here
-}
-
-main "$@"
-```
-
----
-
-## Boilerplate — Standalone Script
-
-Use for scripts that do not depend on Lumina libraries.
-
-```bash
-#!/usr/bin/env bash
-# =============================================================================
-# Script Name : script-name.sh
-# Description : Brief description of the purpose
-# Version     : 1.0.0
-# =============================================================================
-set -Eeuo pipefail
-shopt -s inherit_errexit
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-readonly SCRIPT_DIR
-
-trap 'printf "\n\033[0;31mError at %s:%d\033[0m\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
+trap 'printf "\nError at %s:%d\n" "${BASH_SOURCE[0]}" "$LINENO" >&2' ERR
 trap '[[ -n "${_tmpdir:-}" ]] && rm -rf -- "$_tmpdir"' EXIT
 
 # _tmpdir=$(mktemp -d)   # uncomment when the script needs a temporary workspace
+
+# Prints a message to stderr.
+warn() { printf '%s\n' "Warning: $*" >&2; }
+
+# Prints an error to stderr and exits with status $2 (default 1).
+die() {
+    printf '%s\n' "Error: $1" >&2
+    exit "${2:-1}"
+}
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [options] <arg>
+
+Options:
+  -o, --output FILE  Write the result to FILE
+  -v, --verbose      Print progress details
+  -h, --help         Show this help and exit
+EOF
+}
 
 main() {
     # Logic here
     :
 }
 
-main "$@"
+# Runs main only when executed, so tests can source the functions.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
+```
+
+- `inherit_errexit` requires **bash >= 4.4**. If the script must run on an older bash (e.g. macOS `/bin/bash` 3.2), drop it and check command substitutions explicitly.
+- Interactive headers or banners call `clear` only when stdout is a terminal: `[[ -t 1 ]] && clear`.
+- Use colors only when `[[ -t 1 ]]` and `NO_COLOR` is unset; always reset after a colored string.
+
+---
+
+## Interface Conventions
+
+### Help and usage
+
+- Every script with arguments accepts `-h`/`--help`: print `usage` to **stdout** and exit `0`.
+- A usage error (unknown option, missing argument) prints a one-line error plus a hint (`Try '${0##*/} --help'`) to **stderr** and exits `2`.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success (also `--help`) |
+| `1` | General runtime failure |
+| `2` | Usage error (bad options or arguments) |
+| `126` / `127` | Reserved by the shell (not executable / command not found) — never use them |
+| `128+N` | Reserved for termination by signal N — never use them |
+
+Document any additional code in `usage`.
+
+### Output
+
+- Results go to stdout; errors, warnings and progress go to stderr, so the output can be piped.
+- Use `printf '%s\n'` for literal text and `printf '%b\n'` only when escape sequences must be expanded; never `echo` with options or escapes.
+
+### Confirmations
+
+`y` or `s` confirms, any other answer cancels:
+
+```bash
+printf '%s' "Continue? (y/N): "
+read -r confirm
+[[ ! "$confirm" =~ ^[yYsS]$ ]] && return 0
 ```
 
 ---
@@ -89,9 +102,7 @@ main "$@"
 ## Defensive Shell — Golden Rules
 
 1. **Always quote variables:** `"$var"`, `"${array[@]}"`, `"$(command)"`.
-
 2. **Local scope in functions:** use `local` for variables, `local -r` for constants.
-
 3. **Preserve exit codes** — separate declaration (`local`, `readonly`, `export`) from assignment:
    ```bash
    get_value() {
@@ -100,90 +111,11 @@ main "$@"
        printf '%s\n' "$result"
    }
    ```
-
 4. **Flag protection** — terminate options with `--` before variable arguments:
    ```bash
    rm -rf -- "$path"
    grep -F -- "$search" "$file"
    ```
-
-5. **Printf over echo** — use `printf '%b\n'` for colorized output, `printf '%s\n'` for literal text.
-
----
-
-## Lumina Interface (`lib/utils.sh`)
-
-### Color palette
-
-Never redefine colors. Use the variables exported by `utils.sh`:
-
-| Variable | Color | Usage |
-|---|---|---|
-| `${C1}` | Red | Error |
-| `${C2}` | Green | Success |
-| `${C3}` | Yellow | Warning |
-| `${C4}` | Gray (#999999) | Info |
-| `${H1}`, `${H2}` | Default terminal | Headers |
-| `${RESET}` | — | Reset |
-
-Always pair a color variable with `${RESET}` and use `printf '%b\n'` to expand escape sequences:
-
-```bash
-printf '%b\n' "${C1}Error: file not found${RESET}"
-printf '%b\n' "${C2}Done: all packages installed${RESET}"
-printf '%b\n' "${C3}Warning: running as root${RESET}"
-printf '%b\n' "${C4}Info: using apt${RESET}"
-```
-
-### Output functions
-
-| Function | Description |
-|---|---|
-| `die "msg"` | Fatal error + exit |
-| `warn "msg"` | Warning to stderr |
-| `info "msg"` | Information to stdout |
-| `success "msg"` | Success confirmation |
-
-### Confirmations
-
-Standard: `y` or `s` confirms, any other key cancels.
-
-```bash
-printf '%b' "Continue? (${C3}y${RESET}/N): "
-read -r confirm
-[[ ! "$confirm" =~ ^[yYsS]$ ]] && return 0
-```
-
-### Default header
-
-```bash
-# =============================================================================
-# Prints the default Lumina ASCII header. $1 = subtitle (optional).
-# =============================================================================
-show_lumina_header() {
-    local subtitle="${1:-LUMINA CLI ENGINE}"
-    clear
-    printf '%b\n' ""
-    printf '%b\n' "░██                            ░██                      "
-    printf '%b\n' "░██                                                     "
-    printf '%b\n' "░██ ░██    ░██ ░█████████████  ░██░████████   ░██████   "
-    printf '%b\n' "░██ ░██    ░██ ░██   ░██   ░██ ░██░██    ░██       ░██  "
-    printf '%b\n' "░██ ░██    ░██ ░██   ░██   ░██ ░██░██    ░██  ░███████  "
-    printf '%b\n' "░██ ░██   ░███ ░██   ░██   ░██ ░██░██    ░██ ░██   ░██  "
-    printf '%b\n' "░██  ░█████░██ ░██   ░██   ░██ ░██░██    ░██  ░█████░██ "
-    printf '%b\n' ""
-    printf '%b\n' "${H2}${subtitle}${RESET} "
-    printf '%b\n' ""
-}
-```
-
-Each script defines its own `show_header` wrapper that calls `show_lumina_header` with a custom subtitle:
-
-```bash
-show_header() {
-    show_lumina_header "LuminaDev — Workstation Setup"
-}
-```
 
 ---
 
@@ -191,14 +123,14 @@ show_header() {
 
 ### Atomic write
 
-Prevents file corruption on write failures: the content goes to a temporary file in the destination's own directory, which is then renamed over the destination (a rename is only atomic within the same filesystem, so never stage the file in `/tmp`).
+The content goes to a temporary file in the destination's own directory, which is then renamed over the destination (a rename is only atomic within one filesystem, so never stage the file in `/tmp`).
 
 ```bash
 # $1 = destination, $2 = file mode (default 644). Content comes from stdin.
 atomic_write() {
     local dest="$1" mode="${2:-644}" tmp
     tmp=$(mktemp -- "$(dirname -- "$dest")/.tmp.XXXXXX")
-    if ! cat > "$tmp" || ! chmod -- "$mode" "$tmp"; then
+    if ! cat >"$tmp" || ! chmod -- "$mode" "$tmp"; then
         rm -f -- "$tmp"
         return 1
     fi
@@ -209,8 +141,6 @@ generate_config | atomic_write "/etc/app/config.conf"
 ```
 
 ### Safe iteration (NUL-delimited)
-
-Handles filenames containing spaces or newlines.
 
 ```bash
 while IFS= read -r -d '' f; do
@@ -228,34 +158,35 @@ require_cmd() {
 
 ### Sensitive files (credentials)
 
-Create with restricted permissions **before** writing data. Always wrap in a function — `local` is only valid inside a function.
+Create with restricted permissions **before** writing data:
 
 ```bash
 # $1 = token to store.
 store_secret() {
     local secret_file="$HOME/.secrets" token="$1"
-    (umask 077; touch "$secret_file")
-    printf 'TOKEN=%q\n' "$token" >> "$secret_file"
+    (umask 077 && touch -- "$secret_file")
+    printf 'TOKEN=%q\n' "$token" >>"$secret_file"
 }
 ```
 
 ### Argument parsing
 
-Use a `while/case` loop for flags and positional arguments. Supports both short and long options.
-
 ```bash
 main() {
-    local verbose=0
-    local output=""
+    local verbose=0 output=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -v|--verbose) verbose=1; shift ;;
-            -o|--output)  [[ $# -lt 2 ]] && die "Option $1 requires an argument"
-                          output="$2"; shift 2 ;;
-            --)           shift; break ;;
-            -*)           die "Unknown option: $1" ;;
-            *)            break ;;
+            -h | --help) usage; exit 0 ;;
+            -v | --verbose) verbose=1; shift ;;
+            -o | --output)
+                [[ $# -lt 2 ]] && die "Option $1 requires an argument" 2
+                output="$2"
+                shift 2
+                ;;
+            --) shift; break ;;
+            -*) die "Unknown option: $1 (try '${0##*/} --help')" 2 ;;
+            *) break ;;
         esac
     done
 
@@ -265,24 +196,53 @@ main() {
 
 ---
 
+## Testing (bats-core)
+
+- Test scripts with [bats-core](https://github.com/bats-core/bats-core); put tests in `test/*.bats`. Use the project's existing test layout if it has one.
+- Source the script in `setup` (the `main` guard in the boilerplate keeps it from running) and test functions directly; use `run` to test the whole script's exit code and output.
+- Work only inside `$BATS_TEST_TMPDIR`; point `HOME` and `XDG_*` variables there. Stub external commands with fake executables placed first in `PATH`.
+
+```bash
+#!/usr/bin/env bats
+
+setup() {
+    export HOME="$BATS_TEST_TMPDIR"
+    source "$BATS_TEST_DIRNAME/../script-name.sh"
+}
+
+@test "unknown option exits with usage error" {
+    run "$BATS_TEST_DIRNAME/../script-name.sh" --bogus
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Unknown option"* ]]
+}
+```
+
+---
+
 ## Anti-Patterns
 
 | Anti-pattern | Why |
 |---|---|
-| `echo` for colorized output | Escape sequences are not portable; use `printf '%b\n'` |
+| `echo` for colorized or escaped output | Not portable; use `printf '%b\n'` |
 | Unquoted `$var` in commands or conditions | Word splitting and glob expansion cause silent bugs |
 | Parsing `ls` output | Breaks on filenames with spaces or newlines; use `find -print0` |
-| `cd dir; do_something` without a guard | `cd` failure goes undetected; use `cd dir && do_something` or `\|\| die` |
-| `eval` with user-supplied input | Arbitrary code execution risk |
+| `cd dir; do_something` without a guard | `cd` failure goes undetected; use `cd dir && ...` or `\|\| die` |
+| `eval` with user-supplied input | Arbitrary code execution |
 | `which cmd` to detect commands | Not POSIX; use `command -v cmd` |
 | Missing `local` in functions | Leaks variables into the global scope |
-| Declaring and assigning in one step with command substitution | Loses the exit code; separate declaration from assignment |
+| Declaring and assigning in one step with command substitution | Loses the exit code |
+| Unconditional `clear` or colors | Breaks pipes, logs and CI output; check `[[ -t 1 ]]` |
 
 ---
 
 ## Quality
 
-- **ShellCheck:** `--severity=warning --shell=bash --exclude=SC1091`
-  - Suppress SC1091 only where sourcing is dynamic.
-- **shfmt:** `shfmt -i 4 -ci` for consistent formatting.
-- All scripts must pass ShellCheck with zero warnings before being considered complete.
+All scripts pass these with zero findings before a task is done:
+
+```bash
+shellcheck --severity=warning --shell=bash path/to/*.sh
+shfmt -d -i 4 -ci path/to/*.sh     # prints a diff when formatting is off; fix with -w
+bats test/                         # when the project has bats tests
+```
+
+Suppress a ShellCheck finding only inline, with the code and a reason (`# shellcheck disable=SC1091 # sourced at runtime`).

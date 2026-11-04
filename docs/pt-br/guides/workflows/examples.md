@@ -48,12 +48,15 @@ O container do app sobe automaticamente como parte da criação — sem passo se
 
 ## 6. Clonar uma Instalação Moodle Pra Dentro Dele
 
-**Dev Tools → Repositórios**, aba "Repositórios" → **Clonar**, com:
+Clone o código do Moodle direto na própria pasta `html` do app (`{{workspace_path}}/localhost/html/<pasta>`, batendo com a `pasta` escolhida na criação do container), num terminal:
 
-- URL: `https://github.com/sua-org/seu-site-moodle.git`
-- Pasta: `~/workspace/localhost/html/mdle`
+```bash
+git clone https://github.com/sua-org/seu-site-moodle.git ~/workspace/localhost/html/mdle
+```
 
-Clone direto na própria pasta `html` do app (`{{workspace_path}}/localhost/html/<pasta>`, batendo com a `pasta` escolhida na criação do container) — o container já estava roteado pra ela, sem precisar rodar/reiniciar nada de novo. Um segundo site Moodle é um segundo Container Aplicativo independente (sua própria pasta, URL e container), não uma entrada nova numa stack compartilhada.
+O container já estava roteado pra essa pasta — sem precisar rodar/reiniciar nada de novo. Um segundo site Moodle é um segundo Container Aplicativo independente (sua própria pasta, URL e container), não uma entrada nova numa stack compartilhada.
+
+Para repositórios da sua própria conta do GitHub/GitLab, configure a conta em **Repositórios → Configurar Conta** e clone com **Novo Repositório** na tela da conta: o clone já recebe a identidade dos commits e a chave SSH da conta. Veja [Contas Git e repositórios](./repositories.md). O menu Repositórios só clona repositórios de que o usuário da conta é dono, por isso o site Moodle de uma organização é clonado com o `git` acima.
 
 ## 7. Manutenção de Banco de Dados
 
@@ -65,7 +68,7 @@ As duas usam as credenciais de `cfg.Docker.MariaDB.*` contra o container MariaDB
 
 **Dev Tools → IA: Contextos**, escolha a pasta do projeto clonado, marque **Moodle** e clique em **Aplicar**.
 
-Isso gera `AGENTS.md`/`CLAUDE.md`/`.instructions/MOODLE.md` (com `{{MOODLE_VERSION}}` etc. preenchidos automaticamente a partir do `version.php`). (O modelo `php` foi removido em 2026-09-11 — orientação genérica de PHP agora é coberta por skills de terceiros, ex. "PHP: Specialist"/"PHP: Pro 8.3+" via `Dev Tools :: IA: SKILLs` na GUI, que também substituiu o antigo fluxo de aplicar skills — "Claude Code Mode" e o resto do catálogo próprio de `internal/manager/skills` foram removidos no mesmo dia.)
+Isso gera `AGENTS.md`, `.instructions/MOODLE.md` (com a versão do Moodle preenchida a partir do `version.php`) e `.instructions/PROJECT.md`, mais os arquivos de cada agente marcado (ex.: `CLAUDE.md` e `.claude/rules/perci/MOODLE.md` para o Claude Code). (O modelo `php` foi removido em 2026-09-11 — orientação genérica de PHP agora é coberta por skills de terceiros, ex. "PHP: Specialist"/"PHP: Pro 8.3+" via `Dev Tools :: IA: SKILLs` na GUI, que também substituiu o antigo fluxo de aplicar skills — "Claude Code Mode" e o resto do catálogo próprio de `internal/manager/skills` foram removidos no mesmo dia.)
 
 ## 9. Manter Tudo Atualizado
 

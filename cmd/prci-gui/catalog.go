@@ -15,6 +15,8 @@
 
 package main
 
+import "github.com/oito2/perci/internal/config"
+
 // MenuItem is one entry inside a category's accordion panel — rendered
 // with the daisyUI `menu` component.
 type MenuItem struct {
@@ -39,6 +41,10 @@ type MenuItem struct {
 	// selected — empty uses the generic "Perci" label (the app's own name,
 	// used by Home :: Visão Geral).
 	Tab string `json:"tab,omitempty"`
+
+	// AccountID is the Git account an item of the "Repositórios" category
+	// opens (ActionID "git-account").
+	AccountID string `json:"accountId,omitempty"`
 }
 
 // MenuCategory is one of the top-level sidebar sections.
@@ -47,8 +53,52 @@ type MenuCategory struct {
 	Items []MenuItem `json:"items"`
 }
 
-// categories is the sidebar's category/item catalogue. An item without an
-// ActionID keeps the placeholder behavior (Executar disabled).
+// sidebarCategories returns the sidebar's categories: the static
+// catalogue with the "Repositórios" category inserted right after
+// "Docker". That category lists "Configurar Conta", "Gerenciar
+// Repositórios" and then one item per Git account, in accounts' order.
+func sidebarCategories(accounts []config.GitAccount) []MenuCategory {
+	repos := MenuCategory{
+		Label: "Repositórios",
+		Items: []MenuItem{{
+			// "contas git" mode (#gitaccounts-container): the account table
+			// and its create/edit form, plus the top-level tab
+			// "Identidade padrão".
+			Title:    "Configurar Conta",
+			Desc:     "Cadastre as contas do GitHub e do GitLab: pasta, identidade dos commits, chave SSH e token.",
+			ActionID: "git-accounts",
+			Tab:      "Contas",
+		}, {
+			// "gerenciar repositórios" mode (#gittransfer-container): the
+			// Exportar checklist, plus the top-level tab "Importar".
+			Title:    "Gerenciar Repositórios",
+			Desc:     "Exporte as contas e os repositórios para um arquivo e importe-os em outra máquina.",
+			ActionID: "git-transfer",
+			Tab:      "Exportar",
+		}},
+	}
+	for _, acc := range accounts {
+		repos.Items = append(repos.Items, MenuItem{
+			Title:     acc.Name,
+			Desc:      "Repositórios da conta " + acc.Name + ".",
+			ActionID:  "git-account",
+			AccountID: acc.ID,
+			Tab:       acc.Name,
+		})
+	}
+
+	cats := make([]MenuCategory, 0, len(categories)+1)
+	for _, c := range categories {
+		cats = append(cats, c)
+		if c.Label == "Docker" {
+			cats = append(cats, repos)
+		}
+	}
+	return cats
+}
+
+// categories is the sidebar's static category/item catalogue. An item
+// without an ActionID keeps the placeholder behavior (Executar disabled).
 var categories = []MenuCategory{
 	{
 		// Home has 2 wired items: "Visão Geral" ("dashboard" mode,
@@ -224,8 +274,8 @@ var categories = []MenuCategory{
 			},
 		},
 	},
-	// Its own category, alongside "Docker": Moodle plugin mounts,
-	// repositories and the AI tooling (contexts, skills, MCP servers).
+	// Its own category, alongside "Docker": Moodle plugin mounts and the
+	// AI tooling (contexts, skills, MCP servers).
 	{
 		Label: "Dev Tools",
 		Items: []MenuItem{
@@ -237,17 +287,6 @@ var categories = []MenuCategory{
 				Desc:     "Monte a pasta de desenvolvimento de um plugin dentro dos contêineres Moodle do Perci.",
 				ActionID: "moodleplugins",
 				Tab:      "Plugins Moodle",
-			},
-			{
-				// "repositórios" mode (#repos-container + #panel-repos-list): 2 top-level
-				// tabs, "Identidade Global" (Tab below, content of #repos-container) and
-				// "Repositórios" (the #tab-label-repos-list tab — remembered-folder cards
-				// + a Clonar/Iniciar Repositório/Identidade Local/Arquivos horizontal
-				// menu).
-				Title:    "Repositórios",
-				Desc:     "Clone, inicie e configure identidade de repositórios Git, gere .gitignore e Código de Conduta.",
-				ActionID: "repos",
-				Tab:      "Identidade Global",
 			},
 			{
 				// "IA: Contextos" mode (#aicontext-container): a working-folder picker +

@@ -10,9 +10,9 @@ O `prci` é uma única interface gráfica (construída com [Wails](https://wails
 
 Isso significa que toda função de domínio em `internal/system`, `internal/dev`, `internal/appstack` e `internal/manager` recebe parâmetros simples e é chamada diretamente por um método Go ligado ao frontend da GUI — não há prompt interativo nenhum nesse código, nem um caminho scriptável separado: a GUI é a única porta de entrada.
 
-## As Cinco Categorias
+## As Seis Categorias
 
-A GUI agrupa toda ação em cinco categorias na barra lateral:
+A GUI agrupa toda ação em seis categorias na barra lateral:
 
 | # | Categoria | Cobre |
 |---|---|---|
@@ -20,7 +20,8 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 | 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, WebApps. |
 | 3 | **Desenvolvimento** | Construir um ambiente de dev: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais. |
 | 4 | **Docker** | A stack Docker de aplicativos por projeto: criação e gerenciamento de containers Nginx/MariaDB/PHP/Node, exportar/importar. |
-| 5 | **Dev Tools** | Trabalhar dentro de um projeto já configurado: pastas de desenvolvimento de plugins montadas nos contêineres Moodle, controle de repositório Git, geração de Contexto IA, skills de IA, registro de servidores MCP. |
+| 5 | **Repositórios** | Contas do GitHub/GitLab, cada uma com sua pasta, identidade dos commits e chave SSH; uma tela por conta com os repositórios dela; exportar/importar contas e repositórios. Veja [Contas Git e repositórios](../guides/workflows/repositories.md). |
+| 6 | **Dev Tools** | Trabalhar dentro de um projeto já configurado: pastas de desenvolvimento de plugins montadas nos contêineres Moodle, geração de Contexto IA, skills de IA, registro de servidores MCP. |
 
 ### Telas
 
@@ -35,7 +36,10 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
 
 ![Docker → Gerenciar Contêineres](../../img/screenshots/perci-docker.png)
 
-![Dev Tools → Repositórios](../../img/screenshots/devtools-window.png)
+![Dev Tools → IA: Contextos](../../img/screenshots/devtools-window.png)
+<!-- TODO: recapture devtools-window.png with a folder picked, to show the agent checkboxes and the grouped standards -->
+
+![Repositórios → os repositórios de uma conta](../../img/screenshots/repositories-window.png)
 
 #### Temas
 
@@ -60,7 +64,7 @@ A GUI agrupa toda ação em cinco categorias na barra lateral:
   </tr>
 </table>
 
-![Menu da bandeja do sistema — Abrir Aplicativo mostra a janela principal; Contêineres, Repositórios e Atualizar Sistema abrem a janela compacta](../../img/screenshots/tray-window.png)
+![Menu da bandeja do sistema — Abrir Aplicativo mostra a janela principal; Contêineres e Atualizar Sistema abrem a janela compacta](../../img/screenshots/tray-window.png)
 
 Só uma instância do Perci roda por sessão: abri-lo de novo pelo menu da distribuição (ou rodando `prci`) traz a janela em execução para a frente em vez de iniciar uma segunda cópia com seu próprio ícone na bandeja.
 

@@ -27,7 +27,7 @@ import (
 )
 
 func TestDenyRules_FromTheIgnoreTemplate(t *testing.T) {
-	tpl, err := readTpl("templates/.aiexclude")
+	tpl, err := readTpl("templates/ignore/patterns")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +35,13 @@ func TestDenyRules_FromTheIgnoreTemplate(t *testing.T) {
 	for _, want := range []string{"Read(.env)", "Read(.env.*)", "Read(*.pem)", "Read(node_modules/**)", "Read(.git/**)", "Read(*.min.js)", "Read(.gemini/**)"} {
 		if !slices.Contains(rules, want) {
 			t.Errorf("missing %s in %v", want, rules)
+		}
+	}
+	// Images, PDFs and lockfiles stay readable: agents look at screenshots
+	// and check dependency versions.
+	for _, readable := range []string{"Read(*.png)", "Read(*.svg)", "Read(*.pdf)", "Read(package-lock.json)", "Read(composer.lock)"} {
+		if slices.Contains(rules, readable) {
+			t.Errorf("%s must not be generated", readable)
 		}
 	}
 	for _, r := range rules {
@@ -54,7 +61,7 @@ func TestMergeDenyRules_KeepsEveryOtherKeyAndNeverDuplicates(t *testing.T) {
 	existing := []byte(`{"model":"opus","big":12345678901234567890,"permissions":{"allow":["Bash(ls)"],"deny":["Read(.env)","Bash(rm *)"]},"hooks":{"x":[1]}}`)
 	rules := []string{"Read(.env)", "Read(*.pem)"}
 
-	out, changed, err := mergeDenyRules(existing, rules)
+	out, changed, err := mergeDenyRules(existing, rules, nil)
 	if err != nil || !changed {
 		t.Fatalf("merge: changed=%v err=%v", changed, err)
 	}
@@ -80,14 +87,14 @@ func TestMergeDenyRules_KeepsEveryOtherKeyAndNeverDuplicates(t *testing.T) {
 		t.Errorf("a number lost precision:\n%s", out)
 	}
 
-	again, changed, err := mergeDenyRules(out, rules)
+	again, changed, err := mergeDenyRules(out, rules, nil)
 	if err != nil || changed || !bytes.Equal(again, out) {
 		t.Errorf("a second merge must change nothing: changed=%v err=%v", changed, err)
 	}
 }
 
 func TestMergeDenyRules_FromNothing(t *testing.T) {
-	out, changed, err := mergeDenyRules(nil, []string{"Read(.env)"})
+	out, changed, err := mergeDenyRules(nil, []string{"Read(.env)"}, nil)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -105,7 +112,7 @@ func TestMergeDenyRules_RefusesWhatItCannotMerge(t *testing.T) {
 		"deny not a list":     `{"permissions":{"deny":"Read(.env)"}}`,
 		"permissions in list": `{"permissions":[1]}`,
 	} {
-		if _, _, err := mergeDenyRules([]byte(doc), []string{"Read(.env)"}); err == nil {
+		if _, _, err := mergeDenyRules([]byte(doc), []string{"Read(.env)"}, nil); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
 	}
@@ -125,10 +132,10 @@ func TestGenerateSharedFiles_ClaudeSettingsInsteadOfClaudeignore(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := GenerateSharedFiles(dir, []Model{models[0]}, true, &out); err != nil {
+	if err := GenerateSharedFiles(dir, []Model{models[0]}, AgentIDs(), true, &out); err != nil {
 		t.Fatal(err)
 	}
-	if err := GenerateSharedFiles(dir, []Model{models[0]}, true, &out); err != nil { // idempotent
+	if err := GenerateSharedFiles(dir, []Model{models[0]}, AgentIDs(), true, &out); err != nil { // idempotent
 		t.Fatal(err)
 	}
 
@@ -168,7 +175,7 @@ func TestGenerateSharedFiles_BrokenClaudeSettingsIsKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := GenerateSharedFiles(dir, []Model{models[0]}, true, &out); err != nil {
+	if err := GenerateSharedFiles(dir, []Model{models[0]}, AgentIDs(), true, &out); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(settings); string(data) != "{broken" {
@@ -197,7 +204,7 @@ func TestGenerateSharedFiles_BackupAndSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := GenerateSharedFiles(dir, []Model{models[0]}, true, &bytes.Buffer{}); err != nil {
+	if err := GenerateSharedFiles(dir, []Model{models[0]}, AgentIDs(), true, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	if bak, err := os.ReadFile(filepath.Join(dir, "AGENTS.md.perci-bak")); err != nil || string(bak) != "my own rules\n" {
@@ -221,7 +228,7 @@ func TestGenerateSharedFiles_ClaudeLinkedToAgentsIsKept(t *testing.T) {
 	if err := os.Symlink("AGENTS.md", filepath.Join(dir, "CLAUDE.md")); err != nil {
 		t.Fatal(err)
 	}
-	if err := GenerateSharedFiles(dir, []Model{models[0]}, true, &bytes.Buffer{}); err != nil {
+	if err := GenerateSharedFiles(dir, []Model{models[0]}, AgentIDs(), true, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	agents, _ := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
@@ -237,29 +244,65 @@ func TestGenerateSharedFiles_ClaudeLinkedToAgentsIsKept(t *testing.T) {
 }
 
 // The ignore file says what it does not do.
-func TestAIExcludeHeaderIsHonest(t *testing.T) {
-	tpl, err := readTpl("templates/.aiexclude")
+func TestIgnoreHeadersAreHonest(t *testing.T) {
+	for _, path := range []string{"templates/ignore/aiexclude-header", "templates/ignore/geminiignore-header"} {
+		tpl, err := readTpl(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(tpl, "Shield") || strings.Contains(tpl, "Stops Prompt Injection") {
+			t.Errorf("%s still claims protection it does not give", path)
+		}
+		if !strings.Contains(tpl, "not a security boundary") || !strings.Contains(tpl, ".claude/settings.json") || !strings.Contains(tpl, "read") {
+			t.Errorf("%s must say it is not a security boundary and where the other agents get the list", path)
+		}
+	}
+}
+
+// Perci's own rules follow the canonical list: rules an older version
+// generated go away, the user's stay, and a file left with nothing else is
+// emptied.
+func TestMergeDenyRules_RemovesRulesPerciNoLongerGenerates(t *testing.T) {
+	managed, err := managedDenyRules()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(tpl, "Shield") || strings.Contains(tpl, "Stops Prompt Injection") {
-		t.Error("the header still claims protection it does not give")
+	for _, old := range []string{"Read(*.png)", "Read(package-lock.json)", "Read(dist/**)", "Read(vendor/**)"} {
+		if !slices.Contains(managed, old) {
+			t.Errorf("%s is not known as a Perci rule", old)
+		}
 	}
-	if !strings.Contains(tpl, "not a security boundary") || !strings.Contains(tpl, ".claude/settings.json") {
-		t.Error("the header must say it is not a security boundary and point Claude Code users to settings.json")
+	existing := []byte(`{"permissions":{"deny":["Read(*.png)","Read(.env)","Bash(rm *)","Read(package-lock.json)"]}}`)
+	out, changed, err := mergeDenyRules(existing, []string{"Read(.env)", "Read(*.pem)"}, managed)
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	var doc struct {
+		Permissions struct {
+			Deny []string `json:"deny"`
+		} `json:"permissions"`
+	}
+	_ = json.Unmarshal(out, &doc)
+	if !slices.Equal(doc.Permissions.Deny, []string{"Read(.env)", "Bash(rm *)", "Read(*.pem)"}) {
+		t.Errorf("deny = %v", doc.Permissions.Deny)
+	}
+
+	out, _, err = mergeDenyRules([]byte(`{"permissions":{"deny":["Read(.env)"]}}`), nil, managed)
+	if err != nil || strings.TrimSpace(string(out)) != "{}" {
+		t.Errorf("only Perci rules, removed: %s, %v", out, err)
 	}
 }
 
 func TestWithoutTrackedSource_KeepsVersionedSourceReadable(t *testing.T) {
-	ignore := "dist/\nbuild/\n*.png\n*.jpg\nnode_modules/\n.env\n*.pem\n"
-	tracked := []string{"cmd/app/frontend/dist/index.html", "docs/img/main.png", "node_modules/x/index.js", ".env", "certs/a.pem"}
+	ignore := "dist/\nbuild/\nvendor/\nenv/\nnode_modules/\n.env\n*.pem\n"
+	tracked := []string{"cmd/app/frontend/dist/index.html", "cmd/app/frontend/dist/vendor/lucide/icons.js", "node_modules/x/index.js", ".env", "certs/a.pem"}
 	rules := denyRules(withoutTrackedSource(ignore, tracked))
-	for _, gone := range []string{"Read(dist/**)", "Read(*.png)"} {
+	for _, gone := range []string{"Read(dist/**)", "Read(vendor/**)"} {
 		if slices.Contains(rules, gone) {
 			t.Errorf("%s hides tracked files: %v", gone, rules)
 		}
 	}
-	for _, kept := range []string{"Read(build/**)", "Read(*.jpg)", "Read(node_modules/**)", "Read(.env)", "Read(*.pem)"} {
+	for _, kept := range []string{"Read(build/**)", "Read(env/**)", "Read(node_modules/**)", "Read(.env)", "Read(*.pem)"} {
 		if !slices.Contains(rules, kept) {
 			t.Errorf("missing %s in %v", kept, rules)
 		}
@@ -300,8 +343,12 @@ func TestClaudeDenyRules_ReadsTheGitListing(t *testing.T) {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	rules := claudeDenyRules(dir, "dist/\nbuild/\n")
-	if slices.Contains(rules, "Read(dist/**)") || !slices.Contains(rules, "Read(build/**)") {
+	patterns, err := ignorePatterns(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := denyRules(patterns)
+	if slices.Contains(rules, "Read(dist/**)") || !slices.Contains(rules, "Read(build/**)") || !slices.Contains(rules, "Read(vendor/**)") {
 		t.Errorf("rules = %v", rules)
 	}
 }

@@ -16,7 +16,7 @@ This opens the Perci window. There's nothing to type afterward — every action 
 
 ## What You'll See
 
-A sidebar on the left with five categories, and a main panel on the right showing whatever item is selected:
+A sidebar on the left with six categories, and a main panel on the right showing whatever item is selected:
 
 | Category | Covers |
 |---|---|
@@ -24,7 +24,8 @@ A sidebar on the left with five categories, and a main panel on the right showin
 | **Linux** | System updates, distro/DE-aware post-installation, fonts, file templates, Flatpak apps. |
 | **Desenvolvimento** | Build prerequisites, language SDKs, AI/terminal apps, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity). |
 | **Docker** | Create and manage the per-project Docker application stack. |
-| **Dev Tools** | Moodle plugin mounts, Git repositories, AI context generation, AI agent skills, MCP server registration. |
+| **Repositórios** | GitHub/GitLab accounts and their repositories: identity and SSH key per account folder, fetch/pull, clone, export/import. |
+| **Dev Tools** | Moodle plugin mounts, AI context generation, AI agent skills, MCP server registration. |
 
 The window opens on **Home :: Visão Geral** — a dashboard summarizing your system's status (distro/DE, installed dev tools, Docker containers, and so on), plus shortcuts to update or uninstall Perci itself. See [How perci.gnl works](../concepts/how-perci-works.md) for what's inside each category.
 
@@ -39,4 +40,4 @@ Perci creates `~/.perci/config.yaml` the first time you change a setting in the 
 3. **Linux :: Pós-instalação** — the items for your detected distro/DE, each with its own **Aplicar** button (it turns into **Aplicado** once the item is in place).
 4. **Desenvolvimento :: Pré-requisitos** — install the compiler toolchain, Git, curl, Docker Engine, mkcert, and NPM; each row has its own **Instalar**, **Atualizar** and **Desinstalar** buttons, and an item that needs another one stays disabled ("Requer: …") until that one is installed.
 5. **Docker :: Criar Container** — create the Nginx and MariaDB containers, then your first application container (see the [Docker application stack guide](../guides/environments/docker.md) for the full lifecycle).
-6. **Dev Tools :: IA: Contextos** — once inside an actual project directory, pick its **Tipo de projeto** (or check the standards by hand) and generate `AGENTS.md`/`CLAUDE.md`/`.instructions/*.md`.
+6. **Dev Tools :: IA: Contextos** — once inside an actual project directory, check the AI agents you use, pick its **Tipo de projeto** (suggested from the folder's files) or check the standards by hand, and click **Aplicar**: it lists the files it will create or change before writing them.

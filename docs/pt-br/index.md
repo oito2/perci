@@ -4,7 +4,7 @@
 
 ---
 
-perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](https://wails.io)) que transforma uma instalação Linux nova em uma estação de desenvolvimento totalmente configurada em minutos. Ele reúne pós-instalação de SO, manutenção de sistema, setup de SDKs/IDEs/ferramentas de dev, e um gerenciador de stack Docker por projeto (PHP, Node, ou os dois juntos, com suporte de primeira classe pro Moodle), tudo atrás de um único binário, um único arquivo de configuração e cinco categorias na sidebar: Home, Linux, Desenvolvimento, Docker e Dev Tools.
+perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](https://wails.io)) que transforma uma instalação Linux nova em uma estação de desenvolvimento totalmente configurada em minutos. Ele reúne pós-instalação de SO, manutenção de sistema, setup de SDKs/IDEs/ferramentas de dev, e um gerenciador de stack Docker por projeto (PHP, Node, ou os dois juntos, com suporte de primeira classe pro Moodle), tudo atrás de um único binário, um único arquivo de configuração e seis categorias na sidebar: Home, Linux, Desenvolvimento, Docker, Repositórios e Dev Tools.
 
 ---
 
@@ -19,7 +19,7 @@ perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](ht
 ## 🧠 Conceitos
 
 - [Por que o perci.gnl existe](./concepts/why-perci.md) — o problema que ele resolve e para quem ele realmente serve.
-- [Como o perci.gnl funciona](./concepts/how-perci-works.md) — as cinco categorias da sidebar e como a interface gráfica aciona o mesmo código de domínio.
+- [Como o perci.gnl funciona](./concepts/how-perci-works.md) — as seis categorias da sidebar e como a interface gráfica aciona o mesmo código de domínio.
 - [Visão geral da arquitetura](./concepts/architecture.md) — mapa de componentes de alto nível e fluxo de dados, para quem quer entender o quadro geral.
 - [Glossário](./concepts/glossary.md) — termos específicos do projeto (stack, workspace, família de distro, skills…).
 
@@ -30,7 +30,7 @@ perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](ht
 - [Gerenciamento de Sistema](./architecture/system-management.md) — `internal/system/*` (pós-instalação, fontes, templates, update, apps).
 - [Ambiente de Desenvolvimento](./architecture/dev-environment.md) — `internal/dev/*` (SDKs, IDEs, CLIs de LLM/MCP, terminais).
 - [Stack Docker de Aplicativos](./architecture/appstack.md) — `internal/appstack` (ciclo de vida de containers Nginx/PHP/Node/MariaDB por projeto, roteamento Moodle).
-- [Backend do Dev Tools](./architecture/managers.md) — `internal/manager/*` (contexto IA, skills IA, banco de dados, repositório, gitignore).
+- [Managers](./architecture/managers.md) — `internal/manager/*` (contas Git, contexto IA, banco de dados, arquivos de repositório, gitignore).
 - [Infraestrutura Central](./architecture/core-infra.md) — `internal/config`, `internal/distro`, `internal/executor`, `internal/selfupdate`, `internal/shellrc`.
 - [Log de decisões internas](./architecture/decisions.md) — riscos aceitos e trade-offs técnicos que não são óbvios só pela leitura do código.
 
@@ -40,6 +40,7 @@ perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](ht
 
 - [Fluxo de trabalho ponta a ponta](./guides/workflows/examples.md) — de uma máquina nova até um ambiente Moodle de dev funcionando.
 - [Ambiente da stack Docker de aplicativos](./guides/environments/docker.md) — operação do dia a dia da stack Nginx/PHP/Node/MariaDB por projeto.
+- [Contas Git e repositórios](./guides/workflows/repositories.md) — contas com pasta, identidade e chave SSH, as telas das contas, clonar e levar as contas para outra máquina.
 
 ---
 

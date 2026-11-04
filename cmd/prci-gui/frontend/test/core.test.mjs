@@ -130,7 +130,7 @@ test("screenFor resolves each family to its container", () => {
   assert.equal(el({ actionId: "ides" }), element("itemtable-container"));
   assert.equal(el({ actionId: "megasync" }), element("simple-container"));
   assert.equal(el({ actionId: "system-update" }), element("simple-container"));
-  assert.equal(ctx.screenFor({ actionId: "repos" }).alsoShow[0], element("tab-label-repos-list"));
+  assert.equal(ctx.screenFor({ actionId: "git-transfer" }).alsoShow[0], element("tab-label-git-import"));
   assert.equal(ctx.screenFor({ actionId: "moodleplugins" }).alsoShow[0], element("tab-label-mp-mounted"));
   assert.equal(ctx.screenFor({ actionId: "self-config" }).noTerminal, true);
   assert.equal(evalIn(ctx, "typeof SINGLE_APP_SCREENS"), "undefined");
@@ -141,7 +141,7 @@ test("the screen-only tab labels are hidden when another screen is selected", ()
   const { ctx, element } = load();
   const hidden = ctx.screenContainers();
   assert.ok(hidden.includes(element("tab-label-mp-mounted")));
-  assert.ok(hidden.includes(element("tab-label-repos-list")));
+  assert.ok(hidden.includes(element("tab-label-git-import")));
 });
 
 test("quit-blocked: the window running the action opens its Execução tab", () => {
@@ -257,34 +257,6 @@ test("IA Contextos: an answer for a folder that was cleared is dropped", async (
   assert.equal(element("btn-aic-apply").disabled, true);
 });
 
-// FE-04
-test("repos: the state of the previous folder is not applied to the new one", async () => {
-  const a = deferred();
-  const b = deferred();
-  const { ctx } = load({ GetRepoFolderState: queued([a, b]) });
-  evalIn(ctx, 'reposFolderPath = "/a"');
-  ctx.refreshReposFolderState();
-  evalIn(ctx, 'reposFolderPath = "/b"');
-  ctx.refreshReposFolderState();
-  b.resolve({ isEmpty: true, marker: "b" });
-  await tick();
-  a.resolve({ isEmpty: false, marker: "a" });
-  await tick();
-  assert.equal(evalIn(ctx, "reposFolderState.marker"), "b");
-});
-
-test("repos: a failure for a folder that is no longer selected stays silent", async () => {
-  const a = deferred();
-  const { ctx, element } = load({ GetRepoFolderState: queued([a]) });
-  evalIn(ctx, 'reposFolderPath = "/a"');
-  ctx.refreshReposFolderState();
-  evalIn(ctx, 'reposFolderPath = "/b"');
-  a.reject(new Error("old"));
-  await tick();
-  await tick();
-  assert.equal(element("error-modal-message").textContent, "");
-});
-
 // FE-05
 test("an update that ends outside Visão Geral makes the next visit check again", () => {
   const { ctx } = load();
@@ -384,13 +356,12 @@ test("accordion checkboxes are labelled and the active menu item has aria-curren
   const checkbox = element("accordion").children[0].children[0];
   assert.equal(checkbox.getAttribute("aria-label"), "Home");
 
-  const anchors = [0, 1].map((i) => {
+  const anchors = cats[0].items.map((item) => {
     const a = new FakeElement("a");
-    a.dataset.cat = "0";
-    a.dataset.item = String(i);
+    a.dataset.key = ctx.menuKey(item);
     return a;
   });
-  query("#accordion a[data-cat]", anchors);
+  query("#accordion a[data-key]", anchors);
   ctx.selectItem(cats[0], cats[0].items[1], 0, 1);
   assert.equal(anchors[1].getAttribute("aria-current"), "page");
   assert.equal(anchors[0].getAttribute("aria-current"), null);

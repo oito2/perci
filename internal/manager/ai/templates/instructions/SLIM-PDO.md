@@ -1,8 +1,10 @@
 # Slim + PDO Database Access
 
 Complement to `PHP-SLIM.md` — use it **together with** that standard, never on its own.
-Covers Slim 4 projects that talk to the database through PHP's native PDO, without an abstraction layer or ORM: connection setup, repositories, transactions, migrations and database tests.
-MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`; apply it as well when the database is MySQL or MariaDB.
+Covers Slim 4 projects that talk to the database through PHP's native PDO, without an abstraction layer or ORM: connection setup, repositories and transactions.
+Rules shared by every data layer (transaction ownership, migrations, test database) live in `PHP-SLIM.md` → **Database Access**; MySQL/MariaDB schema, indexing, locking and SQL dialect rules live in `MYSQL-MARIADB.md`.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -72,7 +74,7 @@ Bind `LIMIT`/`OFFSET` with `bindValue($name, $value, PDO::PARAM_INT)`.
 
 ## Transactions
 
-Wrap multi-statement writes in a transaction owned by the service (not the action), and always roll back on failure:
+A small helper on the repository or a unit-of-work class gives services one way to run a transaction:
 
 ```php
 // Runs $work inside a transaction; commits on success, rolls back and rethrows on any error.
@@ -92,40 +94,12 @@ public function transactional(callable $work): mixed
 }
 ```
 
-- No HTTP calls, mail or file I/O inside the transaction.
-- DDL statements commit implicitly on MySQL/MariaDB — never mix them into a data transaction.
-
----
-
-## Migrations
-
-Use the project's existing mechanism. When there is none, ask the user which to adopt:
-
-| Option | When |
-|---|---|
-| **Phinx** (`robmorgan/phinx`, 0.16.x: 64-bit PHP 8.1+) | Versioned PHP migrations with up/down, status and seeds |
-| **Plain SQL files** | Small projects: `migrations/NNNN_description.sql`, applied in order by a small script that records each file in a `schema_migrations` table |
-
-```bash
-vendor/bin/phinx init                     # creates phinx.php
-vendor/bin/phinx create CreateUsersTable  # new migration class in db/migrations
-vendor/bin/phinx migrate -e development
-vendor/bin/phinx rollback -e development
-vendor/bin/phinx status
-```
-
-- In the generated `phinx.php`, read credentials from the environment and change `'charset' => 'utf8'` to `'utf8mb4'` in every environment.
-- Never edit a migration that has already run in a shared environment — add a new one.
-- Review large-table changes against the online DDL rules in `MYSQL-MARIADB.md`.
-
 ---
 
 ## Testing
 
-- Unit-test services against the repository **interface** with in-memory fakes.
-- Test repositories against a **dedicated test database** (same engine and major version as production), configured through a separate env file or `phpunit.xml.dist` `<env>` entries — never the development or production database.
-- Reset state per test: begin a transaction in `setUp()` and roll back in `tearDown()` (data-only tests), or truncate and re-seed the touched tables. Run migrations once before the suite.
-- Do not substitute SQLite for MySQL/MariaDB when the SQL uses engine-specific syntax.
+- Isolate repository tests with `$pdo->beginTransaction()` in `setUp()` and `$pdo->rollBack()` in `tearDown()`, using the same `PDO` instance the repository receives.
+- A test that needs committed data (or runs DDL) truncates and re-seeds its tables instead.
 
 ---
 
@@ -139,18 +113,14 @@ vendor/bin/phinx status
 | `PDO` injected into actions | Mixes SQL into the HTTP layer; use repositories |
 | `beginTransaction()` without rollback on error | Leaves the connection in an open transaction |
 | `SELECT *` | Over-fetching; breaks on schema changes |
-| Tests against the development database | Destroys data; non-repeatable results |
 
 ---
 
 ## Quality
 
-In addition to the checks in `PHP-SLIM.md`:
+Adds to the checks in `PHP-SLIM.md` → Quality:
 
 ```bash
-vendor/bin/phinx status -e testing     # when Phinx is used: no pending migrations
-vendor/bin/phpunit                     # including the repository tests against the test database
+grep -rnE -- '->(query|exec)\(' src/          # every hit must be constant SQL with no external input
+vendor/bin/phinx status -e testing             # when Phinx is used: no pending migrations on the test database
 ```
-
-- `grep -rn "query(\|exec(" src/` must show only constant SQL.
-- Every new query is covered by a repository test against the test database.

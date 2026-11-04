@@ -4,8 +4,8 @@
 
 /**
  * DevToolsService binds the "Dev Tools" category: Plugins Moodle,
- * Repositórios, IA: Contextos, IA: SKILLs, IA: MCPs — one struct, with one
- * group of methods per sub-screen.
+ * IA: Contextos, IA: SKILLs, IA: MCPs — one struct, with one group of
+ * methods per sub-screen.
  * @module
  */
 
@@ -31,56 +31,19 @@ export function AddMoodlePlugin(dev, folder, ptype, name) {
 }
 
 /**
- * AddRepoFolder appends path — which must have been picked in a native
- * dialog this session — to the remembered repo folder list; a no-op (not an
- * error) if it's already there. Always reloads the config first,
- * same reasoning as SetTheme/SetWorkspacePath: don't clobber other fields
- * another process may have changed while the GUI was open.
- * @param {string} path
- * @returns {$CancellablePromise<void>}
- */
-export function AddRepoFolder(path) {
-    return $Call.ByName("main.DevToolsService.AddRepoFolder", path);
-}
-
-/**
- * ApplyAIContext (re)generates CLAUDE.md/AGENTS.md/ignore files and each
- * checked model's .instructions/*.md file in folder, and removes the
- * .instructions/*.md of any model that was active and got unchecked (see
- * GenerateSharedFiles' own doc comment). "Aplicar" always overwrites
- * (overwrite=true) with no extra confirmation — the button click is
- * itself the confirmation, same convention as every non-interactive GUI
- * action.
+ * ApplyAIContext (re)generates, in folder, AGENTS.md, each checked model's
+ * .instructions/*.md and the files of each checked agent, and removes what
+ * Perci wrote for unchecked models and agents (see GenerateSharedFiles'
+ * own doc comment). "Aplicar" always overwrites (overwrite=true) with no
+ * extra confirmation — the button click is itself the confirmation, same
+ * convention as every non-interactive GUI action.
  * @param {string} folder
  * @param {string[]} selectedNames
+ * @param {string[]} agentIDs
  * @returns {$CancellablePromise<void>}
  */
-export function ApplyAIContext(folder, selectedNames) {
-    return $Call.ByName("main.DevToolsService.ApplyAIContext", folder, selectedNames);
-}
-
-/**
- * ApplyGlobalGitIdentity sets the global git user.name/user.email and, when
- * none is configured yet, credential.helper (managerrepo.ConfigureGlobal) — shows the Execução tab
- * like every other mutating action in this screen.
- * @param {string} name
- * @param {string} email
- * @returns {$CancellablePromise<void>}
- */
-export function ApplyGlobalGitIdentity(name, email) {
-    return $Call.ByName("main.DevToolsService.ApplyGlobalGitIdentity", name, email);
-}
-
-/**
- * ApplyLocalGitIdentityAt sets folder's local user.name/user.email and,
- * when no helper is configured for it, credential.helper.
- * @param {string} folder
- * @param {string} name
- * @param {string} email
- * @returns {$CancellablePromise<void>}
- */
-export function ApplyLocalGitIdentityAt(folder, name, email) {
-    return $Call.ByName("main.DevToolsService.ApplyLocalGitIdentityAt", folder, name, email);
+export function ApplyAIContext(folder, selectedNames, agentIDs) {
+    return $Call.ByName("main.DevToolsService.ApplyAIContext", folder, selectedNames, agentIDs);
 }
 
 /**
@@ -94,52 +57,26 @@ export function ApplyMoodlePlugins(folder) {
 }
 
 /**
- * CloneRepo clones url directly into folder (the already-selected working
- * folder must be empty — there's no separate subfolder field) and applies
- * name/email as its local identity.
- * @param {string} url
+ * GetAIContextAgents lists the supported agents, marking the ones the
+ * context in folder was generated for.
  * @param {string} folder
- * @param {string} name
- * @param {string} email
- * @returns {$CancellablePromise<void>}
+ * @returns {$CancellablePromise<$models.AIContextAgent[]>}
  */
-export function CloneRepo(url, folder, name, email) {
-    return $Call.ByName("main.DevToolsService.CloneRepo", url, folder, name, email);
+export function GetAIContextAgents(folder) {
+    return $Call.ByName("main.DevToolsService.GetAIContextAgents", folder).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
 }
 
 /**
- * CreateConductAt writes folder/CODE_OF_CONDUCT.md and its Portuguese
- * mirror folder/docs/pt-br/codigo-de-conduta.md, overwriting any existing
- * copies, with contactEmail as the address for reporting violations (the
- * frontend pre-fills it with the folder's Git e-mail).
+ * GetAIContextItems lists every standard of the catalog, in catalog order,
+ * with its state in folder.
  * @param {string} folder
- * @param {string} contactEmail
- * @returns {$CancellablePromise<void>}
- */
-export function CreateConductAt(folder, contactEmail) {
-    return $Call.ByName("main.DevToolsService.CreateConductAt", folder, contactEmail);
-}
-
-/**
- * GenerateGitignoreAt creates folder/.gitignore, or merges the missing
- * patterns into an existing one (managergitignore.Generate).
- * @param {string} folder
- * @returns {$CancellablePromise<void>}
- */
-export function GenerateGitignoreAt(folder) {
-    return $Call.ByName("main.DevToolsService.GenerateGitignoreAt", folder);
-}
-
-/**
- * GetAIContextItems lists every catalog Model with whether its instruction
- * file is already present under folder/.instructions/, as the
- * MultiSelectItemInfo {id,label,installed} shape.
- * @param {string} folder
- * @returns {$CancellablePromise<$models.MultiSelectItemInfo[]>}
+ * @returns {$CancellablePromise<$models.AIContextItem[]>}
  */
 export function GetAIContextItems(folder) {
     return $Call.ByName("main.DevToolsService.GetAIContextItems", folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType3($result);
     }));
 }
 
@@ -149,8 +86,18 @@ export function GetAIContextItems(folder) {
  */
 export function GetAIContextPresets() {
     return $Call.ByName("main.DevToolsService.GetAIContextPresets").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType5($result);
     }));
+}
+
+/**
+ * GetAIContextSuggestedPreset names the project type the files in folder
+ * point to ("" for none).
+ * @param {string} folder
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetAIContextSuggestedPreset(folder) {
+    return $Call.ByName("main.DevToolsService.GetAIContextSuggestedPreset", folder);
 }
 
 /**
@@ -162,19 +109,7 @@ export function GetAIContextPresets() {
  */
 export function GetAgentSkillsRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetAgentSkillsRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
-    }));
-}
-
-/**
- * GetGlobalGitIdentity reports the currently configured global git identity
- * (empty fields mean it was never set) — pre-fills "Identidade Global" and
- * the "Nome"/"E-mail" defaults everywhere else in this screen.
- * @returns {$CancellablePromise<$models.GitIdentity>}
- */
-export function GetGlobalGitIdentity() {
-    return $Call.ByName("main.DevToolsService.GetGlobalGitIdentity").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -187,7 +122,7 @@ export function GetGlobalGitIdentity() {
  */
 export function GetMCPServerRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetMCPServerRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -199,7 +134,7 @@ export function GetMCPServerRows(global, folder) {
  */
 export function GetMoodlePluginTypes(folder) {
     return $Call.ByName("main.DevToolsService.GetMoodlePluginTypes", folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -210,45 +145,8 @@ export function GetMoodlePluginTypes(folder) {
  */
 export function GetMoodlePlugins() {
     return $Call.ByName("main.DevToolsService.GetMoodlePlugins").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
-    }));
-}
-
-/**
- * GetRepoFolderState inspects path (the picked working folder).
- * @param {string} path
- * @returns {$CancellablePromise<$models.RepoFolderState>}
- */
-export function GetRepoFolderState(path) {
-    return $Call.ByName("main.DevToolsService.GetRepoFolderState", path).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType11($result);
     }));
-}
-
-/**
- * GetRepoFolders lists every remembered repo folder (config.yaml's
- * RepoFolders) for the "Repositórios" tab's cards. Prunes entries whose
- * folder no longer exists first (config.PruneMissingRepoFolders) — a
- * failure there is non-fatal (the stale entry just stays around one more
- * read) so it doesn't block listing whatever's left.
- * @returns {$CancellablePromise<$models.RepoFolderInfo[]>}
- */
-export function GetRepoFolders() {
-    return $Call.ByName("main.DevToolsService.GetRepoFolders").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
-    }));
-}
-
-/**
- * InitRepoAt runs "git init" in folder (created if it doesn't exist yet)
- * and, when name/email are given, applies them as its local identity.
- * @param {string} folder
- * @param {string} name
- * @param {string} email
- * @returns {$CancellablePromise<void>}
- */
-export function InitRepoAt(folder, name, email) {
-    return $Call.ByName("main.DevToolsService.InitRepoAt", folder, name, email);
 }
 
 /**
@@ -262,7 +160,7 @@ export function InitRepoAt(folder, name, email) {
  */
 export function InspectMoodlePlugin(dev, folder, ptype, name) {
     return $Call.ByName("main.DevToolsService.InspectMoodlePlugin", dev, folder, ptype, name).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType12($result);
     }));
 }
 
@@ -340,14 +238,17 @@ export function PickMoodlePluginDevFolder() {
 }
 
 /**
- * PickRepoWorkingFolder opens the native folder picker for the
- * "Repositórios" sub-tab's "pasta de trabalho" — CanCreateDirectories lets
- * the user create a brand-new empty folder from inside the dialog (the
- * common case for "clonar/iniciar algo novo aqui").
- * @returns {$CancellablePromise<string>}
+ * PreviewAIContext tells what ApplyAIContext(folder, selectedNames,
+ * agentIDs) would change, without changing anything.
+ * @param {string} folder
+ * @param {string[]} selectedNames
+ * @param {string[]} agentIDs
+ * @returns {$CancellablePromise<$models.AIContextChange[]>}
  */
-export function PickRepoWorkingFolder() {
-    return $Call.ByName("main.DevToolsService.PickRepoWorkingFolder");
+export function PreviewAIContext(folder, selectedNames, agentIDs) {
+    return $Call.ByName("main.DevToolsService.PreviewAIContext", folder, selectedNames, agentIDs).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType14($result);
+    }));
 }
 
 /**
@@ -387,17 +288,6 @@ export function RemoveMoodlePlugin(folder, relPath) {
 }
 
 /**
- * RemoveRepoFolder drops path from the remembered repo folder list — only
- * the card goes away, nothing on disk is touched. A no-op if it isn't
- * there. Same reload-first reasoning as AddRepoFolder.
- * @param {string} path
- * @returns {$CancellablePromise<void>}
- */
-export function RemoveRepoFolder(path) {
-    return $Call.ByName("main.DevToolsService.RemoveRepoFolder", path);
-}
-
-/**
  * UpdateAgentSkill reinstalls slug at its pinned commit for the same agents
  * as the install and refreshes the agents recorded for it.
  * @param {string} slug
@@ -424,18 +314,18 @@ export function UpdateMCPServer(slug, global, folder, param) {
 }
 
 // Private type creation functions
-const $$createType0 = $models.MultiSelectItemInfo.createFrom;
+const $$createType0 = $models.AIContextAgent.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.AIContextPreset.createFrom;
+const $$createType2 = $models.AIContextItem.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.AgentSkillRow.createFrom;
+const $$createType4 = $models.AIContextPreset.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.GitIdentity.createFrom;
-const $$createType7 = $models.MCPServerRow.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = $Create.Array($Create.Any);
-const $$createType10 = $models.MoodlePluginsScreen.createFrom;
-const $$createType11 = $models.RepoFolderState.createFrom;
-const $$createType12 = $models.RepoFolderInfo.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $models.MoodlePluginCheck.createFrom;
+const $$createType6 = $models.AgentSkillRow.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.MCPServerRow.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $Create.Array($Create.Any);
+const $$createType11 = $models.MoodlePluginsScreen.createFrom;
+const $$createType12 = $models.MoodlePluginCheck.createFrom;
+const $$createType13 = $models.AIContextChange.createFrom;
+const $$createType14 = $Create.Array($$createType13);

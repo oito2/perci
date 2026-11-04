@@ -7,6 +7,7 @@ import * as DevToolsService from "./devtoolsservice.js";
 import * as DockerService from "./dockerservice.js";
 import * as HomeService from "./homeservice.js";
 import * as LinuxService from "./linuxservice.js";
+import * as RepositoriesService from "./repositoriesservice.js";
 import * as TrayService from "./trayservice.js";
 export {
     DevSetupService,
@@ -14,15 +15,21 @@ export {
     DockerService,
     HomeService,
     LinuxService,
+    RepositoriesService,
     TrayService
 };
 
 export {
+    AIContextAgent,
+    AIContextChange,
+    AIContextItem,
     AIContextPreset,
     AgentSkillRow,
     ContainerFormRequest,
     ContainerRow,
     DockerCreateCatalog,
+    GitAccountInput,
+    GitAccountView,
     GitIdentity,
     MCPServerRow,
     ManagedItemInfo,
@@ -35,8 +42,8 @@ export {
     MultiSelectItemInfo,
     PostinstallActionInfo,
     PostinstallProfileInfo,
-    RepoFolderInfo,
-    RepoFolderState,
+    RemoteRepoList,
+    RepoExportItems,
     SelfConfigInfo,
     SelfUpdateInfo,
     SingleAppInfo,

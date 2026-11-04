@@ -28,8 +28,7 @@ import (
 
 // requireKnownFolder is requireFolder plus: the folder was picked in a
 // native dialog this session, or the user registered it in an earlier one
-// (a remembered repository folder, or the folder of a local SKILL or MCP
-// record). A folder that is neither is refused, so nothing running in the
+// (the folder of a local SKILL or MCP record). A folder that is neither is refused, so nothing running in the
 // webview can point an action at $HOME or any other directory it names.
 func requireKnownFolder(p string) error {
 	if err := requireFolder(p); err != nil {
@@ -40,11 +39,6 @@ func requireKnownFolder(p string) error {
 	}
 	clean := filepath.Clean(p)
 	if cfg, err := config.Load(); err == nil {
-		for _, f := range cfg.RepoFolders {
-			if filepath.Clean(f) == clean {
-				return nil
-			}
-		}
 		for _, r := range cfg.AgentSkills {
 			if !r.Global && filepath.Clean(r.Folder) == clean {
 				return nil

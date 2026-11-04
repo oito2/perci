@@ -1,0 +1,83 @@
+# Credentials and secrets (kept out of the model context)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+config.php
+wp-config.php
+secrets.*
+*.secret
+.htpasswd
+auth.json
+
+# AI tool configuration directories
+.claude/
+.gemini/
+
+# Go (Test binaries and profiling output)
+*.test
+coverage.out
+coverage.html
+*.prof
+*.trace
+
+# Dependencies and data (vendor/ and env/ stay readable where git tracks files in them)
+node_modules/
+vendor/
+bower_components/
+moodledata/
+.git/
+.svn/
+.hg/
+
+# IDEs and Virtual Environments
+.vscode/
+.idea/
+.zed/
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# Build output and caches (build output stays readable where git tracks files in it)
+dist/
+build/
+out/
+.next/
+.cache/
+.tmp/
+tmp/
+*.log
+*.min.js
+*.min.css
+*.map
+
+# Audio, video, fonts, archives and binaries (images, PDFs and lockfiles stay readable)
+*.mp3
+*.mp4
+*.webm
+*.ogg
+*.wav
+*.flac
+*.ttf
+*.otf
+*.woff
+*.woff2
+
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.mbz
+*.iso
+*.exe
+*.bin
+*.dll
+*.so

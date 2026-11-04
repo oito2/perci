@@ -1,6 +1,8 @@
 # Tauri v2 Frontend — SvelteKit (SPA / static)
 
-Complement for Tauri v2 apps whose webview is **SvelteKit + TypeScript built as a static SPA**, as produced by the `svelte-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP and build rules live there.
+Complement for Tauri v2 apps whose webview is **SvelteKit + TypeScript built as a static SPA**, as produced by the `svelte-ts` template of `create-tauri-app`. It **complements `TAURI.md` and must always be used together with it** — the Rust, capability, CSP, IPC and build rules live there.
+
+Last verified: 2026-11-04
 
 ---
 
@@ -43,7 +45,7 @@ export default config;
 src/
 ├── app.html
 ├── lib/
-│   ├── api/            # typed wrappers around invoke / listen / Channel (only place that imports @tauri-apps/api/core)
+│   ├── api/            # errors.ts + typed command wrappers (TAURI.md → Frontend IPC)
 │   ├── state/          # shared reactive state in *.svelte.ts modules
 │   └── components/
 └── routes/
@@ -55,20 +57,7 @@ src/
 
 ## Invoking Commands
 
-- Import `invoke`/`Channel` from `@tauri-apps/api/core`, `listen` from `@tauri-apps/api/event`.
-- One typed wrapper per command in `$lib/api/`; components and state modules call the wrapper, never `invoke("...")` directly.
-- Argument keys are camelCase unless the Rust command uses `rename_all`. Type the rejection value with the serialized error shape from `TAURI.md`.
-
-```typescript
-// src/lib/api/counter.ts
-import { invoke } from "@tauri-apps/api/core";
-
-export type CommandError = { kind: "io" | "invalidInput"; message: string };
-
-export function increment(by: number): Promise<number> {
-  return invoke<number>("increment", { by });
-}
-```
+Wrappers, argument casing and `CommandError` follow `TAURI.md` → Frontend IPC, with the API folder at `src/lib/api/` (imported as `$lib/api/...`). Components and state modules call the wrappers.
 
 ---
 
@@ -81,7 +70,8 @@ export function increment(by: number): Promise<number> {
 
 ```typescript
 // src/lib/state/counter.svelte.ts
-import { increment, type CommandError } from "$lib/api/counter";
+import { increment } from "$lib/api/counter";
+import type { CommandError } from "$lib/api/errors";
 
 export const counter = $state({ value: 0, error: null as CommandError | null, busy: false });
 
@@ -100,7 +90,7 @@ export async function bump(by: number): Promise<void> {
 
 ### Events
 
-`listen()` returns a Promise of the unlisten function. Register it in `$effect` and unlisten in the cleanup — SvelteKit's client router does not unregister listeners when a route changes.
+Register `listen()` in `$effect` and unlisten in the cleanup — SvelteKit's client router does not unregister listeners when a route changes.
 
 ```svelte
 <script lang="ts">
@@ -123,8 +113,7 @@ export async function bump(by: number): Promise<void> {
 
 ## Markup Safety
 
-- Render data with `{expression}` (escaped). **Never** use `{@html ...}` with data from commands, events, files or user input.
-- Do not build `href`/`src` from untrusted data without validating the scheme; open external links through the opener plugin, not by navigating the webview.
+General rules: `TAURI.md` → Markup safety. Render data with `{expression}` (escaped); **never** use `{@html ...}` with untrusted data.
 
 ---
 
@@ -170,6 +159,8 @@ test("bump stores the command result", async () => {
 
 ## Quality
 
+Frontend checks; they add to the `TAURI.md` Quality section, which runs after them.
+
 ```bash
 npm run check
 npx eslint .
@@ -178,4 +169,4 @@ npx vitest run
 npm run build
 ```
 
-Run only the tools the project has configured, then the Rust checks from `TAURI.md`.
+Run only the tools the project has configured.

@@ -4,6 +4,8 @@ Standards for web applications and APIs built on PHP 8.x and Slim Framework 4.
 Covers project layout, bootstrap, dependency injection, routing, middleware, error handling, security, templates, configuration, tooling and deployment.
 Apply it to any task in a Slim 4 project. When the project accesses a database, also apply the matching complement: `SLIM-PDO.md`, `SLIM-DBAL.md` or `SLIM-ELOQUENT.md` (and `MYSQL-MARIADB.md` for MySQL/MariaDB specifics).
 
+Last verified: 2026-11-04
+
 ---
 
 ## Versions and Compatibility
@@ -22,7 +24,7 @@ Check the project's `composer.json` (`require.php`, `config.platform.php`) and `
 | `phpstan/phpstan` | Static analysis | 2.x | 7.4+ |
 | `phpunit/phpunit` | Tests | 13.x / 12.x / 11.x | 8.4.1+ / 8.3+ / 8.2+ |
 
-- New projects target a PHP branch that still receives security fixes (8.2 or later); prefer 8.3+.
+- PHP 8.2 receives security fixes only until 2026-12-31: new projects target **PHP 8.3+** (8.4+ to use PHPUnit 13). Existing projects keep their declared minimum unless the user decides to raise it.
 - Pick the newest PHPUnit major the project's minimum PHP allows.
 - Do not upgrade a major version of any dependency as a side effect of another task — ask first.
 
@@ -30,7 +32,10 @@ Check the project's `composer.json` (`require.php`, `config.platform.php`) and `
 
 ## Docker Wrappers
 
-When the project runs in a perci container, use the host wrappers suffixed with the project's folder name instead of a host PHP install: `php-<folder>`, `composer-<folder>`, `phpunit-<folder>`, `phpcs-<folder>`, `phpcbf-<folder>`. Run project-local tools through the PHP wrapper (`php-<folder> vendor/bin/phpstan analyse`). When no wrappers exist, use the project's own documented commands.
+When the project runs in a Perci application container, use the host wrappers in `~/.local/bin/`, suffixed with the project's folder name, instead of a host PHP install: `php-<folder>`, `composer-<folder>`, `phpunit-<folder>`, `phpcs-<folder>`, `phpcbf-<folder>`. Each runs the tool inside that project's container, from the project root; host paths under the project folder are translated to container paths.
+
+- `phpunit-<folder>`, `phpcs-<folder>` and `phpcbf-<folder>` run the container's **global** PHAR builds, not the versions pinned in the project's `composer.lock`. To use the project's own tools, run them through the PHP wrapper: `php-<folder> vendor/bin/phpunit`, `php-<folder> vendor/bin/phpstan analyse`.
+- When no wrappers exist, use the project's own documented commands.
 
 ---
 
@@ -269,6 +274,8 @@ return static function (App $app): void {
 | CORS | Add CORS headers only when a browser client on another origin needs them, with an explicit origin allowlist — never `*` with credentials. |
 | Secrets | From environment variables only; never committed, never logged, never rendered. |
 | Uploads | Validate size and MIME type, generate the stored filename, store outside `public/`. |
+| Login / brute force | Limit failed attempts per account **and** per client IP (counters in a shared store such as the database or Redis, not the session) with a growing delay or temporary lockout; return the same error for unknown user and wrong password. Rate-limit other expensive or abusable endpoints (password reset, sign-up, API keys) as well — in a middleware or at the reverse proxy (e.g. nginx `limit_req`). |
+| Response headers | Set in a middleware: `Content-Security-Policy` (no `unsafe-inline` scripts), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `frame-ancestors 'none'` in the CSP (or `X-Frame-Options: DENY`), and `Strict-Transport-Security` when served only over HTTPS. |
 
 ---
 
@@ -301,11 +308,50 @@ $dotenv->required(['APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS'])->notE
 
 ---
 
+## Database Access (any data layer)
+
+These rules apply whatever the data layer; the driver-specific APIs are in `SLIM-PDO.md`, `SLIM-DBAL.md` or `SLIM-ELOQUENT.md`.
+
+- Only repository classes (or models, with Eloquent) touch the database; actions never build queries. Services depend on repository interfaces.
+- The **service** layer owns transactions, not the action. No HTTP calls, mail or file I/O inside a transaction. On MySQL/MariaDB, DDL commits implicitly — never mix it into a data transaction.
+- Connections use `utf8mb4` explicitly — in the app **and** in the migration tool's config.
+
+### Migrations
+
+Use the project's existing mechanism. When there is none, ask the user which to adopt (the data complement may add a driver-specific option):
+
+| Option | When |
+|---|---|
+| **Phinx** (`robmorgan/phinx`) | Versioned PHP migrations with up/down, status and seeds; independent of the data layer |
+| **Plain SQL files** | Small projects: `migrations/NNNN_description.sql`, applied in order by a small script that records each file in a `schema_migrations` table |
+
+```bash
+vendor/bin/phinx init                     # creates phinx.php
+vendor/bin/phinx create CreateUsersTable  # new migration class in db/migrations
+vendor/bin/phinx migrate -e development
+vendor/bin/phinx rollback -e development
+vendor/bin/phinx status -e development
+```
+
+- In the generated `phinx.php`, read credentials from the environment and change `'charset' => 'utf8'` to `'utf8mb4'` in every environment.
+- **Never edit a migration that has already run** in a shared environment — add a new one. Keep one logical change per migration.
+- Review large-table changes against the online DDL rules in `MYSQL-MARIADB.md`.
+
+### Database tests
+
+- Unit-test services against repository **interfaces** with in-memory fakes.
+- Test repositories against a **dedicated test database** with the same engine and major version as production, configured through test-only values (a separate env file or `phpunit.xml.dist` `<env>` entries) — never the development or production database.
+- Migrate the test database once before the suite; isolate tests by beginning a transaction in `setUp()` and rolling back in `tearDown()` (data-only tests), or by truncating and re-seeding the touched tables.
+- **Never substitute SQLite** for MySQL/MariaDB (or another engine) in tests: dialects, types and locking differ.
+- Every new query is covered by a repository test against the test database.
+
+---
+
 ## Coding Style and Composer Scripts
 
-- Follow **PSR-12** (or PER Coding Style if the project already uses it) with the tool the project already has: `squizlabs/php_codesniffer` (`--standard=PSR12`) or `friendsofphp/php-cs-fixer` (`@PSR12` / `@PER-CS` rule sets).
+- Follow the coding style the project already uses, with the tool it already has: `squizlabs/php_codesniffer` (`--standard=PSR12`) or `friendsofphp/php-cs-fixer` (`@PSR12` / `@PER-CS` rule sets). **PER Coding Style** extends and replaces PSR-12; new projects use it (`@PER-CS` in PHP-CS-Fixer).
 - Short array syntax, typed properties, parameters and return types everywhere; `final` classes by default; `readonly` for injected dependencies when the minimum PHP allows it.
-- Expose checks as Composer scripts so every environment runs the same commands:
+- Expose checks as Composer scripts so every environment runs the same commands (see [Quality](#quality)):
 
 ```json
 "scripts": {
@@ -382,7 +428,7 @@ location ~ \.php$ {
 
 ## Quality
 
-Run every check before reporting a task as done (through the project's Docker wrappers when they exist):
+Run every check before reporting a task as done (through the project's Docker wrappers when they exist, e.g. `php-<folder> vendor/bin/phpunit`):
 
 ```bash
 composer validate --strict

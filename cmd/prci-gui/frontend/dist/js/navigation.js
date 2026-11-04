@@ -35,8 +35,15 @@ const CATEGORY_ICONS = {
   Linux: "terminal",
   Desenvolvimento: "code",
   Docker: "container",
+  "Repositórios": "gitBranch",
   "Dev Tools": "wrench",
 };
+
+// menuKey identifies a menu item across menu reloads: its actionId plus,
+// for an account item, the account ID.
+function menuKey(item) {
+  return item.actionId + "|" + (item.accountId || "");
+}
 
 // Builds the <ul class="menu"> of one category's items — reused both by
 // the accordion and the rail dropdown, so the two views always stay in
@@ -53,6 +60,7 @@ function buildItemsMenu(cat, catIdx, fullClass) {
     a.textContent = item.title;
     a.dataset.cat = catIdx;
     a.dataset.item = itemIdx;
+    a.dataset.key = menuKey(item);
     a.addEventListener("click", function (ev) {
       ev.preventDefault();
       selectItem(cat, item, catIdx, itemIdx);
@@ -63,7 +71,32 @@ function buildItemsMenu(cat, catIdx, fullClass) {
   return ul;
 }
 
-App.GetCategories().then(function (cats) {
+// The catalog the sidebar shows now (App.GetCategories()).
+let menuCats = [];
+
+// loadMenu (re)builds the sidebar from App.GetCategories() — on start and
+// whenever the catalog changes (a Git account added, renamed or removed).
+// A rebuild keeps the categories that were open and the active item.
+function loadMenu() {
+  return App.GetCategories().then(function (cats) {
+    const wasOpen = {};
+    document.querySelectorAll("#accordion .accordion-view > input[type=checkbox]").forEach(function (cb) {
+      wasOpen[cb.getAttribute("aria-label")] = cb.checked;
+    });
+    const firstBuild = menuCats.length === 0;
+    menuCats = cats;
+    accordionEl.innerHTML = "";
+    buildMenu(cats, function (cat, catIdx) {
+      return firstBuild ? catIdx === 0 : !!wasOpen[cat.label];
+    });
+    markActiveMenuItem();
+    return cats;
+  });
+}
+
+// buildMenu appends one accordion entry and one rail entry per category to
+// #accordion; isOpen(cat, catIdx) says which accordion entries start open.
+function buildMenu(cats, isOpen) {
   cats.forEach(function (cat, catIdx) {
     // --- normal view: accordion, checkbox (not radio) so every
     // category can be closed, not just swapped for another. No border
@@ -75,7 +108,7 @@ App.GetCategories().then(function (cats) {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.setAttribute("aria-label", cat.label);
-    if (catIdx === 0) checkbox.checked = true;
+    if (isOpen(cat, catIdx)) checkbox.checked = true;
     checkbox.addEventListener("change", function () {
       if (!checkbox.checked) return;
       document.querySelectorAll("#accordion .accordion-view > input[type=checkbox]").forEach(function (other) {
@@ -109,8 +142,16 @@ App.GetCategories().then(function (cats) {
     railTrigger.title = cat.label;
     railTrigger.className = "cat-badge cursor-pointer";
     railTrigger.setAttribute("aria-hidden", "true"); // railItem carries the label
+    // An icon missing from the vendored set renders nothing (or throws):
+    // the initials stand in for it.
     const icon = CATEGORY_ICONS[cat.label];
-    if (icon) railTrigger.innerHTML = LUCIDE.svg(icon, { size: 22 });
+    let svg = "";
+    try {
+      svg = icon ? LUCIDE.svg(icon, { size: 22 }) : "";
+    } catch (err) {
+      svg = "";
+    }
+    if (svg) railTrigger.innerHTML = svg;
     else railTrigger.textContent = catInitials(cat.label);
 
     const railMenu = buildItemsMenu(cat, catIdx, "rail-flyout menu menu-md bg-base-200 rounded-box w-56 p-2 shadow border border-base-300");
@@ -122,11 +163,39 @@ App.GetCategories().then(function (cats) {
     accordionEl.appendChild(accWrap);
     accordionEl.appendChild(railWrap);
   });
+}
 
+loadMenu().then(function (cats) {
   if (compactAction) {
     activateCompactMode(cats);
   }
 });
+
+// markActiveMenuItem highlights the sidebar entries of the selected item.
+function markActiveMenuItem() {
+  const key = window.__selectedItem ? menuKey(window.__selectedItem) : "";
+  document.querySelectorAll("#accordion a[data-key]").forEach(function (el) {
+    const active = el.dataset.key === key;
+    el.classList.toggle("menu-active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
+  });
+}
+
+// selectMenuItem shows the item whose menuKey is key, as a sidebar click
+// would. Returns false when the current catalog has no such item.
+function selectMenuItem(key) {
+  for (let catIdx = 0; catIdx < menuCats.length; catIdx++) {
+    const cat = menuCats[catIdx];
+    for (let itemIdx = 0; itemIdx < cat.items.length; itemIdx++) {
+      if (menuKey(cat.items[itemIdx]) === key) {
+        selectItem(cat, cat.items[itemIdx], catIdx, itemIdx);
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Screen registry: which container each menu item shows and how it renders
 // (the counterpart of ACTION_DONE_HANDLERS). Built on demand —
@@ -143,7 +212,9 @@ function screenTable() {
     "docker-manage": { el: dockerlistContainer, render: renderDockerListScreen },
     "docker-transfer": { el: transferContainer, alsoShow: [tabLabelTransferImport], render: renderTransferScreen },
     moodleplugins: { el: moodlepluginsContainer, alsoShow: [tabLabelMpMounted], render: renderMoodlePluginsScreen },
-    repos: { el: reposContainer, alsoShow: [tabLabelReposList], render: renderReposScreen },
+    "git-accounts": { el: gitaccountsContainer, alsoShow: [tabLabelGitIdentity], render: renderGitAccountsScreen },
+    "git-account": { el: gitaccountContainer, render: renderGitAccountScreen },
+    "git-transfer": { el: gittransferContainer, alsoShow: [tabLabelGitImport], render: renderGitTransferScreen },
     agentskills: { el: agentskillsContainer, render: renderAgentSkillsScreen },
     aicontext: { el: aicontextContainer, render: renderAIContextScreen },
     mcpservers: { el: mcpserversContainer, render: renderMCPServersScreen },
@@ -167,14 +238,14 @@ function screenFor(item) {
   };
 }
 
-// Every screen container (plus the repos-only, moodleplugins-only and
-// docker-transfer-only tab labels) — all hidden before the selected screen
-// shows its own.
+// Every screen container (plus the tab labels only some screens show:
+// moodleplugins, docker-transfer, git-accounts, git-transfer) — all hidden
+// before the selected screen shows its own.
 function screenContainers() {
   const table = screenTable();
   return Object.keys(table).map(function (k) { return table[k].el; }).concat([
-    simpleContainer, itemTableContainer, multiselectContainer, fileappContainer, tabLabelReposList,
-    tabLabelMpMounted, tabLabelTransferImport,
+    simpleContainer, itemTableContainer, multiselectContainer, fileappContainer,
+    tabLabelMpMounted, tabLabelTransferImport, tabLabelGitIdentity, tabLabelGitImport,
   ]);
 }
 
@@ -201,10 +272,5 @@ function selectItem(cat, item, catIdx, itemIdx) {
   screen.render(item);
   selectTab("desc");
 
-  document.querySelectorAll("#accordion a[data-cat]").forEach(function (el) {
-    const active = el.dataset.cat == String(catIdx) && el.dataset.item == String(itemIdx);
-    el.classList.toggle("menu-active", active);
-    if (active) el.setAttribute("aria-current", "page");
-    else el.removeAttribute("aria-current");
-  });
+  markActiveMenuItem();
 }

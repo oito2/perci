@@ -26,7 +26,7 @@ perci.gnl consolidates all of that into one binary with:
 
 - **One config file** (`~/.perci/config.yaml`) instead of scattered environment variables or hardcoded paths in a dozen scripts.
 - **One executor** for every privileged operation (`internal/executor`), so `sudo` usage is centralized, auditable, and consistent.
-- **One GUI** (a Wails-based desktop app, `cmd/prci-gui`, five categories: Home, Linux, Desenvolvimento, Docker, Dev Tools), so every flow — forms, checklists, multi-step wizards — looks and behaves the same way.
+- **One GUI** (a Wails-based desktop app, `cmd/prci-gui`, six categories: Home, Linux, Desenvolvimento, Docker, Repositórios, Dev Tools), so every flow — forms, checklists, multi-step wizards — looks and behaves the same way.
 - **No interactive prompts inside domain code** — every domain package takes plain parameters and is called directly by a Go method bound to the GUI's frontend, so there's exactly one path from a click to the actual work, not a TUI path and a separate scriptable one.
 
 ## Who It's For

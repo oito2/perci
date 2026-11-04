@@ -1,8 +1,8 @@
 # Documentation Complement — Web Applications
 
-## Overview
+Type-specific documentation requirements for **web applications and websites** (frontend, backend, or full-stack). Complements `.instructions/PROJECT-DOCUMENTATION.md` — apply both; this file lists only what it adds.
 
-Type-specific documentation requirements for **web applications** (frontend, backend, or full-stack). This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own.
+Last verified: 2026-11-04
 
 ---
 
@@ -33,6 +33,22 @@ Write deployment instructions in `docs/en/guides/environments/` — one page per
 - **Docker:** building the image, running with the required env vars/volumes/ports, the compose workflow if present.
 - **Vercel / Netlify:** project settings, build command, output directory, env vars to configure in the dashboard.
 - **Nginx (or another reverse proxy):** the server block/vhost, TLS, and how the app process is run and supervised (systemd, PM2, PHP-FPM, ...).
-- **GitHub Pages** (static output only — no server-side code): the deploy workflow (*Settings → Pages → Build and deployment → Source: GitHub Actions*; a workflow using `actions/configure-pages`, `actions/upload-pages-artifact` and `actions/deploy-pages`, whose deploy job needs `pages: write` and `id-token: write` permissions and the `github-pages` environment — use the action versions the project's workflow pins), the **base path** (a project site is served at `https://<owner>.github.io/<repo>/`, so the build's base/public path is `/<repo>/`; a user/organization site or a custom domain uses `/`), and the **custom domain** (set in *Settings → Pages*; with an Actions workflow a `CNAME` file is ignored and not required; DNS: `A`/`AAAA` records for an apex domain, a `CNAME` record to `<owner>.github.io` for a subdomain; verify the domain and enable *Enforce HTTPS*).
+- **GitHub Pages** (static output only): the deploy workflow, the **base path** and the **custom domain** setup the project uses. The facts to document (workflow actions and permissions, `/<repo>/` base path, `CNAME`/DNS rules, *Enforce HTTPS*) are in `.instructions/WEBSITE.md` → Hosting → GitHub Pages when the project has it; otherwise verify them against GitHub's Pages documentation.
 
 Also cover, when they apply: database migrations/seeding, the build output directory, health-check endpoints, and background workers/cron jobs. Targets without real support in the project are not documented.
+
+---
+
+## Quality
+
+In addition to the base standard's checks:
+
+```bash
+# Compare variables read in code with .env.example (Node example; adapt the pattern to the language)
+diff <(grep -rhoE 'process\.env\.[A-Z0-9_]+' src | sed 's/process\.env\.//' | sort -u) \
+     <(grep -oE '^[A-Z0-9_]+' .env.example | sort -u)
+```
+
+- [ ] `docs/en/reference/environment.md` matches `.env.example` and the code; no real secret values.
+- [ ] Every documented script exists in `package.json`/`composer.json`/`Makefile`.
+- [ ] One deployment page per target the project really supports, with commands verified against its config files.

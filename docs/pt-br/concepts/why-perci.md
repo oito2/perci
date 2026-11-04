@@ -26,7 +26,7 @@ O perci.gnl consolida tudo isso em um único binário com:
 
 - **Um único arquivo de config** (`~/.perci/config.yaml`) em vez de variáveis de ambiente espalhadas ou caminhos fixos em uma dúzia de scripts.
 - **Um único executor** para toda operação privilegiada (`internal/executor`), então o uso de `sudo` fica centralizado, auditável e consistente.
-- **Uma única GUI** (aplicativo desktop baseado em Wails, `cmd/prci-gui`, cinco categorias: Home, Linux, Desenvolvimento, Docker, Dev Tools), então todo fluxo — formulários, checklists, assistentes de múltiplas etapas — se comporta da mesma forma.
+- **Uma única GUI** (aplicativo desktop baseado em Wails, `cmd/prci-gui`, seis categorias: Home, Linux, Desenvolvimento, Docker, Repositórios, Dev Tools), então todo fluxo — formulários, checklists, assistentes de múltiplas etapas — se comporta da mesma forma.
 - **Nenhum prompt interativo dentro do código de domínio** — cada pacote de domínio recebe parâmetros simples e é chamado diretamente por um método Go ligado ao frontend da GUI, então existe exatamente um caminho do clique até o trabalho de fato, não uma TUI e um caminho scriptável separado.
 
 ## Para Quem É

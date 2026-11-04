@@ -41,7 +41,7 @@ const sidebar = document.getElementById("sidebar");
 // --- compact window (system tray: a single window with tabs) -----------
 // Opened with ?compact=<tab>. Sidebar/breadcrumb are hidden and the
 // compact header (image + "Perci" + "Abrir Aplicativo") and the
-// Contêineres/Repositórios/Atualizar Sistema tab bar are shown instead;
+// Contêineres/Atualizar Sistema tab bar are shown instead;
 // the rest of the screen (Definições/Execução tabs, containers,
 // render*Screen) is shared with the main window — the tabs just pick, via
 // selectItem, WHICH item to show. The "compact-switch-tab" event (see
@@ -56,7 +56,6 @@ const btnCompactOpenApp = document.getElementById("btn-compact-open-app");
 const compactTabsEl = document.getElementById("compact-tabs");
 const compactTabRadios = {
   "docker-manage": document.getElementById("compact-tab-docker-manage"),
-  "repos": document.getElementById("compact-tab-repos"),
   "system-update": document.getElementById("compact-tab-system-update"),
 };
 let compactCats = null; // catalog (App.GetCategories()) cached to switch tabs without reloading
@@ -81,8 +80,8 @@ btnCompactOpenApp.addEventListener("click", function () {
 
 // Finds, in the catalog already loaded by App.GetCategories(), the item
 // that corresponds to a tab — always by actionId (the compact window's
-// 3 tabs use the same actionId key as the item: "docker-manage",
-// "repos", "system-update").
+// 2 tabs use the same actionId key as the item: "docker-manage",
+// "system-update").
 function findCompactTarget(cats, tab) {
   for (var catIdx = 0; catIdx < cats.length; catIdx++) {
     var cat = cats[catIdx];
@@ -328,19 +327,7 @@ const btnMpCreate = document.getElementById("btn-mp-create");
 const tabLabelMpMounted = document.getElementById("tab-label-mp-mounted");
 const mpRows = document.getElementById("mp-rows");
 const mpEmpty = document.getElementById("mp-empty");
-const reposContainer = document.getElementById("repos-container");
-const reposIdentityCheckboxWrap = document.getElementById("repos-identity-checkbox-wrap");
-const reposIdentityChange = document.getElementById("repos-identity-change");
-const reposIdentityName = document.getElementById("repos-identity-name");
-const reposIdentityEmail = document.getElementById("repos-identity-email");
-const btnReposIdentityApply = document.getElementById("btn-repos-identity-apply");
-const tabLabelReposList = document.getElementById("tab-label-repos-list");
-const tabRadioReposList = document.getElementById("tab-radio-repos-list");
 const tabLabelTerminal = document.getElementById("tab-label-terminal");
-const reposListCards = document.getElementById("repos-list-cards");
-const reposFolderAlertText = document.getElementById("repos-folder-alert-text");
-const reposSubmenu = document.getElementById("repos-submenu");
-const reposSubPanel = document.getElementById("repos-sub-panel");
 const agentskillsContainer = document.getElementById("agentskills-container");
 const itemTableContainer = document.getElementById("itemtable-container");
 const itemTableIntro = document.getElementById("itemtable-intro");
@@ -359,6 +346,7 @@ const btnAicPickFolder = document.getElementById("btn-aic-pick-folder");
 const aicItems = document.getElementById("aic-items");
 const aicPreset = document.getElementById("aic-preset");
 const aicPresetHint = document.getElementById("aic-preset-hint");
+const aicAgents = document.getElementById("aic-agents");
 const btnAicApply = document.getElementById("btn-aic-apply");
 const mcpserversContainer = document.getElementById("mcpservers-container");
 const mcpScopeSelect = document.getElementById("mcp-scope");
@@ -375,6 +363,7 @@ const suStatus = document.getElementById("su-status");
 const btnSuCheck = document.getElementById("btn-su-check");
 const btnSuUpdate = document.getElementById("btn-su-update");
 const su2BackupConfig = document.getElementById("su2-backup-config");
+const su2BackupRepos = document.getElementById("su2-backup-repos");
 const su2RemoveDocker = document.getElementById("su2-remove-docker");
 const su2RemoveConfig = document.getElementById("su2-remove-config");
 const btnSu2Uninstall = document.getElementById("btn-su2-uninstall");
@@ -506,12 +495,12 @@ const ACTION_DONE_HANDLERS = {
   "docker-transfer": function () { refreshTransferScreen(); },
   // Criar/Reiniciar/Remover — re-fetches the table and re-checks the form.
   moodleplugins: function () { loadMpRows(); checkMpForm(); },
-  // Identidade Global/Clonar/Iniciar/Identidade Local/Arquivos — re-fetches
-  // the global identity and the working folder's state.
-  repos: function () {
-    renderReposIdentityTab();
-    if (reposFolderPath) refreshReposFolderState();
-  },
+  // Identidade padrão — re-fetches the global identity.
+  "git-accounts": function () { renderGitIdentityTab(); },
+  // Verificar/Baixar — re-reads the account's repositories.
+  "git-account": function () { gacSetReady(gacReady); loadGacRepos(); },
+  // Importar — re-reads both checklists and the menu (new accounts).
+  "git-transfer": function () { refreshGitTransferScreen(); },
   agentskills: function () { renderAgentSkillsTable(); },
   aicontext: function () { if (aicFolder) renderAicItems(); },
   mcpservers: function () { renderMCPServersTable(); },

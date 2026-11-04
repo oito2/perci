@@ -3,11 +3,13 @@
 Complement to `GO.md` for desktop applications built with Wails v3 (`github.com/wailsapp/wails/v3`), a Go backend rendering an HTML/JS frontend in the system webview.
 Apply it when changing the application setup, services, events, windows, tray, frontend assets, build or packaging. Every rule in `GO.md` still applies.
 
+Last verified: 2026-11-04
+
 ---
 
 ## Version
 
-- Wails v3 is in **beta**; the API below was checked against `v3.0.0-beta.28`. APIs can change between betas: confirm symbols in the version pinned in `go.mod` before using them.
+- The API below was checked against the stable **v3.0.0**, which requires **Go >= 1.26**. Confirm symbols in the version pinned in `go.mod` before using them; moving a project off a `v3.0.0-beta.*` is a dedicated change.
 
 ```bash
 go list -m github.com/wailsapp/wails/v3
@@ -173,7 +175,7 @@ The webview runs with the same privileges as the Go process through the bindings
 
 ## Linux Build Dependencies
 
-Wails v3 on Linux uses cgo with **GTK 4 + WebKitGTK 6.0** by default (`pkg-config: gtk4 webkitgtk-6.0`). The `gtk3` build tag selects the legacy GTK 3 + WebKit2GTK 4.1 stack.
+Wails v3 on Linux uses cgo with **GTK 4 + WebKitGTK 6.0** by default (`pkg-config: gtk4 webkitgtk-6.0`). The `gtk3` build tag selects the legacy GTK 3 + WebKit2GTK 4.1 stack; it is kept only until v3.1, so do not adopt it in new code.
 
 | Package manager | Build dependencies (default stack) |
 |---|---|
@@ -190,14 +192,10 @@ Check a machine with `wails3 doctor` and `wails3 tool capabilities`.
 
 ## Build & Packaging
 
-```bash
-go build -tags production -trimpath \
-    -ldflags "-s -w -X <module>/internal/version.Version=${VERSION}" \
-    -o bin/<app> ./cmd/<app>
-```
-
+- Release binaries follow `GO.md` → Release Builds, plus `-tags production` (and without `CGO_ENABLED=0`).
 - Because of cgo, build natively per OS/architecture (or with a matching cross toolchain); `GOOS`/`GOARCH` alone do not cross-compile.
 - Projects scaffolded with `wails3 init` use the generated `Taskfile` (`wails3 build`, `wails3 package`); Linux packages (`.deb`, `.rpm`, Arch) come from `wails3 tool package -format <fmt> -config <nfpm.yaml>`, AppImage from `wails3 generate appimage`. Use whichever mechanism the project already has; do not introduce a second one.
+- macOS and Windows releases are code-signed (macOS: Developer ID signature + notarization; Windows: Authenticode) with certificates supplied by CI secrets, never committed; otherwise Gatekeeper and SmartScreen warn or block users.
 - A Linux install ships the binary, a `.desktop` file and hicolor icons; uninstall instructions remove all of them.
 
 ---
@@ -229,12 +227,10 @@ go build -tags production -trimpath \
 
 ## Quality
 
-In addition to the `GO.md` checks (with the Linux build dependencies installed):
+Adds to the `GO.md` Quality checks (run them with the Linux build dependencies installed):
 
 ```bash
 wails3 generate bindings -d <output-dir> ./...   # with the project's flags; then
 git status --short                               # bindings must show no unexpected diff
-go vet ./...
-go test -race ./...
 go build -tags production ./cmd/<app>
 ```

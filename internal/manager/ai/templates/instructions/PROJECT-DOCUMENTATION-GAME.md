@@ -1,8 +1,8 @@
 # Documentation Complement — Games
 
-## Overview
+Type-specific documentation requirements for **games** (Godot, Unity, Unreal, custom engines), including mobile games. Complements `.instructions/PROJECT-DOCUMENTATION.md` — apply both; this file lists only what it adds. For platform topics this file doesn't cover (e.g. Android runtime permissions, desktop install footprint), also apply `PROJECT-DOCUMENTATION-MOBILE.md` or `PROJECT-DOCUMENTATION-DESKTOP.md`.
 
-Type-specific documentation requirements for **games** (Godot, Unity, Unreal, custom engines). This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own. When the game ships on mobile or desktop, also apply `PROJECT-DOCUMENTATION-MOBILE.md` or `PROJECT-DOCUMENTATION-DESKTOP.md` where they cover the same topic for that platform.
+Last verified: 2026-11-04
 
 Source every version, platform and command from the project itself — the engine's project file (e.g. `config/features` in `project.godot`), export/build presets (e.g. `export_presets.cfg`), CI workflows, store metadata folders. **Document only what the project has:** no store links, platforms, controls or features that don't exist.
 
@@ -101,3 +101,19 @@ Add to `docs/en/troubleshooting/common-issues.md` only the issues that apply to 
 | Google Play rejects the upload | APK instead of AAB, `version/code` not incremented, or target API below Play's current requirement |
 | "ETC2/ASTC texture compression is required for Android export" | Enable **Rendering → Textures → VRAM Compression → Import ETC2 ASTC** in Project Settings |
 | Missing assets after clone | Git LFS not installed — run `git lfs install` and `git lfs pull` |
+
+---
+
+## Quality
+
+In addition to the base standard's checks:
+
+```bash
+# Engine version and export presets the docs must match (Godot)
+grep -n 'config/features' project.godot
+grep -nE '^(name|platform|export_path)=' export_presets.cfg
+```
+
+- [ ] Controls tables match the Input Map; platforms and store links match real exports and published listings.
+- [ ] `CREDITS.md` lists every third-party asset in the repository, with no `UNKNOWN` license left unreported.
+- [ ] No keystore path, alias or password in the docs; `.godot/` and keystores are ignored by git.

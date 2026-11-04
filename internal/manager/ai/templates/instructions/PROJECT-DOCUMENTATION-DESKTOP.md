@@ -1,8 +1,8 @@
 # Documentation Complement — Desktop Applications
 
-## Overview
+Type-specific documentation requirements for **desktop applications**. Complements `.instructions/PROJECT-DOCUMENTATION.md` — apply both; this file lists only what it adds. Build mechanics live in the stack standards (`.instructions/TAURI.md`, `.instructions/WAILS.md`) when the project has them; this file covers what to document.
 
-Type-specific documentation requirements for **desktop applications**. This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own.
+Last verified: 2026-11-04
 
 ---
 
@@ -34,24 +34,12 @@ Document the commands to produce each distributable artifact **the project actua
 
 For each: the exact build command, its build-time dependencies, the output path, and code signing/notarization steps when the project has them. Artifacts the project doesn't produce are not documented.
 
-### Tauri v2
+### Stack specifics
 
-- `tauri build` (run through the project's package manager, e.g. `npm run tauri build`, or `cargo tauri build`) builds and bundles the targets set in `bundle.targets` of `tauri.conf.json`; `--bundles` selects specific ones (e.g. `--bundles deb,rpm`), `--no-bundle` skips bundling.
-- Bundle target names: `deb`, `rpm`, `appimage` (Linux); `msi`, `nsis` (Windows); `app`, `dmg` (macOS); `all` bundles every target.
-- Platform constraints: `msi` (WiX) can only be built on Windows; `nsis` can be cross-compiled from Linux/macOS with caveats; `app`/`dmg` are built on macOS. Document the OS each artifact must be built on.
-- Take the output path from the build log or the CI workflow (bundles are written under the Cargo target directory, e.g. `target/<triple>/release/bundle/nsis/` for a `--target` build) — don't guess it.
+Take build commands, bundle targets and output paths from the project's build files and CI — the stack standards explain them:
 
-**Updater signing** (only when the project uses the updater plugin):
-
-- Keys are generated with `tauri signer generate -w ~/.tauri/<app>.key`. The **public key** content goes in `plugins.updater.pubkey` in `tauri.conf.json` (committed); the **private key** is never committed — it is provided at build time through the environment variables `TAURI_SIGNING_PRIVATE_KEY` (path or content) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (`.env` files are not read), or as CI secrets.
-- `bundle.createUpdaterArtifacts: true` makes the build emit signed update artifacts next to the installers: `.AppImage` + `.sig` (Linux), `.app.tar.gz` + `.sig` (macOS), the `-setup.exe`/`.msi` + `.sig` (Windows).
-- `plugins.updater.endpoints` lists HTTPS URLs (TLS is enforced in production) returning the update manifest — a static JSON with `version`, optional `notes` and `pub_date` (RFC 3339), and `platforms` keyed `OS-ARCH` (e.g. `linux-x86_64`, `windows-x86_64`, `darwin-x86_64`), each with `url` and `signature` (the **content** of the `.sig` file, not a path). Document where the project publishes it (e.g. a release asset) and how a release updates it.
-
-### Wails v3
-
-- `wails3 package` runs the project's Taskfile `package` task for the target OS (`<os>:package` in `build/<os>/Taskfile.yml`); check those Taskfiles for what the project actually produces.
-- Generated defaults: **Linux** — AppImage, `.deb`, `.rpm` and an Arch Linux package; **Windows** — an NSIS installer (`FORMAT=msix` produces an `.msix` instead); **macOS** — the `.app` bundle, with the separate `package:dmg` task for a `.dmg`.
-- `wails3 tool package` generates individual packages (`--format deb|rpm|archlinux|dmg`) from the project's package config — document it when the project calls it directly.
+- **Tauri v2** (`TAURI.md`): `tauri build` bundles the targets in `bundle.targets` (`deb`, `rpm`, `appimage`, `msi`, `nsis`, `app`, `dmg`); `--bundles` selects some. Document the OS each artifact must be built on (`msi` only on Windows, `app`/`dmg` on macOS). With the updater plugin, document where the update manifest is published and that the private signing key is provided only through `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` or CI secrets — never committed.
+- **Wails v3** (`WAILS.md`): `wails3 package` runs the project's per-OS `package` Taskfile tasks (generated defaults: AppImage, `.deb`, `.rpm`, Arch package on Linux; NSIS installer on Windows; `.app` on macOS). `wails3 tool package -format deb|rpm|archlinux|dmg` builds a single package from the project's package config (`dmg` only on macOS) — document it when the project calls it.
 
 ---
 
@@ -79,3 +67,14 @@ Add placeholders for images/GIFs demonstrating the UI, stored under `docs/img/` 
 ## 5. Troubleshooting
 
 Include OS-specific issues in `docs/en/troubleshooting/common-issues.md` (missing runtime libraries, sandbox/permission restrictions, graphics/driver problems, unsigned-app warnings) — only the ones that actually apply to this project.
+
+---
+
+## Quality
+
+In addition to the base standard's checks:
+
+- [ ] The OS matrix lists Linux, Windows and macOS, with unsupported ones marked as such; the supported ones match the build files and CI.
+- [ ] Every documented artifact is produced by the project's build/CI, with the real command and output path (run it, or check the CI workflow).
+- [ ] `uninstallation.md` removes everything the install footprint lists (binary, desktop entry, icons, autostart, config/data dirs).
+- [ ] Each screenshot placeholder has its `TODO` comment; no broken image links (`lychee --offline` from the base checks).

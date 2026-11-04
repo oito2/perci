@@ -1,176 +1,88 @@
 # Landing Page Design & CRO Standard
 
-## Overview
+Standard for designing and building **landing pages** — a single page focused on one conversion goal — that convert and have a distinctive visual identity. Apply it when a landing page is created or redesigned. Also apply `.instructions/WEBSITE.md` when the project has it: it governs SEO, forms, privacy/consent, fonts, images, hosting and the site-wide quality checks, which this file does not repeat.
 
-Build landing pages that convert AND captivate. This standard combines high-converting copywriting architecture with distinctive, non-generic visual design to create landing pages that stand out in an AI-saturated world.
-
-**The Goal:** High-converting, production-ready landing pages that avoid standard AI slop patterns.
+Last verified: 2026-11-04
 
 > **Rule:** Never invent content presented as fact — client logos, testimonials, ratings, user counts, media coverage, guarantees or prices. Use what the user provides; otherwise insert a clearly marked placeholder (e.g. `[TESTIMONIAL — provided by the client]`) and list every placeholder in your final report.
 
 ---
 
-## MANDATORY: Vibe Discovery (Do This First)
+## 1. Existing Project First
 
-BEFORE writing any code or layout, you MUST run the Vibe Discovery process to generate a unique aesthetic direction.
+- Follow the project's **existing brand, design system and stack** first: its colors, fonts, components, icon set, CSS approach and build tooling. Don't introduce a framework, CSS library or font the project doesn't use without asking.
+- The visual direction below (§2) applies only to what the project leaves open — a new brand, or a page explicitly meant to look different.
 
-> **Rule:** No two landing pages should look alike, even for similar products.
+---
 
-### Step 1: Gather Context (Ask These Questions)
+## 2. Visual Direction
 
-If the user provides limited context, ask these 4 questions (offer selectable options where the question has a fixed set, e.g. The Emotion). If they provided a brief, synthesize the answers from their input:
+### Discovery
 
-1. **The Reference:** What's one specific real-world place or object this brand would be? *(e.g., A Tokyo convenience store at 2am, a 1970s recording studio, a brutalist parking garage, surgical instruments).*
-2. **The Emotion:** What ONE emotion should someone feel in the first 3 seconds? *(Pick ONE: Calm, Energized, Curious, Trusted, Rebellious, Sophisticated, Nostalgic, Confident).*
-3. **The Collision:** Pick TWO unexpected influences to collide. *(e.g., "medical packaging + skateboard graphics", "luxury hotel + punk zine", "NASA mission control + kindergarten").*
-4. **Anti-Patterns:** Name 2-3 specific design choices to actively avoid. *(e.g., "No purple gradients", "No generic SaaS illustration style", "No rounded friendly shapes").*
+Use the brief first. Only when it lacks the information, ask the missing questions — all at once, following the question protocol in `AGENTS.md`:
 
-### Step 2: Invent The Vibe & Write The Spec
+1. **Reference:** a real-world place or object the brand would be (e.g. "a 1970s recording studio", "surgical instruments").
+2. **Emotion:** the one feeling in the first 3 seconds (Calm, Energized, Curious, Trusted, Rebellious, Sophisticated, Nostalgic, Confident).
+3. **Collision:** two unexpected influences to combine (e.g. "medical packaging + skateboard graphics").
+4. **Anti-patterns:** 2–3 design choices to avoid.
 
-Before coding, generate and output this exact spec:
+### Spec
+
+Before coding, output a short spec and get it confirmed when the direction is new:
 
 ```text
-VIBE NAME: [Invent a 2-3 word name, e.g., "Shinjuku Runway"]
-REFERENCE: [Place/Object from Q1] | EMOTION: [From Q2] | COLLISION: [From Q3]
-ANTI-PATTERNS: [From Q4]
-
-COLORS & PALETTE:
-- Name: [Evocative Name, e.g., "Platform Edge"]
-- --color-bg: [hex] - [why]
-- --color-surface: [hex] - [why]
-- --color-text-main: [hex] - [why]
-- --color-accent: [hex] - [why]
-
-TYPOGRAPHY:
-- --font-display: [Specific Font Name via Fontshare/Google Fonts]
-- --font-body: [Specific Font Name]
-- Voice: [Describe the character/tone]
-
-LAYOUT & MOTION:
-- Density: [sparse / balanced / dense] | Shapes: [sharp / rounded / organic]
-- Signature Element: [One unusual layout choice derived from collision]
-- Motion Level: [subtle / kinetic / deliberate]
-- Signature Animation: [One specific defining animation]
-
-WILDCARD:
-- [One unexpected detail that breaks harmony to create novelty]
-
+VIBE: [2–3 word name] — REFERENCE / EMOTION / COLLISION / ANTI-PATTERNS
+COLORS: --color-bg, --color-surface, --color-text-main, --color-accent (hex + reason; contrast checked)
+TYPOGRAPHY: --font-display, --font-body (licensed for web use), voice
+LAYOUT & MOTION: density, shapes, one signature element, motion level, one signature animation
 ```
 
-### Freshness & Anti-Convergence Rules
+### Avoid generic output
 
-* **No Color Memory:** Generate colors fresh from the reference, never reuse palettes from previous runs.
-* **Font Rotation:** Never default to Inter, Roboto, or Nunito for body text unless explicitly forced. Explore Google Fonts or Fontshare (`Clash Display`, `Syne`, `Satoshi`, `Outfit`, `Newsreader`, `Space Grotesk`).
-* **Icon Constraint:** Avoid plain 24px Lucide outlines. Use **Iconify Solar**, **Phosphor**, **Heroicons**, or Custom SVGs with styled strokes/duotone fills.
-* **No Generic Purple Gradients:** Default to deep navy/electric accents, warm monochromatic neutrals, or dark mode with neon pops.
+- Derive palette, type and layout from the reference — don't fall back to the same template for every page (e.g. purple gradients, default system UI fonts for display text, generic SaaS illustrations) unless the brand uses them.
+- Declare the chosen tokens as CSS custom properties in `:root` and use only them in components.
 
 ---
 
-## Conversion & Copywriting Framework (CRO)
+## 3. Conversion Copy
 
-A landing page must convince, not just look pretty. Every page must strictly follow this conversion architecture:
+- **Hero headline (H1):** benefit-driven, roughly 8–12 words. Useful formulas: *Outcome + without pain*, *Action verb + promise + timeframe*, *Old way is dead → new way*.
+- **Subheadline:** 1–2 sentences on *how* the product delivers the promise.
+- **Primary CTA:** one action-oriented label (e.g. "Start free trial", not "Submit"), the same goal throughout the page.
+- **Friction reducer** under the CTA (e.g. "No credit card required") — only when it is true.
 
-### 1. Headline Formulas (Choose One for the Hero)
+### Page blueprint
 
-* **Outcome + Without Pain:** `[Achieve Desired Result] + without [Major Friction/Fear]`
-* **Direct Command:** `[Action Verb] [Big Promise] in [Timeframe]`
-* **Category Disruptor:** `The [Old Way] is dead. Welcome to [New Way].`
+Adapt to the offer; drop sections that have no real content:
 
-### 2. Copy Hierarchy Standard
-
-* **Headline (H1):** Clear, benefit-driven hook (max 8-12 words).
-* **Subheadline:** 1-2 sentences explaining *HOW* the product delivers the headline's promise.
-* **Primary CTA:** Action-oriented text (e.g., *"Claim Your Access"* instead of *"Submit"*).
-* **Risk Reversal / Friction Reducer:** Small text under CTA (e.g., *"No credit card required • 2-min setup"*).
-
----
-
-## Technical & Architecture Rules
-
-### 1. CSS Design System Variables Setup
-
-In your output code, ALWAYS declare the vibe as CSS Variables inside the `:root` block first:
-
-```css
-:root {
-  --color-bg: #fafaf8;
-  --color-surface: #f5f5f0;
-  --color-text-main: #1a1a1a;
-  --color-accent: #e60012;
-  
-  --font-display: 'Clash Display', sans-serif;
-  --font-body: 'Plus Jakarta Sans', sans-serif;
-}
-
-```
-
-### 2. Performance & Web Vitals
-
-* **LCP Optimization:** Never use unoptimized, heavy background images on the Hero section. Use CSS gradients, vectors, or lightweight WebP images with `fetchpriority="high"`.
-* **Font Performance:** Load fonts with `font-display: swap` — the `&display=swap` URL parameter on Google Fonts / Fontshare imports, or `font-display: swap;` in your own `@font-face` rules.
-* **Clean DOM:** Avoid unnecessary nested `div` wrappers solely for styling; keep the DOM tree shallow.
-
-### 3. Accessibility
-
-* **Contrast:** text and CTAs meet WCAG 2.2 AA (4.5:1 for body text, 3:1 for large text and UI components).
-* **Reduced motion:** wrap every non-essential animation (entrance, marquee, float, beam) in `@media (prefers-reduced-motion: no-preference)`, or disable it under `prefers-reduced-motion: reduce`.
-* **Keyboard:** every interactive element is reachable by keyboard and has a visible `:focus-visible` style; the FAQ accordion uses `<details>`/`<summary>` or proper ARIA.
-* **Semantics:** one `<h1>`, ordered headings, `alt` text on informative images, `<button>` for actions and `<a>` for navigation.
+1. **Hero** — H1, subheadline, primary CTA, friction reducer, hero visual, social proof (real or placeholder).
+2. **Social proof** — client logos, ratings or press, only with real material.
+3. **Problem → solution / features.**
+4. **How it works** — about three numbered steps.
+5. **Objections & FAQ** — `<details>`/`<summary>` accordion; guarantee only if the offer has one.
+6. **Final CTA** — repeated value proposition.
+7. **Footer**, plus an optional sticky CTA bar on mobile.
 
 ---
 
-## Section Composition Guide
+## 4. Implementation Rules
 
-### The 50% Rule
-
-Spend 50% of creative and technical focus on the **Hero Section**. If the Hero doesn't hook the user, the rest of the page is irrelevant.
-
-### Required Page Blueprint
-
-```
-1. Hero Section (Primary Focus)
-   ├── Value Proposition (H1 + Subheadline)
-   ├── Primary CTA + Risk Reversal Badge
-   ├── Social Proof (Logo Marquee / User Rating / Trust Badges — real or placeholder, never invented)
-   └── Interactive/Visual Hero Asset (Split, Centered, or Asymmetrical)
-
-2. Social Proof / Validation
-   └── Marquee animation with client logos or media coverage
-
-3. Problem vs. Solution (or Bento Grid Features)
-   └── Interactive cards, hover states, or micro-animations
-
-4. How It Works (3 Step Process)
-   └── Numbered steps (01, 02, 03) to build clarity and lower perceived effort
-
-5. Risk Reversal / Objections & FAQ
-   └── Accordion FAQ + guarantee badge (only if the offer has one)
-
-6. Final CTA Section
-   └── Repeated value proposition + high-contrast action focus
-
-7. Footer + Sticky Mobile CTA
-   └── Clean footer links + fixed bottom CTA bar visible on mobile scroll
-
-```
+- **Hero/LCP:** no heavy background images or videos in the hero; use CSS, SVG or an optimized image with `fetchpriority="high"` and explicit dimensions (image rules in WEBSITE.md).
+- **Fonts:** self-hosted WOFF2 with `font-display`, at most two families (details in WEBSITE.md).
+- **Motion:** every non-essential animation (entrance, marquee, float) runs only under `@media (prefers-reduced-motion: no-preference)`; marquees and auto-moving content longer than 5 seconds have a pause control (WCAG 2.2.2).
+- **Sticky mobile CTA:** it must not cover the focused element or content the user is reading — reserve space for it (e.g. `scroll-padding-bottom` and bottom padding equal to its height) so keyboard focus is never hidden behind it (WCAG 2.4.11).
+- **Accessibility:** WCAG 2.2 AA contrast (4.5:1 text, 3:1 large text and UI components), visible `:focus-visible` styles, one `<h1>`, ordered headings, `<button>` for actions and `<a>` for navigation, CTA targets at least 44×44 CSS px.
+- **Layout:** no horizontal overflow down to 320 CSS px — fix the overflowing element instead of `overflow-x: hidden` (which also breaks `position: sticky`).
+- **Forms and tracking:** a lead form or analytics/pixels follow WEBSITE.md (labels, LGPD notice, consent before non-essential trackers).
 
 ---
 
-## Design & Animation Vocabulary
+## Quality
 
-When prompt engineering or generating components, apply these specific motion primitives:
+In addition to WEBSITE.md's quality checks (when the project has it):
 
-* **Entrance Animations:** `fade-in`, `blur-in` (opacity + filter blur), `slide-in`, `scale-in`, `stagger` (sequential child reveals).
-* **Continuous Animations:** `marquee` (infinite horizontal scroll for social proof), `beam` (light traveling along card borders), `float` (gentle ambient Y movement).
-* **Interactive Micro-interactions:** `hover-lift` (`translateY(-4px)` + soft shadow expand), `hover-glow` (border-color transition), `hover-reveal`.
-* **Decorative Touches:** Vertical grid lines, background grain overlays, curved SVG connector lines ("noodles"), step counters (`01`, `02`).
-
----
-
-## Implementation Workflow
-
-1. **Phase 1: Vibe & Copy Spec:** Run the Vibe Discovery, select the Copy Headline Formula, and output the Spec block.
-2. **Phase 2: Hero Build:** Construct the Hero layout, CSS variable definitions, primary CTA, and main visual asset.
-3. **Phase 3: Section Assembly:** Add section-by-section, keeping typography, CSS variable usage, and animation timing unified.
-4. **Phase 4: Responsive & Mobile Check:** Ensure no horizontal overflow — fix the element that overflows instead of hiding it with `overflow-x: hidden` (which also breaks `position: sticky`), test touch targets (minimum 44x44px for CTAs), and enable the Sticky Mobile CTA Bar.
-5. **Phase 5: Polish Check:** Verify font imports, icon consistency, accessibility (§3), performance, and that every placeholder is listed for the user.
+- [ ] Brand, design system and stack of the project respected (or the spec confirmed for a new direction).
+- [ ] Every placeholder listed in the final report; no invented proof, prices or guarantees.
+- [ ] Lighthouse on the built page (mobile): `lighthouse <url> --form-factor=mobile --output=html --output-path=./lighthouse.html` — check LCP, CLS and accessibility.
+- [ ] axe: `axe <url> --tags wcag2a,wcag2aa,wcag21aa,wcag22aa --exit`.
+- [ ] Manual pass at 320 px, tablet and desktop widths: keyboard-only navigation with the sticky CTA visible, 200% zoom, `prefers-reduced-motion: reduce` enabled.

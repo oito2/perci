@@ -115,16 +115,14 @@
   /* Tabs (Definições/Execução): each panel is explicitly shown/hidden
      by the checked radio, since daisyUI's `.tab-content` has no
      `display:none` rule for an inactive tab. */
-  #panel-desc, #panel-terminal, #panel-repos-list, #panel-mp-mounted, #panel-transfer-import { display: none; }
+  #panel-desc, #panel-terminal, #panel-mp-mounted, #panel-transfer-import,
+  #panel-git-identity, #panel-git-import { display: none; }
   .tabs:has(#tab-radio-desc:checked) #panel-desc { display: block; }
   .tabs:has(#tab-radio-terminal:checked) #panel-terminal { display: flex; }
-  .tabs:has(#tab-radio-repos-list:checked) #panel-repos-list { display: block; }
   .tabs:has(#tab-radio-mp-mounted:checked) #panel-mp-mounted { display: block; }
   .tabs:has(#tab-radio-transfer-import:checked) #panel-transfer-import { display: block; }
-
-  /* Clonar/Iniciar/Identidade Local/Arquivos horizontal menu — disabled
-     (visible, but not clickable) until a working folder is chosen. */
-  .repos-submenu-disabled a { pointer-events: none; opacity: .4; }
+  .tabs:has(#tab-radio-git-identity:checked) #panel-git-identity { display: block; }
+  .tabs:has(#tab-radio-git-import:checked) #panel-git-import { display: block; }
 
   /* "Docker :: Criar Contêiner" and "Docker :: Gerenciar Contêineres ::
      Editar" — "label on the right + field" layout, styled like a
@@ -218,10 +216,6 @@
           Contêineres
         </label>
         <label class="tab">
-          <input type="radio" name="compact-tab-radio" id="compact-tab-repos" />
-          Repositórios
-        </label>
-        <label class="tab">
           <input type="radio" name="compact-tab-radio" id="compact-tab-system-update" />
           Atualizar Sistema
         </label>
@@ -264,10 +258,10 @@
               </div>
             </div>
 
-            <!-- "Desinstalar Perci" (ActionID "self-uninstall"): the "Também
-                 remover configurações", Docker container removal and
-                 configuration backup checkboxes, with the "Desinstalar" button
-                 after all three. -->
+            <!-- "Desinstalar Perci" (ActionID "self-uninstall"): the
+                 configuration and repositories backup, Docker container
+                 removal and "Também remover configurações" checkboxes, with
+                 the "Desinstalar" button after all four. -->
             <div>
               <h3 class="font-semibold mb-3">Desinstalar Perci</h3>
               <div class="alert alert-warning mb-4">
@@ -279,12 +273,16 @@
                   <span class="label-text">Fazer backup das configurações antes de desinstalar</span>
                 </label>
                 <label class="label cursor-pointer justify-start gap-2">
+                  <input id="su2-backup-repos" type="checkbox" class="checkbox" />
+                  <span class="label-text">Fazer backup dos repositórios (contas Git) antes de desinstalar</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-2">
                   <input id="su2-remove-docker" type="checkbox" class="checkbox" />
                   <span class="label-text">Remover contêineres Docker (Nginx/MariaDB/Apps)</span>
                 </label>
                 <label class="label cursor-pointer justify-start gap-2">
                   <input id="su2-remove-config" type="checkbox" class="checkbox" />
-                  <span class="label-text">Também remover configurações (~/.perci)</span>
+                  <span class="label-text">Também remover configurações (~/.perci), as regras das contas Git no ~/.gitconfig e os tokens do chaveiro — chaves SSH e repositórios ficam</span>
                 </label>
               </div>
               <button id="btn-su2-uninstall" class="btn btn-outline btn-error">Desinstalar</button>
@@ -552,6 +550,229 @@
             <button id="btn-transfer-export" class="btn btn-primary" disabled>Exportar…</button>
           </div>
 
+          <!-- "Repositórios :: Configurar Conta": three views, one visible at a
+               time — the account table, the create/edit form and one
+               account's details (SSH key, server key, connection test). The
+               default identity is the top-level tab #panel-git-identity. -->
+          <div id="gitaccounts-container" class="hidden">
+            <div id="ga-list-view">
+              <p class="opacity-80 mb-4">Cada conta tem uma pasta: os repositórios dentro dela usam o nome, o e-mail e a chave SSH da conta — também no terminal.</p>
+              <div class="overflow-x-auto">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Conta</th>
+                      <th>Provedor</th>
+                      <th>Pasta</th>
+                      <th>Chave SSH</th>
+                      <th class="w-px"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="ga-rows"></tbody>
+                </table>
+              </div>
+              <p id="ga-empty" class="opacity-70 mt-2 hidden">Nenhuma conta cadastrada ainda.</p>
+              <button id="btn-ga-new" class="btn btn-primary mt-4">Nova conta</button>
+            </div>
+
+            <div id="ga-form-view" class="hidden">
+              <h3 id="ga-form-title" class="font-bold text-lg mb-4">Nova conta</h3>
+              <div class="grid gap-4 md:grid-cols-2 mb-4">
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">Nome da conta</span>
+                  <span class="text-xs opacity-70">Aparece no menu Repositórios.</span>
+                  <input id="ga-name" type="text" class="input input-bordered" maxlength="40" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">Provedor</span>
+                  <span class="text-xs opacity-70">Contas pessoais do GitHub ou do GitLab.</span>
+                  <select id="ga-provider" class="select select-bordered">
+                    <option value="github">GitHub</option>
+                    <option value="gitlab">GitLab</option>
+                  </select>
+                </label>
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">Host</span>
+                  <span class="text-xs opacity-70">Deixe vazio para o serviço público; preencha para um servidor próprio.</span>
+                  <input id="ga-host" type="text" class="input input-bordered" autocomplete="off" spellcheck="false" />
+                </label>
+                <label id="ga-port-wrap" class="flex flex-col gap-2 min-w-0 hidden">
+                  <span class="font-semibold">Porta SSH</span>
+                  <span class="text-xs opacity-70">Deixe vazio para a porta 22.</span>
+                  <input id="ga-port" type="number" min="1" max="65535" class="input input-bordered" placeholder="22" />
+                </label>
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">Usuário</span>
+                  <span class="text-xs opacity-70">O dono dos repositórios no provedor.</span>
+                  <input id="ga-username" type="text" class="input input-bordered" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">Nome nos commits</span>
+                  <input id="ga-gitname" type="text" class="input input-bordered" autocomplete="off" />
+                </label>
+                <label class="flex flex-col gap-2 min-w-0">
+                  <span class="font-semibold">E-mail nos commits</span>
+                  <input id="ga-gitemail" type="email" class="input input-bordered" autocomplete="off" spellcheck="false" />
+                </label>
+              </div>
+
+              <div class="flex flex-col gap-2 mb-4 min-w-0">
+                <span class="font-semibold">Pasta da conta</span>
+                <span class="text-xs opacity-70">Os repositórios desta conta ficam dentro dela, em qualquer subpasta. Não pode conter nem estar dentro da pasta de outra conta.</span>
+                <span id="ga-folder-path" class="text-sm break-all opacity-60">Nenhuma pasta selecionada</span>
+                <button id="btn-ga-pick-folder" class="btn btn-sm self-start">Selecionar pasta</button>
+              </div>
+
+              <div class="flex flex-col gap-2 mb-4 min-w-0 max-w-xl">
+                <span class="font-semibold">Chave SSH</span>
+                <span id="ga-key-hint" class="text-xs opacity-70"></span>
+                <button id="btn-ga-form-keys-page" type="button" class="btn btn-xs self-start">Abrir página de chaves SSH</button>
+                <select id="ga-key-mode" class="select select-bordered"></select>
+                <div id="ga-pass-wrap" class="grid gap-2 hidden">
+                  <span class="text-xs opacity-70">Senha da chave (opcional). Com senha, a chave precisa ser desbloqueada uma vez por sessão.</span>
+                  <div class="join w-full">
+                    <input id="ga-pass" type="password" class="input input-bordered join-item flex-1" placeholder="Senha (opcional)" autocomplete="new-password" />
+                    <button type="button" class="btn join-item" data-reveal="ga-pass" aria-pressed="false">Mostrar</button>
+                  </div>
+                  <input id="ga-pass2" type="password" class="input input-bordered" placeholder="Repita a senha" autocomplete="new-password" />
+                </div>
+                <div id="ga-key-existing-wrap" class="flex flex-col gap-2 hidden">
+                  <span id="ga-key-path" class="text-sm break-all opacity-60">Nenhuma chave selecionada</span>
+                  <button id="btn-ga-pick-key" class="btn btn-sm self-start">Selecionar chave</button>
+                  <span class="text-xs opacity-70">Escolha a chave privada; a pública (.pub) precisa estar ao lado dela.</span>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-2 mb-6 min-w-0 max-w-xl">
+                <span class="font-semibold">Token da API (opcional)</span>
+                <span id="ga-token-hint" class="text-xs opacity-70">Sem token, só os repositórios públicos aparecem na lista da conta; com token, também os privados. Fica no chaveiro do sistema, nunca no config.yaml.</span>
+                <span id="ga-token-steps" class="text-xs opacity-70"></span>
+                <button id="btn-ga-token-page" type="button" class="btn btn-xs self-start">Abrir página de tokens</button>
+                <div class="join w-full">
+                  <input id="ga-token" type="password" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="btn join-item" data-reveal="ga-token" aria-pressed="false">Mostrar</button>
+                </div>
+                <label id="ga-clear-token-wrap" class="label cursor-pointer justify-start gap-3 hidden">
+                  <input id="ga-clear-token" type="checkbox" class="checkbox" />
+                  <span class="label-text">Remover o token salvo</span>
+                </label>
+              </div>
+
+              <div class="flex gap-2">
+                <button id="btn-ga-save" class="btn btn-primary">Salvar</button>
+                <button id="btn-ga-cancel" class="btn">Cancelar</button>
+              </div>
+            </div>
+
+            <div id="ga-detail-view" class="hidden">
+              <div class="flex items-center gap-2 mb-4 flex-wrap">
+                <h3 id="ga-detail-title" class="font-bold text-lg flex-1"></h3>
+                <button id="btn-ga-edit" class="btn btn-sm">Editar</button>
+                <button id="btn-ga-back" class="btn btn-sm">Voltar</button>
+              </div>
+              <div id="ga-detail-summary" class="mb-6"></div>
+
+              <div class="flex items-center gap-2 mb-2">
+                <span class="font-semibold">Chave pública</span>
+                <span id="ga-key-badge" class="badge"></span>
+              </div>
+              <pre id="ga-pubkey" class="bg-base-200 rounded p-3 text-xs mb-2" style="white-space: pre-wrap; word-break: break-all;"></pre>
+              <div class="flex gap-2 flex-wrap mb-2">
+                <button id="btn-ga-copy" class="btn btn-sm">Copiar</button>
+                <button id="btn-ga-keys-page" class="btn btn-sm">Abrir página de chaves SSH</button>
+              </div>
+              <p class="text-xs opacity-70 mb-6">Cadastre esta chave pública na conta do provedor (Settings → SSH keys) e depois teste a conexão.</p>
+
+              <div id="ga-unlock-wrap" class="flex flex-col gap-2 mb-6 max-w-xl hidden">
+                <span class="font-semibold">Desbloquear chave</span>
+                <span class="text-xs opacity-70">A chave tem senha e não está carregada no agente SSH desta sessão.</span>
+                <div class="join w-full">
+                  <input id="ga-unlock-pass" type="password" class="input input-bordered join-item flex-1" placeholder="Senha da chave" autocomplete="off" />
+                  <button id="btn-ga-unlock" type="button" class="btn btn-primary join-item">Desbloquear</button>
+                </div>
+              </div>
+              <div id="ga-noagent-note" role="status" class="alert alert-warning mb-6 hidden">
+                <span>A chave tem senha, mas não há agente SSH nesta sessão para guardá-la. Inicie um agente (o GNOME Keyring já fornece um) ou use uma chave sem senha.</span>
+              </div>
+
+              <div id="ga-host-wrap" class="flex flex-col gap-2 mb-6 hidden">
+                <span class="font-semibold">Chave do servidor</span>
+                <span class="text-xs opacity-70">Confira as impressões digitais com o administrador do servidor antes de confiar nelas.</span>
+                <div id="ga-host-keys" class="text-xs"></div>
+                <div class="flex gap-2">
+                  <button id="btn-ga-scan" class="btn btn-sm">Verificar chave do servidor</button>
+                  <button id="btn-ga-trust" class="btn btn-sm btn-primary hidden">Confiar nestas chaves</button>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 mb-2">
+                <button id="btn-ga-test" class="btn btn-primary">Testar conexão</button>
+              </div>
+              <div id="ga-test-result" role="status" class="alert hidden">
+                <span id="ga-test-result-text" class="break-all"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- "Repositórios :: <conta>": the repositories under the account
+               folder with their local state (no network access). -->
+          <div id="gitaccount-container" class="hidden">
+            <div class="flex items-start gap-2 mb-4 flex-wrap">
+              <div id="gac-header" class="flex-1 min-w-0 text-sm opacity-80 break-all"></div>
+              <button id="btn-gac-reload" class="btn btn-sm">Recarregar</button>
+              <button id="btn-gac-configure" class="btn btn-sm">Configurar conta</button>
+            </div>
+            <div id="gac-alert" role="status" class="alert alert-warning alert-soft mb-4 hidden">
+              <span id="gac-alert-text"></span>
+            </div>
+            <div class="flex gap-2 flex-wrap mb-4">
+              <button id="btn-gac-verify" class="btn btn-primary" title="Busca no servidor o que mudou em todos os repositórios, sem alterar os arquivos">Verificar Alterações</button>
+              <button id="btn-gac-pull" class="btn" title="Atualiza os repositórios que só têm alterações a baixar (fast-forward)">Baixar Alterações</button>
+              <button id="btn-gac-new" class="btn" title="Clona um repositório da conta ou inicia um novo dentro da pasta da conta">Novo Repositório</button>
+              <button id="btn-gac-fix-urls" class="btn hidden" title="Troca as URLs HTTPS da conta pelas URLs SSH equivalentes">Ajustar todas as URLs</button>
+              <button id="btn-gac-clone-pending" class="btn hidden" title="Testa a conexão e clona os repositórios importados que ainda não estão nesta máquina">Clonar pendentes</button>
+            </div>
+            <div id="gac-pending" class="mb-4 hidden">
+              <h3 class="font-bold mb-1">Pendentes</h3>
+              <p class="text-xs opacity-70 mb-2">Repositórios importados que ainda não foram clonados. Cadastre a chave pública da conta no servidor e use Testar conexão em Configurar conta antes de clonar.</p>
+              <ul id="gac-pending-list" class="grid gap-1"></ul>
+            </div>
+            <p id="gac-loading" class="opacity-70 mb-4 hidden">Lendo os repositórios...</p>
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Repositório</th>
+                    <th>Branch</th>
+                    <th>Último commit</th>
+                    <th>Alterações</th>
+                    <th class="w-px">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="gac-rows"></tbody>
+              </table>
+            </div>
+            <p id="gac-empty" class="opacity-70 mt-2 hidden">Nenhum repositório nesta pasta ainda.</p>
+            <details id="gac-hidden" class="mt-4 hidden">
+              <summary id="gac-hidden-summary" class="cursor-pointer text-sm opacity-70"></summary>
+              <ul id="gac-hidden-list" class="text-xs mt-2 grid gap-1"></ul>
+            </details>
+            <p class="text-xs opacity-60 mt-4">Abrir esta tela não acessa a rede: o que há para baixar (↓) vale desde a última verificação. Baixar só avança a branch atual (fast-forward); repositórios com alterações não commitadas, sem upstream ou que divergiram do remoto são ignorados, com o motivo na aba Execução.</p>
+          </div>
+
+          <!-- "Repositórios :: Gerenciar Repositórios": the Exportar
+               checklist; the Importar checklist is the top-level tab
+               #panel-git-import. -->
+          <div id="gittransfer-container" class="hidden">
+            <p class="opacity-80 mb-4">Escolha as contas e os repositórios a exportar. O arquivo guarda os dados das contas (nome, provedor, host, usuário, identidade dos commits e pasta) e, de cada repositório, a pasta e a URL SSH. Chaves SSH, tokens e os arquivos dos repositórios não vão no arquivo. Este arquivo é separado do de Docker → Exportar/Importar.</p>
+            <p id="gt-export-empty" class="opacity-70 mb-4 hidden">Nenhuma conta cadastrada ainda — cadastre uma em "Repositórios :: Configurar Conta".</p>
+            <div id="gt-export-list" class="mb-2"></div>
+            <div id="gt-export-note" role="status" class="alert alert-warning mb-4 hidden">
+              <span id="gt-export-note-text" class="whitespace-pre-line"></span>
+            </div>
+            <button id="btn-gt-export" class="btn btn-primary" disabled>Exportar…</button>
+          </div>
+
           <!-- "Dev Tools :: Plugins Moodle": a plugin development folder +
                a Moodle container + type/name. The mounted plugins are listed
                in the top-level tab #panel-mp-mounted. -->
@@ -586,35 +807,6 @@
             </div>
             <button id="btn-mp-create" class="btn btn-primary" disabled>Criar</button>
             <p class="text-xs opacity-60 mt-2">Criar e remover pedem a senha de administrador. Depois de aplicar, abra Administração do site → Notificações no Moodle para instalar ou atualizar o plugin.</p>
-          </div>
-
-          <!-- "Dev Tools :: Repositórios": 2 tabs — "Identidade Global" (the
-               "Alterar identidade Global" checkbox only shows once one is
-               already configured) and "Repositórios" (working-folder picker +
-               Clonar/Iniciar Repositório/Identidade Local/Arquivos horizontal
-               menu, disabled until the folder is chosen). -->
-          <!-- "Dev Tools :: Repositórios" — "Identidade Global" is the direct
-               content of #panel-desc for this item; the "Repositórios" tab is
-               the top-level tab #panel-repos-list. -->
-          <div id="repos-container" class="hidden">
-            <p class="opacity-70 mb-4">Defina a Identidade Global que será usada.</p>
-            <div id="repos-identity-checkbox-wrap" class="hidden mb-3">
-              <label class="label cursor-pointer justify-start gap-3">
-                <input id="repos-identity-change" type="checkbox" class="checkbox" />
-                <span class="label-text">Alterar identidade Global</span>
-              </label>
-            </div>
-            <div class="grid gap-4 max-w-md">
-              <label class="form-control">
-                <div class="label"><span class="label-text">Nome</span></div>
-                <input id="repos-identity-name" type="text" class="input input-bordered" />
-              </label>
-              <label class="form-control">
-                <div class="label"><span class="label-text">Email</span></div>
-                <input id="repos-identity-email" type="text" class="input input-bordered" />
-              </label>
-            </div>
-            <button id="btn-repos-identity-apply" class="btn btn-primary mt-4">Aplicar Identidade Global</button>
           </div>
 
           <!-- "Dev Tools :: IA: SKILLs": Global/Local select (Local requires a
@@ -669,6 +861,13 @@
               <button id="btn-aic-pick-folder" class="btn btn-sm ml-auto">Selecionar Pasta</button>
             </div>
 
+            <!-- The coding agents the context is generated for: only the
+                 checked agents' files are written. -->
+            <div class="mb-4">
+              <div class="label"><span class="label-text">Agentes de IA</span></div>
+              <div id="aic-agents" class="flex flex-wrap gap-x-6 gap-y-2"></div>
+            </div>
+
             <!-- Project type: checks the standards of one project kind at
                  once; the checkboxes below stay editable. -->
             <label class="form-control max-w-md mb-2">
@@ -718,33 +917,6 @@
           </div>
         </div>
 
-        <!-- Own top-level tab for "Dev Tools :: Repositórios", between the
-             generic one and "Execução". Only visible when the selected item is
-             "repos" (hidden class toggled in selectItem) — every other item
-             keeps the usual 2 tabs. -->
-        <label id="tab-label-repos-list" class="tab flex-none hidden">
-          <input type="radio" name="content-tabs" id="tab-radio-repos-list" />
-          <span class="mr-1">📁</span> Repositórios
-        </label>
-        <div id="panel-repos-list" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
-          <div id="repos-list-cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6"></div>
-
-          <div class="divider"></div>
-
-          <div role="alert" class="alert mb-4 flex-wrap">
-            <span id="repos-folder-alert-text"></span>
-          </div>
-
-          <ul class="menu menu-horizontal bg-base-200 rounded-box mb-4 repos-submenu-disabled" id="repos-submenu">
-            <li><a href="#" data-sub="clone">Clonar</a></li>
-            <li><a href="#" data-sub="init">Iniciar Repositório</a></li>
-            <li><a href="#" data-sub="ident">Identidade Local</a></li>
-            <li><a href="#" data-sub="files">Arquivos</a></li>
-          </ul>
-
-          <div id="repos-sub-panel"></div>
-        </div>
-
         <!-- Own top-level tab for "Dev Tools :: Plugins Moodle": the mounted
              plugins with their status, a restart icon and a remove icon.
              Only visible when the selected item is "moodleplugins". -->
@@ -789,6 +961,48 @@
             <span id="transfer-import-note-text" class="whitespace-pre-line"></span>
           </div>
           <button id="btn-transfer-import" class="btn btn-primary" disabled>Importar</button>
+        </div>
+
+        <!-- Own top-level tab for "Repositórios :: Gerenciar Repositórios":
+             an export file and the checklist of what to import from it.
+             Only visible when the selected item is "git-transfer". -->
+        <label id="tab-label-git-import" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-git-import" />
+          <span class="mr-1">📥</span> Importar
+        </label>
+        <div id="panel-git-import" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <p class="opacity-80 mb-4">Escolha um arquivo de repositórios exportado e marque o que importar. Uma conta nova ganha a pasta, uma chave SSH sem senha e a regra no ~/.gitconfig; uma conta já cadastrada (mesmo usuário no mesmo servidor) mantém os dados dela. Os repositórios ficam pendentes na tela da conta, para clonar depois de cadastrar a chave no servidor.</p>
+          <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <button id="btn-gt-pick" class="btn btn-sm">Selecionar arquivo</button>
+            <span id="gt-import-path" class="text-sm break-all opacity-60">Nenhum arquivo selecionado</span>
+          </div>
+          <div id="gt-import-list" class="mb-2"></div>
+          <div id="gt-import-note" role="status" class="alert alert-warning mb-4 hidden">
+            <span id="gt-import-note-text" class="whitespace-pre-line"></span>
+          </div>
+          <button id="btn-gt-import" class="btn btn-primary" disabled>Importar</button>
+        </div>
+
+        <!-- Own top-level tab for "Repositórios :: Configurar Conta": the
+             global git identity, used outside every account folder. Only
+             visible when the selected item is "git-accounts". -->
+        <label id="tab-label-git-identity" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-git-identity" />
+          <span class="mr-1">🪪</span> Identidade padrão
+        </label>
+        <div id="panel-git-identity" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <p class="opacity-80 mb-4">Nome e e-mail dos commits feitos fora das pastas das contas (git config --global). Dentro da pasta de uma conta valem o nome e o e-mail da conta.</p>
+          <div class="grid gap-4 max-w-md">
+            <label class="form-control">
+              <div class="label"><span class="label-text">Nome</span></div>
+              <input id="ga-id-name" type="text" class="input input-bordered" />
+            </label>
+            <label class="form-control">
+              <div class="label"><span class="label-text">E-mail</span></div>
+              <input id="ga-id-email" type="text" class="input input-bordered" />
+            </label>
+          </div>
+          <button id="btn-ga-id-apply" class="btn btn-primary mt-4">Aplicar identidade padrão</button>
         </div>
 
         <label id="tab-label-terminal" class="tab flex-none">
@@ -872,6 +1086,102 @@
   <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
 </dialog>
 
+<!-- "Repositórios :: <conta>": Novo Repositório — clone by URL or name,
+     pick from the account's list on the provider, or start a local one. -->
+<dialog id="new-repo-modal" class="modal">
+  <div class="modal-box max-w-2xl">
+    <h3 class="font-bold text-lg mb-4">Novo Repositório</h3>
+    <label class="flex flex-col gap-2 mb-4">
+      <span class="font-semibold">Como</span>
+      <select id="nr-mode" class="select select-bordered">
+        <option value="account">Escolher da lista da conta</option>
+        <option value="clone">Clonar por URL ou nome</option>
+        <option value="init">Iniciar um repositório local</option>
+      </select>
+    </label>
+
+    <div id="nr-account" class="flex flex-col gap-2 mb-4">
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="btn-nr-load" type="button" class="btn btn-sm">Carregar repositórios da conta</button>
+        <span id="nr-list-note" class="text-xs opacity-70"></span>
+      </div>
+      <ul id="nr-list" class="menu bg-base-200 rounded-box w-full max-h-64 overflow-y-auto flex-nowrap"></ul>
+    </div>
+
+    <label id="nr-clone" class="flex flex-col gap-2 mb-4 hidden">
+      <span class="font-semibold">URL ou nome do repositório</span>
+      <span class="text-xs opacity-70">Um nome ("perci") ou uma URL de um repositório da conta; uma URL HTTPS é clonada por SSH.</span>
+      <input id="nr-source" type="text" class="input input-bordered" autocomplete="off" spellcheck="false" />
+    </label>
+
+    <label id="nr-init" class="flex flex-col gap-2 mb-4 hidden">
+      <span class="font-semibold">Nome no provedor (opcional)</span>
+      <span class="text-xs opacity-70">Com um nome, o remote origin já fica definido; crie o repositório vazio no site antes do primeiro push.</span>
+      <input id="nr-remote-name" type="text" class="input input-bordered" autocomplete="off" spellcheck="false" />
+    </label>
+
+    <label class="flex flex-col gap-2">
+      <span class="font-semibold">Pasta do repositório</span>
+      <span class="text-xs opacity-70">Relativa à pasta da conta, por exemplo labs/perci. Precisa ser nova ou vazia.</span>
+      <input id="nr-dest" type="text" class="input input-bordered" autocomplete="off" spellcheck="false" />
+      <span id="nr-dest-preview" class="text-xs opacity-70 break-all"></span>
+    </label>
+
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Cancelar</button></form>
+      <button id="btn-nr-go" type="button" class="btn btn-primary">Clonar</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
+<!-- "Repositórios :: <conta>": the actions of one repository. Sections
+     show only when they apply (HTTPS origin, no origin, own identity). -->
+<dialog id="repo-actions-modal" class="modal">
+  <div class="modal-box max-w-xl">
+    <h3 id="ra-title" class="font-bold text-lg"></h3>
+    <p id="ra-subtitle" class="text-xs opacity-60 break-all mb-4"></p>
+
+    <div id="ra-url" class="flex flex-col gap-2 mb-6 hidden">
+      <span class="font-semibold">Ajustar URL</span>
+      <p id="ra-url-text" class="text-sm opacity-80 break-all whitespace-pre-line"></p>
+      <button id="btn-ra-url" type="button" class="btn btn-sm btn-primary self-start">Trocar para SSH</button>
+    </div>
+
+    <div id="ra-remote" class="flex flex-col gap-2 mb-6 hidden">
+      <span class="font-semibold">Definir remote</span>
+      <span class="text-xs opacity-70">Nome do repositório no provedor. Ele não precisa existir ainda: crie-o vazio no site antes do primeiro push.</span>
+      <div class="join w-full">
+        <input id="ra-remote-name" type="text" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+        <button id="btn-ra-remote" type="button" class="btn btn-primary join-item">Definir</button>
+      </div>
+      <span id="ra-remote-preview" class="text-xs opacity-70 break-all"></span>
+    </div>
+
+    <div id="ra-ident" class="flex flex-col gap-2 mb-6 hidden">
+      <span class="font-semibold">Corrigir identidade</span>
+      <p id="ra-ident-text" class="text-sm opacity-80 break-all"></p>
+      <button id="btn-ra-ident" type="button" class="btn btn-sm btn-primary self-start">Usar a identidade da conta</button>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="font-semibold">Arquivos</span>
+      <button id="btn-ra-gitignore" type="button" class="btn btn-sm btn-outline self-start">Criar/Atualizar .gitignore</button>
+      <span class="text-xs opacity-70 mt-2">E-mail de contato para denúncias do Código de Conduta:</span>
+      <div class="join w-full">
+        <input id="ra-conduct-email" type="email" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+        <button id="btn-ra-conduct" type="button" class="btn btn-outline join-item">Criar/Atualizar Código de Conduta</button>
+      </div>
+      <span class="text-xs opacity-60">Gera CODE_OF_CONDUCT.md na raiz e docs/pt-br/codigo-de-conduta.md, substituindo as cópias existentes.</span>
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog"><button class="btn">Fechar</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>fechar</button></form>
+</dialog>
+
 <script src="./vendor/xterm/xterm.js"></script>
 <script src="./vendor/xterm/addon-fit.js"></script>
 <script src="./vendor/lucide/icons.js"></script>
@@ -887,7 +1197,8 @@
 <script defer src="./js/screens/docker.js"></script>
 <script defer src="./js/screens/transfer.js"></script>
 <script defer src="./js/screens/moodle-plugins.js"></script>
-<script defer src="./js/screens/repos.js"></script>
+<script defer src="./js/screens/git-accounts.js"></script>
+<script defer src="./js/screens/git-transfer.js"></script>
 <script defer src="./js/screens/agent-skills.js"></script>
 <script defer src="./js/screens/ai-context.js"></script>
 <script defer src="./js/screens/mcp.js"></script>

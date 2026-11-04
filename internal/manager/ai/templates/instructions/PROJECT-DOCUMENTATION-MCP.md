@@ -1,8 +1,8 @@
 # Documentation Complement — MCP Servers
 
-## Overview
+Type-specific documentation requirements for **Model Context Protocol (MCP) servers**, in any language. Complements `.instructions/PROJECT-DOCUMENTATION.md` — apply both; this file lists only what it adds.
 
-Type-specific documentation requirements for **Model Context Protocol (MCP) servers**, in any language. This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own.
+Last verified: 2026-11-04
 
 ---
 
@@ -65,7 +65,7 @@ Both share the same `mcp_config.json` (same `mcpServers` JSON shape as Claude De
 - Global: `~/.gemini/config/mcp_config.json`
 - Workspace: `.agents/mcp_config.json`
 
-Servers can also be added through the IDE's MCP settings, or the CLI's interactive `/mcp` manager. Note for the CLI: at the time of writing, Antigravity CLI has a known issue where workspace-level `mcpServers` are discovered but not started — recommend the global file for CLI users, and re-check the issue status when updating the docs.
+Servers can also be added through the IDE's MCP settings, or the CLI's interactive `/mcp` manager. Antigravity paths have changed between releases — **verify both paths against Antigravity's current documentation** before writing them.
 
 ---
 
@@ -94,3 +94,13 @@ Not to be confused with the MCP *Prompts* primitive above: this page lists examp
   - **Example** — the prompt itself, in a blockquote or code span.
   - **Expected output** — what the agent does (which tools it triggers) and what the user gets back.
 - Be exhaustive: every meaningfully distinct capability should have at least one working example, so a user never has to guess a phrasing.
+
+---
+
+## Quality
+
+In addition to the base standard's checks:
+
+- [ ] Every tool, resource and prompt registered in the code appears in `docs/en/reference/` with matching names and parameters (compare against the registration code, e.g. `grep -rn 'AddTool\|registerTool\|@mcp.tool' .`).
+- [ ] Each client page's config was checked against that client's current official docs; the server starts from it (`claude mcp list`, `codex mcp list`, or the client's MCP panel shows it connected).
+- [ ] `docs/en/prompts.md` and `docs/pt-br/prompts.md` exist, cover every distinct capability, and use no tool names or JSON in the prompts.

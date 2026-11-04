@@ -85,9 +85,6 @@ func TestDetectMoodleVars_RootVersionPHP(t *testing.T) {
 	if vars["MOODLE_FULLVERSION"] != "2026042001.04" {
 		t.Errorf("MOODLE_FULLVERSION = %q, want %q", vars["MOODLE_FULLVERSION"], "2026042001.04")
 	}
-	if vars["MOODLE_PATH"] != "." {
-		t.Errorf("MOODLE_PATH = %q, want the relative %q", vars["MOODLE_PATH"], ".")
-	}
 }
 
 func TestDetectMoodleVars_PublicVersionPHP(t *testing.T) {
@@ -107,9 +104,18 @@ func TestDetectMoodleVars_PublicVersionPHP(t *testing.T) {
 	if vars["MOODLE_VERSION"] != "4.5" {
 		t.Errorf("MOODLE_VERSION = %q, want %q", vars["MOODLE_VERSION"], "4.5")
 	}
-	// MOODLE_PATH is relative to the project root, never the public/ subdir.
-	if vars["MOODLE_PATH"] != "." {
-		t.Errorf("MOODLE_PATH = %q, want %q", vars["MOODLE_PATH"], ".")
+}
+
+// A standalone plugin repository gives the version its $plugin->requires names.
+func TestDetectMoodleVars_PluginVersionPHP(t *testing.T) {
+	tmp := t.TempDir()
+	content := "<?php\n$plugin->component = 'local_x';\n$plugin->version = 2026010100;\n$plugin->requires = 2024100700;\n"
+	if err := os.WriteFile(filepath.Join(tmp, "version.php"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	vars, ok := detectMoodleVars(tmp)
+	if !ok || vars["MOODLE_FULLVERSION"] != "2024100700" || !strings.Contains(vars["MOODLE_VERSION"], "2024100700") {
+		t.Errorf("detectMoodleVars = %v, %v", vars, ok)
 	}
 }
 
@@ -117,7 +123,7 @@ func TestGenerateSharedFiles_CreatesExpectedFiles(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	active := []Model{models[0]} // Go
-	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -126,12 +132,12 @@ func TestGenerateSharedFiles_CreatesExpectedFiles(t *testing.T) {
 			t.Errorf("expected %s to be created: %v", name, err)
 		}
 	}
-	for _, name := range []string{".aiexclude", ".claude/settings.json"} {
+	for _, name := range []string{".aiexclude", ".geminiignore", ".claude/settings.json"} {
 		if _, err := os.Stat(name); err != nil {
 			t.Errorf("expected %s to be created: %v", name, err)
 		}
 	}
-	for _, name := range []string{"GEMINI.md", ".windsurfrules", ".cursorrules", ".geminiignore", ".claudeignore"} {
+	for _, name := range []string{".windsurfrules", ".cursorrules", ".claudeignore"} {
 		if _, err := os.Stat(name); err == nil {
 			t.Errorf("expected %s not to be created — no longer a generation target", name)
 		}
@@ -142,7 +148,7 @@ func TestGenerateSharedFiles_ClaudeIsStubOnly(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	active := []Model{models[0]} // Linux Bash
-	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -165,7 +171,7 @@ func TestGenerateSharedFiles_ContainsInstructionReference(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	active := []Model{models[0]} // Linux Bash — instruction: templates/instructions/BASH.md
-	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -182,7 +188,7 @@ func TestGenerateSharedFiles_MultipleModels(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	active := []Model{modelNamed(t, "Linux Bash"), modelNamed(t, "Moodle")}
-	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -201,7 +207,7 @@ func TestGenerateSharedFiles_MultipleModels(t *testing.T) {
 func TestGenerateSharedFiles_EmptySelection(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	if err := GenerateSharedFiles("", nil, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", nil, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -218,7 +224,7 @@ func TestGenerateSharedFiles_WritesInstructionFiles(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	active := []Model{modelNamed(t, "Linux Bash"), modelNamed(t, "Moodle")}
-	if err := GenerateSharedFiles("", active, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -240,7 +246,7 @@ func TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel(t *testin
 	// First run with both active — both instruction files get created.
 	moodle := modelNamed(t, "Moodle")
 	both := []Model{models[0], moodle} // Linux Bash + Moodle
-	if err := GenerateSharedFiles("", both, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", both, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles (both): %v", err)
 	}
 	bashDest := filepath.Join(".instructions", filepath.Base(models[0].Instruction))
@@ -254,7 +260,7 @@ func TestGenerateSharedFiles_RemovesStaleInstructionForDeselectedModel(t *testin
 
 	// Second run deselecting Moodle — only Linux Bash stays active.
 	onlyBash := []Model{models[0]}
-	if err := GenerateSharedFiles("", onlyBash, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", onlyBash, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles (only bash): %v", err)
 	}
 
@@ -284,7 +290,7 @@ func TestGenerateSharedFiles_MoodleVarsSubstituted(t *testing.T) {
 
 	// interactive=false: detectMoodleVars should still be tried first; only the
 	// "not found" fallback differs between interactive and non-interactive.
-	if err := GenerateSharedFiles("", []Model{moodle}, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", []Model{moodle}, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -311,7 +317,7 @@ func TestGenerateSharedFiles_MoodleVarsMissing_NonInteractive(t *testing.T) {
 	}
 
 	var out strings.Builder
-	if err := GenerateSharedFiles("", []Model{moodle}, false, &out); err != nil {
+	if err := GenerateSharedFiles("", []Model{moodle}, AgentIDs(), false, &out); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -324,8 +330,8 @@ func TestGenerateSharedFiles_MoodleVarsMissing_NonInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte("{{MOODLE_VERSION}}")) {
-		t.Error("expected MOODLE_VERSION placeholder to remain literal when version.php can't be found")
+	if bytes.Contains(data, []byte("{{MOODLE_")) || !bytes.Contains(data, []byte("unknown")) {
+		t.Error("without version.php the placeholders must read \"unknown\", never stay raw")
 	}
 }
 
@@ -411,7 +417,7 @@ func TestGenerateSharedFiles_ComplementPullsInBase(t *testing.T) {
 
 	var out bytes.Buffer
 	active := []Model{modelByName(t, "Documentação: Plugin Moodle")}
-	if err := GenerateSharedFiles("", active, false, &out); err != nil {
+	if err := GenerateSharedFiles("", active, AgentIDs(), false, &out); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 
@@ -424,8 +430,8 @@ func TestGenerateSharedFiles_ComplementPullsInBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseIdx := bytes.Index(data, []byte("@.instructions/PROJECT-DOCUMENTATION.md"))
-	complIdx := bytes.Index(data, []byte("@.instructions/PROJECT-DOCUMENTATION-MOODLE.md"))
+	baseIdx := bytes.Index(data, []byte("`.instructions/PROJECT-DOCUMENTATION.md`"))
+	complIdx := bytes.Index(data, []byte("`.instructions/PROJECT-DOCUMENTATION-MOODLE.md`"))
 	if baseIdx < 0 || complIdx < 0 || baseIdx > complIdx {
 		t.Errorf("AGENTS.md should reference the base before the complement (base at %d, complement at %d)", baseIdx, complIdx)
 	}
@@ -460,7 +466,7 @@ func TestLegacyInstruction_DetectedAndMigratedOnOverwrite(t *testing.T) {
 		t.Errorf("legacy file should survive a non-overwrite run: %v", err)
 	}
 
-	if err := GenerateSharedFiles("", []Model{base}, true, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", []Model{base}, AgentIDs(), true, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 	if _, err := os.Stat(current); err != nil {
@@ -482,7 +488,7 @@ func TestLegacyInstruction_RemovedWhenModelDeselected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := GenerateSharedFiles("", nil, true, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", nil, AgentIDs(), true, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
@@ -494,7 +500,7 @@ func TestGenerateSharedFiles_StandardsIndexIsAgentAgnostic(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	bash := modelByName(t, "Linux Bash")
-	if err := GenerateSharedFiles("", []Model{bash}, false, io.Discard); err != nil {
+	if err := GenerateSharedFiles("", []Model{bash}, AgentIDs(), false, io.Discard); err != nil {
 		t.Fatalf("GenerateSharedFiles: %v", err)
 	}
 	data, err := os.ReadFile("AGENTS.md")
@@ -506,7 +512,9 @@ func TestGenerateSharedFiles_StandardsIndexIsAgentAgnostic(t *testing.T) {
 	if !bytes.Contains(data, []byte("read the whole file")) {
 		t.Error("AGENTS.md should tell agents to read the applicable standard before starting")
 	}
-	want := "\n- " + bash.AppliesTo + ": @.instructions/BASH.md"
+	// The file is named in a code span, never as an "@" import: Claude Code
+	// would load every standard on every session.
+	want := "\n- " + bash.AppliesTo + ": `.instructions/BASH.md`"
 	if !bytes.Contains(data, []byte(want)) {
 		t.Errorf("AGENTS.md should contain entry %q", want)
 	}
@@ -532,7 +540,7 @@ func TestGenerateSharedFiles_DeselectKeepsEditedInstruction(t *testing.T) {
 	}{{"pristine is removed", false, false}, {"edited is kept", true, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			if err := GenerateSharedFiles("", []Model{bash}, true, io.Discard); err != nil {
+			if err := GenerateSharedFiles("", []Model{bash}, AgentIDs(), true, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 			if tc.edit {
@@ -541,7 +549,7 @@ func TestGenerateSharedFiles_DeselectKeepsEditedInstruction(t *testing.T) {
 				}
 			}
 			var out strings.Builder
-			if err := GenerateSharedFiles("", nil, true, &out); err != nil {
+			if err := GenerateSharedFiles("", nil, AgentIDs(), true, &out); err != nil {
 				t.Fatal(err)
 			}
 			_, err := os.Stat(path)
@@ -600,4 +608,30 @@ func modelNamed(t *testing.T, name string) Model {
 	}
 	t.Fatalf("no model named %q", name)
 	return Model{}
+}
+
+// No generated file carries a raw placeholder, in a folder without a
+// version.php or with one.
+func TestGenerateSharedFiles_NoRawPlaceholders(t *testing.T) {
+	for _, versionPHP := range []string{"", "<?php\n$plugin->requires = 2024100700;\n"} {
+		dir := t.TempDir()
+		if versionPHP != "" {
+			if err := os.WriteFile(filepath.Join(dir, "version.php"), []byte(versionPHP), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := GenerateSharedFiles(dir, models, AgentIDs(), true, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		_ = filepath.WalkDir(dir, func(path string, e os.DirEntry, err error) error {
+			if err != nil || e.IsDir() {
+				return err
+			}
+			data, _ := os.ReadFile(path)
+			if bytes.Contains(data, []byte("{{MOODLE_")) || bytes.Contains(data, []byte("{{WORKSPACE_PATH}}")) {
+				t.Errorf("%s has a raw placeholder", path)
+			}
+			return nil
+		})
+	}
 }

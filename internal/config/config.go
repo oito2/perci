@@ -50,11 +50,8 @@ type Config struct {
 	SidebarLogo string `yaml:"sidebar_logo,omitempty"`
 	AppIcon     string `yaml:"app_icon,omitempty"`
 
-	// RepoFolders remembers the working folders already used on the
-	// repositories screen. Only paths are stored; the displayed name is the
-	// path's last segment. Entries whose path no longer exists are removed by
-	// PruneMissingRepoFolders.
-	RepoFolders []string `yaml:"repo_folders,omitempty"`
+	// GitAccounts lists the registered Git hosting accounts, in menu order.
+	GitAccounts []GitAccount `yaml:"git_accounts,omitempty"`
 
 	// AgentSkills tracks the skills.sh skills installed through the GUI.
 	// config.yaml is the source of truth for what is installed; nothing is
@@ -97,6 +94,38 @@ type MoodlePluginMount struct {
 	// removes that line again.
 	MegaIgnore     string `yaml:"mega_ignore,omitempty" json:"-"`
 	MegaIgnoreRule string `yaml:"mega_ignore_rule,omitempty" json:"-"`
+}
+
+// GitAccount is one registered Git hosting account: its identity and SSH
+// key apply to every repository under Folder. ID is the stable key used in
+// file names; Name is the label shown in the menu.
+type GitAccount struct {
+	ID       string `yaml:"id"`
+	Name     string `yaml:"name"`
+	Provider string `yaml:"provider"` // "github" or "gitlab"
+	Host     string `yaml:"host"`
+	// SSHPort is the SSH port of a self-hosted server; 0 means 22.
+	SSHPort  int    `yaml:"ssh_port,omitempty"`
+	Username string `yaml:"username"`
+	GitName  string `yaml:"git_name"`
+	GitEmail string `yaml:"git_email"`
+	Folder   string `yaml:"folder"`
+	SSHKey   string `yaml:"ssh_key"`
+	// KeyGenerated is true when perci generated SSHKey for this account.
+	KeyGenerated bool `yaml:"key_generated,omitempty"`
+	// HasToken is true when an API token for this account is stored in
+	// the system keyring; the token itself is never written here.
+	HasToken bool `yaml:"has_token,omitempty"`
+	// Pending lists repositories imported for this account and not
+	// cloned yet.
+	Pending []PendingRepo `yaml:"pending,omitempty"`
+}
+
+// PendingRepo is a repository waiting to be cloned into Path (relative
+// to the account folder) from URL.
+type PendingRepo struct {
+	Path string `yaml:"path"`
+	URL  string `yaml:"url"`
 }
 
 // AgentSkillInstall records one (skill, scope) pair. Global installs are
@@ -342,36 +371,6 @@ func Update(mutate func(cfg *Config) error) error {
 		return err
 	}
 	return save(cfg)
-}
-
-// PruneMissingRepoFolders drops every RepoFolders entry whose path no
-// longer exists or isn't a directory. Idempotent, with one os.Stat per
-// entry.
-func PruneMissingRepoFolders() error {
-	cfg, err := Load()
-	if err != nil {
-		return err
-	}
-	missing := false
-	for _, p := range cfg.RepoFolders {
-		if info, err := os.Stat(p); err != nil || !info.IsDir() {
-			missing = true
-			break
-		}
-	}
-	if !missing {
-		return nil
-	}
-	return Update(func(cfg *Config) error {
-		kept := make([]string, 0, len(cfg.RepoFolders))
-		for _, p := range cfg.RepoFolders {
-			if info, err := os.Stat(p); err == nil && info.IsDir() {
-				kept = append(kept, p)
-			}
-		}
-		cfg.RepoFolders = kept
-		return nil
-	})
 }
 
 // FlatpakFlag returns the --system or --user scope flag based on the config.

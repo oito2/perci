@@ -6,6 +6,157 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "/wails/runtime.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as gitaccount$0 from "../../internal/manager/gitaccount/models.js";
+
+/**
+ * AIContextAgent is one coding agent of "Dev Tools :: IA: Contextos";
+ * Selected says the folder's context was generated for it (every agent
+ * for a folder without an AGENTS.md yet).
+ */
+export class AIContextAgent {
+    /**
+     * Creates a new AIContextAgent instance.
+     * @param {Partial<AIContextAgent>} [$$source = {}] - The source object to create the AIContextAgent.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+        if (!("selected" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["selected"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextAgent instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextAgent}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AIContextAgent(/** @type {Partial<AIContextAgent>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextChange is one file an Aplicar would create, update or remove
+ * ("create", "update", "remove"), relative to the folder.
+ */
+export class AIContextChange {
+    /**
+     * Creates a new AIContextChange instance.
+     * @param {Partial<AIContextChange>} [$$source = {}] - The source object to create the AIContextChange.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("action" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["action"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextChange instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextChange}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AIContextChange(/** @type {Partial<AIContextChange>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextItem is one standard of "Dev Tools :: IA: Contextos": Base is
+ * the standard it complements ("" for a base), Status its state in the
+ * folder ("", "applied", "outdated" or "edited", see managerai.GuideStatus).
+ */
+export class AIContextItem {
+    /**
+     * Creates a new AIContextItem instance.
+     * @param {Partial<AIContextItem>} [$$source = {}] - The source object to create the AIContextItem.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("base" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["base"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextItem instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextItem}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AIContextItem(/** @type {Partial<AIContextItem>} */($$parsedSource));
+    }
+}
+
 /**
  * AIContextPreset is a project type of "Dev Tools :: IA: Contextos": the
  * models it checks at once and an optional hint about what to add by hand.
@@ -444,8 +595,278 @@ export class DockerCreateCatalog {
 }
 
 /**
- * GitIdentity is a name+email pair — used for both a global and a local
- * (per-folder) git identity.
+ * GitAccountInput is the Configurar Conta form. ID is empty for a new
+ * account. KeyMode is "generate" (new key at ~/.ssh/perci_<id>, with the
+ * optional Passphrase), "existing" (KeyPath, picked in the dialog) or ""
+ * to keep the current key of an existing account. A non-empty Token is
+ * stored in the keyring; ClearToken removes the stored one.
+ */
+export class GitAccountInput {
+    /**
+     * Creates a new GitAccountInput instance.
+     * @param {Partial<GitAccountInput>} [$$source = {}] - The source object to create the GitAccountInput.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["provider"] = "";
+        }
+        if (!("host" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["host"] = "";
+        }
+        if (!("sshPort" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sshPort"] = 0;
+        }
+        if (!("username" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["username"] = "";
+        }
+        if (!("gitName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["gitName"] = "";
+        }
+        if (!("gitEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["gitEmail"] = "";
+        }
+        if (!("folder" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["folder"] = "";
+        }
+        if (!("keyMode" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["keyMode"] = "";
+        }
+        if (!("keyPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["keyPath"] = "";
+        }
+        if (!("passphrase" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["passphrase"] = "";
+        }
+        if (!("token" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["token"] = "";
+        }
+        if (!("clearToken" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["clearToken"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitAccountInput instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {GitAccountInput}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitAccountInput(/** @type {Partial<GitAccountInput>} */($$parsedSource));
+    }
+}
+
+/**
+ * GitAccountView is one account as the Configurar Conta screen shows it:
+ * the stored fields plus the state of its key and host.
+ */
+export class GitAccountView {
+    /**
+     * Creates a new GitAccountView instance.
+     * @param {Partial<GitAccountView>} [$$source = {}] - The source object to create the GitAccountView.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["provider"] = "";
+        }
+        if (!("host" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["host"] = "";
+        }
+        if (!("sshPort" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sshPort"] = 0;
+        }
+        if (!("username" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["username"] = "";
+        }
+        if (!("gitName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["gitName"] = "";
+        }
+        if (!("gitEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["gitEmail"] = "";
+        }
+        if (!("folder" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["folder"] = "";
+        }
+        if (!("sshKey" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sshKey"] = "";
+        }
+        if (!("keyGenerated" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["keyGenerated"] = false;
+        }
+        if (!("hasToken" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasToken"] = false;
+        }
+        if (!("keyState" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["keyState"] = "";
+        }
+        if (!("publicKey" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["publicKey"] = "";
+        }
+        if (!("pinnedHost" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinnedHost"] = false;
+        }
+        if (!("hostTrusted" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hostTrusted"] = false;
+        }
+        if (!("keysUrl" in $$source)) {
+            /**
+             * KeysURL is the provider page where the public key is registered.
+             * @member
+             * @type {string}
+             */
+            this["keysUrl"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitAccountView instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {GitAccountView}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitAccountView(/** @type {Partial<GitAccountView>} */($$parsedSource));
+    }
+}
+
+/**
+ * GitIdentity is a commit name and e-mail pair.
  */
 export class GitIdentity {
     /**
@@ -788,6 +1209,15 @@ export class MenuItem {
              * @type {string | undefined}
              */
             this["tab"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * AccountID is the Git account an item of the "Repositórios" category
+             * opens (ActionID "git-account").
+             * @member
+             * @type {string | undefined}
+             */
+            this["accountId"] = undefined;
         }
 
         Object.assign(this, $$source);
@@ -1221,112 +1651,103 @@ export class PostinstallProfileInfo {
 }
 
 /**
- * RepoFolderInfo is one remembered repo folder card — Name is always
- * derived from Path (its last segment), never stored separately.
+ * RemoteRepoList is the account's repositories on its provider, for
+ * Novo Repositório.
  */
-export class RepoFolderInfo {
+export class RemoteRepoList {
     /**
-     * Creates a new RepoFolderInfo instance.
-     * @param {Partial<RepoFolderInfo>} [$$source = {}] - The source object to create the RepoFolderInfo.
+     * Creates a new RemoteRepoList instance.
+     * @param {Partial<RemoteRepoList>} [$$source = {}] - The source object to create the RemoteRepoList.
      */
     constructor($$source = {}) {
-        if (!("name" in $$source)) {
+        if (!("repos" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {gitaccount$0.RemoteRepo[]}
              */
-            this["name"] = "";
+            this["repos"] = [];
         }
-        if (!("path" in $$source)) {
+        if (!("withToken" in $$source)) {
             /**
+             * WithToken says the list came with the account's token, so it
+             * includes the private repositories.
              * @member
-             * @type {string}
+             * @type {boolean}
              */
-            this["path"] = "";
+            this["withToken"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Note explains why a saved token could not be used.
+             * @member
+             * @type {string | undefined}
+             */
+            this["note"] = undefined;
         }
 
         Object.assign(this, $$source);
     }
 
     /**
-     * Creates a new RepoFolderInfo instance from a string or object.
+     * Creates a new RemoteRepoList instance from a string or object.
      * @param {any} [$$source = {}]
-     * @returns {RepoFolderInfo}
+     * @returns {RemoteRepoList}
      */
     static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new RepoFolderInfo(/** @type {Partial<RepoFolderInfo>} */($$parsedSource));
+        if ("repos" in $$parsedSource) {
+            $$parsedSource["repos"] = $$createField0_0($$parsedSource["repos"]);
+        }
+        return new RemoteRepoList(/** @type {Partial<RemoteRepoList>} */($$parsedSource));
     }
 }
 
 /**
- * RepoFolderState is what the "Clonar"/"Iniciar Repositório"/"Identidade
- * Local" sub-tabs need to decide between showing their form or an
- * "already done" message. IsGitRepo+HasRemote: has .git plus an "origin"
- * remote configured → treated as "already cloned"; has .git with no
- * remote → "already initialized". IsEmpty gates "Clonar", which only
- * clones into an empty folder.
+ * RepoExportItems is the Exportar checklist: every account with the
+ * repositories it can export, and the repositories left out because they
+ * have no remote ("<account>: <path>").
  */
-export class RepoFolderState {
+export class RepoExportItems {
     /**
-     * Creates a new RepoFolderState instance.
-     * @param {Partial<RepoFolderState>} [$$source = {}] - The source object to create the RepoFolderState.
+     * Creates a new RepoExportItems instance.
+     * @param {Partial<RepoExportItems>} [$$source = {}] - The source object to create the RepoExportItems.
      */
     constructor($$source = {}) {
-        if (!("isEmpty" in $$source)) {
+        if (!("accounts" in $$source)) {
             /**
              * @member
-             * @type {boolean}
+             * @type {gitaccount$0.TransferAccount[]}
              */
-            this["isEmpty"] = false;
+            this["accounts"] = [];
         }
-        if (!("isGitRepo" in $$source)) {
+        if (!("skipped" in $$source)) {
             /**
              * @member
-             * @type {boolean}
+             * @type {string[]}
              */
-            this["isGitRepo"] = false;
-        }
-        if (!("hasRemote" in $$source)) {
-            /**
-             * @member
-             * @type {boolean}
-             */
-            this["hasRemote"] = false;
-        }
-        if (!("remoteUrl" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["remoteUrl"] = "";
-        }
-        if (!("localName" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["localName"] = "";
-        }
-        if (!("localEmail" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["localEmail"] = "";
+            this["skipped"] = [];
         }
 
         Object.assign(this, $$source);
     }
 
     /**
-     * Creates a new RepoFolderState instance from a string or object.
+     * Creates a new RepoExportItems instance from a string or object.
      * @param {any} [$$source = {}]
-     * @returns {RepoFolderState}
+     * @returns {RepoExportItems}
      */
     static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType12;
+        const $$createField1_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new RepoFolderState(/** @type {Partial<RepoFolderState>} */($$parsedSource));
+        if ("accounts" in $$parsedSource) {
+            $$parsedSource["accounts"] = $$createField0_0($$parsedSource["accounts"]);
+        }
+        if ("skipped" in $$parsedSource) {
+            $$parsedSource["skipped"] = $$createField1_0($$parsedSource["skipped"]);
+        }
+        return new RepoExportItems(/** @type {Partial<RepoExportItems>} */($$parsedSource));
     }
 }
 
@@ -1605,8 +2026,8 @@ export class TransferItems {
      * @returns {TransferItems}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType10;
-        const $$createField4_0 = $$createType12;
+        const $$createField3_0 = $$createType14;
+        const $$createField4_0 = $$createType16;
         const $$createField7_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("apps" in $$parsedSource) {
@@ -1762,7 +2183,11 @@ const $$createType5 = MoodlePluginRow.createFrom;
 const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = PostinstallActionInfo.createFrom;
 const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = TransferApp.createFrom;
+const $$createType9 = gitaccount$0.RemoteRepo.createFrom;
 const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = TransferPlugin.createFrom;
+const $$createType11 = gitaccount$0.TransferAccount.createFrom;
 const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = TransferApp.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = TransferPlugin.createFrom;
+const $$createType16 = $Create.Array($$createType15);

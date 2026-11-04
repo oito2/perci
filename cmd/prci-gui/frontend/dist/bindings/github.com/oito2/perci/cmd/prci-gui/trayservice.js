@@ -5,9 +5,9 @@
 /**
  * TrayService binds the system tray / compact window domain. mainWindow
  * is captured on the main window's creation; tray is non-nil only while
- * TrayEnabled is on; compactWindow is the single compact window the 3
- * tray menu items open/focus — Contêineres/Repositórios/Atualizar
- * Sistema become tabs inside it (one reused window, not one per item).
+ * TrayEnabled is on; compactWindow is the single compact window the 2
+ * tray menu items open/focus — Contêineres/Atualizar Sistema become tabs
+ * inside it (one reused window, not one per item).
  * windowMu protects tray and compactWindow — each bound method the
  * frontend calls runs on its own goroutine, so concurrent SetTrayEnabled
  * calls (e.g. a quick double-click on the tray toggle) can't leave `tray`

@@ -3,11 +3,13 @@
 Complement to `GO.md` for Model Context Protocol (MCP) servers written with the official Go SDK, `github.com/modelcontextprotocol/go-sdk` (package `mcp`).
 Apply it when adding or changing tools, resources, prompts, transports or tests of such a server. Every rule in `GO.md` still applies.
 
+Last verified: 2026-11-04
+
 ---
 
 ## SDK Version
 
-- The API described here was checked against SDK **v1.8.0**. Before relying on a field or function, confirm it exists in the version pinned in `go.mod`:
+- The API described here was checked against SDK **v1.8.0** (newest protocol revision: `2026-07-28`). Before relying on a field or function, confirm it exists in the version pinned in `go.mod`:
 
 ```bash
 go list -m github.com/modelcontextprotocol/go-sdk
@@ -15,7 +17,11 @@ go doc github.com/modelcontextprotocol/go-sdk/mcp <Symbol>
 ```
 
 - Upgrade the SDK as a dedicated change: read its release notes, run the full test suite, and re-check the protocol versions it negotiates (`mcp.SupportedProtocolVersions()`).
-- Features the SDK marks `Deprecated` (for example roots-related options under protocol `2026-07-28`) are not used in new code.
+- Protocol revision `2026-07-28` deprecates **Roots**, **Sampling** and **Logging**. Do not add them to new code, even though the SDK still exposes their types for older peers:
+  - no roots requests (`ListRoots`): take directories or files as tool arguments, resource URIs or server configuration;
+  - no sampling requests (`CreateMessage`): the server does not call the client's model;
+  - no MCP logging notifications (`notifications/message`, `ServerSession.Log`, `mcp.NewLoggingHandler`): log to stderr with `slog`.
+- Any other symbol the SDK marks `Deprecated` is not used in new code either.
 
 ---
 
@@ -271,10 +277,9 @@ func TestSearchNotes_EmptyQuery(t *testing.T) {
 
 ## Quality
 
-Run, in addition to the `GO.md` checks:
+Adds to the `GO.md` Quality checks (whose `go test -race ./...` already runs the in-memory transport tests):
 
 ```bash
-go test -race ./...                      # includes in-memory transport tests
 go test ./... -run 'Schema|Golden'       # schema golden files, if present
 go test ./... -run 'Stdio|Purity'        # stdout-purity check, if present
 ```

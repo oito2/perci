@@ -60,10 +60,11 @@ func denyRules(ignoreFile string) []string {
 	return rules
 }
 
-// sourceAmbiguous lists the ignore patterns that name build output or media
-// in most projects but may hold versioned source in others (e.g. a frontend
-// committed under dist/, screenshots under docs/img/).
-var sourceAmbiguous = []string{"dist/", "build/", "out/", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"}
+// sourceAmbiguous lists the ignore patterns that name build output or
+// dependencies in most projects but may hold versioned source in others
+// (e.g. a frontend committed under dist/, vendored assets under a nested
+// vendor/).
+var sourceAmbiguous = []string{"dist/", "build/", "out/", "vendor/", "env/", ".next/"}
 
 // gitTrackedFiles lists the files git tracks in dir, as slash-separated
 // paths relative to the repository root. It returns nil when git is
@@ -130,22 +131,50 @@ func withoutTrackedSource(ignoreFile string, tracked []string) string {
 	return strings.Join(kept, "\n")
 }
 
-// claudeDenyRules builds the read rules for the project at dir from
-// ignoreFile, keeping the build-output and media patterns readable where
-// git tracks files under them.
-func claudeDenyRules(dir, ignoreFile string) []string {
+// ignorePatterns is the canonical list of files kept out of the agents'
+// context for the project at dir: templates/ignore/patterns, without the
+// sourceAmbiguous patterns that cover files git tracks there.
+func ignorePatterns(dir string) (string, error) {
+	tpl, err := readTpl("templates/ignore/patterns")
+	if err != nil {
+		return "", err
+	}
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
-	return denyRules(withoutTrackedSource(ignoreFile, gitTrackedFiles(ctx, dir)))
+	return withoutTrackedSource(tpl, gitTrackedFiles(ctx, dir)), nil
 }
 
-// mergeDenyRules adds rules to the permissions.deny list of the settings
-// document in existing (empty for none) and returns the new document.
-// Every other key is kept and a rule already listed is not added again;
-// changed is false when nothing had to be added. A document that is not a
+// legacyIgnoreFiles are the .aiexclude files earlier versions wrote.
+var legacyIgnoreFiles = []string{"templates/legacy/aiexclude-1.0", "templates/legacy/aiexclude-1.2"}
+
+// managedDenyRules returns every read rule any Perci version generated:
+// the ones a run no longer generates are removed from settings.json, while
+// rules the user added stay.
+func managedDenyRules() ([]string, error) {
+	var rules []string
+	for _, path := range append([]string{"templates/ignore/patterns"}, legacyIgnoreFiles...) {
+		tpl, err := readTpl(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range denyRules(tpl) {
+			if !slices.Contains(rules, r) {
+				rules = append(rules, r)
+			}
+		}
+	}
+	return rules, nil
+}
+
+// mergeDenyRules sets the Perci rules of the permissions.deny list of the
+// settings document in existing (empty for none): every rule of managed
+// that is not in rules is removed, every rule of rules is added once. The
+// user's own rules and every other key are kept; an empty deny list, and
+// then an empty permissions object, are dropped. changed is false when
+// nothing had to change. A document that is not a
 // JSON object, or whose permissions or deny have another type, is an error
 // rather than being replaced.
-func mergeDenyRules(existing []byte, rules []string) (merged []byte, changed bool, err error) {
+func mergeDenyRules(existing []byte, rules, managed []string) (merged []byte, changed bool, err error) {
 	doc := map[string]any{}
 	if len(bytes.TrimSpace(existing)) > 0 {
 		dec := json.NewDecoder(bytes.NewReader(existing))
@@ -170,6 +199,15 @@ func mergeDenyRules(existing []byte, rules []string) (merged []byte, changed boo
 			return nil, false, fmt.Errorf(`"permissions.deny" não é uma lista`)
 		}
 	}
+	kept := deny[:0:0]
+	for _, r := range deny {
+		if s, ok := r.(string); ok && slices.Contains(managed, s) && !slices.Contains(rules, s) {
+			changed = true
+			continue
+		}
+		kept = append(kept, r)
+	}
+	deny = kept
 	for _, rule := range rules {
 		if !slices.Contains(deny, any(rule)) {
 			deny = append(deny, rule)
@@ -179,8 +217,16 @@ func mergeDenyRules(existing []byte, rules []string) (merged []byte, changed boo
 	if !changed {
 		return existing, false, nil
 	}
-	permissions["deny"] = deny
-	doc["permissions"] = permissions
+	if len(deny) > 0 {
+		permissions["deny"] = deny
+	} else {
+		delete(permissions, "deny")
+	}
+	if len(permissions) > 0 {
+		doc["permissions"] = permissions
+	} else {
+		delete(doc, "permissions")
+	}
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -193,21 +239,40 @@ func mergeDenyRules(existing []byte, rules []string) (merged []byte, changed boo
 }
 
 // writeClaudeSettings makes dir's .claude/settings.json deny Claude Code
-// the given read rules, keeping everything else the file holds. An
-// existing file that cannot be merged is left untouched and reported.
+// the given read rules and no other rule Perci generates (nil rules remove
+// them all), keeping everything else the file holds; a file left empty is
+// removed. An existing file that cannot be merged is left untouched and
+// reported.
 func writeClaudeSettings(dir string, rules []string, stdout io.Writer) error {
 	path := filepath.Join(dir, claudeSettingsPath)
 	existing, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("ler %s: %w", path, err)
 	}
-	merged, changed, err := mergeDenyRules(existing, rules)
+	if len(rules) == 0 && len(existing) == 0 {
+		return nil
+	}
+	managed, err := managedDenyRules()
+	if err != nil {
+		return err
+	}
+	merged, changed, err := mergeDenyRules(existing, rules, managed)
 	if err != nil {
 		ui.Warning(stdout, path+": "+err.Error()+" — as regras de leitura do Claude Code não foram adicionadas; corrija o arquivo manualmente.")
 		return nil
 	}
 	if !changed {
-		ui.Info(stdout, "Já existente: "+path)
+		if len(rules) > 0 {
+			ui.Info(stdout, "Já existente: "+path)
+		}
+		return nil
+	}
+	if string(bytes.TrimSpace(merged)) == "{}" {
+		// Nothing but Perci's rules was in it.
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remover %s: %w", path, err)
+		}
+		ui.Info(stdout, "Removido: "+path)
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

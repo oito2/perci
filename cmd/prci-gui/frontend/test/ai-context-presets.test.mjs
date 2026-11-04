@@ -24,13 +24,23 @@ const PRESETS = [
   { name: "Aplicativo Rust + Tauri v2", models: ["Rust + Tauri v2"], hint: "Marque também o complemento do frontend." },
 ];
 const ITEMS = [
-  { id: "Moodle", label: "Moodle", installed: false },
-  { id: "Rust + Tauri v2", label: "Rust + Tauri v2", installed: true },
-  { id: "Documentação de projeto", label: "Documentação de projeto", installed: false },
+  { id: "Moodle", label: "Moodle", description: "Plugins Moodle.", base: "", status: "" },
+  { id: "Rust + Tauri v2", label: "Rust + Tauri v2", description: "Tauri.", base: "", status: "applied" },
+  { id: "Documentação de projeto", label: "Documentação de projeto", description: "Docs.", base: "", status: "" },
 ];
 
-async function render() {
-  const loaded = loadScripts(scriptOrder(), { fixtures: { GetAIContextPresets: PRESETS, GetAIContextItems: ITEMS } });
+const AGENTS = [
+  { id: "claude", label: "Claude Code", selected: true },
+  { id: "codex", label: "ChatGPT CLI (Codex)", selected: false },
+];
+
+async function render(fixtures = {}) {
+  const loaded = loadScripts(scriptOrder(), {
+    fixtures: {
+      GetAIContextPresets: PRESETS, GetAIContextItems: ITEMS, GetAIContextAgents: AGENTS,
+      PreviewAIContext: [{ path: "AGENTS.md", action: "update" }], ...fixtures,
+    },
+  });
   await tick();
   evalIn(loaded.ctx, 'aicFolder = "/ws/proj";');
   loaded.ctx.renderAicItems();
@@ -66,3 +76,61 @@ test("IA: Contextos: changing a checkbox by hand returns to Personalizado", asyn
   assert.equal(select.value, "");
   assert.equal(element("aic-preset-hint").textContent, "");
 });
+
+test("IA: Contextos: Aplicar sends the checked agents and needs at least one", async () => {
+  const { ctx, element, calls } = await render();
+  const boxes = element("aic-agents").children.map((label) => label.children[0]);
+  assert.deepEqual(boxes.map((b) => [b.dataset.agent, b.checked]), [["claude", true], ["codex", false]]);
+  boxes[1].checked = true;
+  element("btn-aic-apply").onclick();
+  await tick();
+  assert.match(element("confirm-modal-message").textContent, /atualizar: AGENTS\.md/);
+  element("btn-confirm-ok").listeners.click.forEach((fn) => fn({}));
+  const apply = calls.find((c) => c.name === "ApplyAIContext");
+  assert.deepEqual(JSON.parse(JSON.stringify(apply.args[2])), ["claude", "codex"]);
+
+  evalIn(ctx, "running = false; activeRun = null");
+  boxes.forEach((b) => { b.checked = false; });
+  element("btn-aic-apply").onclick();
+  assert.equal(calls.filter((c) => c.name === "ApplyAIContext").length, 1, "no agent checked: nothing runs");
+  assert.match(element("error-modal-message").textContent, /ao menos um agente/);
+});
+
+test("IA: Contextos: complements sit under their base, which a complement checks, and states show as badges", async () => {
+  const items = [
+    { id: "Go", label: "Go", description: "Go.", base: "", status: "outdated" },
+    { id: "Go: Wails v3", label: "Go: Wails v3", description: "Wails.", base: "Go", status: "" },
+  ];
+  const { element } = await render({ GetAIContextItems: items });
+  const [goLi, wailsLi] = element("aic-items").children;
+  assert.match(wailsLi.className, /ml-8/);
+  assert.doesNotMatch(goLi.className, /ml-8/);
+  const badge = goLi.children[1].children[0].children[0];
+  assert.equal(badge.textContent, "desatualizado");
+  goLi.children[0].checked = false;
+  wailsLi.children[0].checked = true;
+  wailsLi.children[0].listeners.change.forEach((fn) => fn());
+  assert.equal(goLi.children[0].checked, true, "checking a complement checks its base");
+});
+
+test("IA: Contextos: a folder without standards starts on the suggested project type", async () => {
+  const fresh = ITEMS.map((it) => ({ ...it, status: "" }));
+  const { element, checked } = await render({ GetAIContextItems: fresh, GetAIContextSuggestedPreset: "Plugin Moodle" });
+  await tick();
+  assert.equal(element("aic-preset").value, "Plugin Moodle");
+  assert.deepEqual(checked(), [true, false, true]);
+  assert.match(element("aic-preset-hint").textContent, /Sugerido pelos arquivos/);
+
+  const applied = await render({ GetAIContextSuggestedPreset: "Plugin Moodle" });
+  await tick();
+  assert.equal(applied.element("aic-preset").value, "", "a folder with standards keeps its own choice");
+});
+
+test("IA: Contextos: Aplicar with nothing to change says so and runs nothing", async () => {
+  const { element, calls } = await render({ PreviewAIContext: [] });
+  element("btn-aic-apply").onclick();
+  await tick();
+  assert.match(element("error-modal-title").textContent || element("error-modal-message").textContent, /Nada a mudar|já estão/);
+  assert.equal(calls.filter((c) => c.name === "ApplyAIContext").length, 0);
+});
+

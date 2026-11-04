@@ -1,10 +1,10 @@
 # Documentation Complement — Mobile Applications
 
-## Overview
+Type-specific documentation requirements for **mobile applications** (Flutter, React Native, native Swift/Kotlin). Complements `.instructions/PROJECT-DOCUMENTATION.md` — apply both; this file lists only what it adds.
 
-Type-specific documentation requirements for **mobile applications** (Flutter, React Native, native Swift/Kotlin). This complements the base standard in `.instructions/PROJECT-DOCUMENTATION.md` — apply both. Like the base, it's a standard for when documentation is created or updated, not a task to run on its own.
+Last verified: 2026-11-04
 
-Games built with an engine (e.g. Godot) use `.instructions/PROJECT-DOCUMENTATION-GAME.md` — together with this file, or instead of it only for the engine-specific parts (export, build and run steps the engine handles).
+**Which complement:** a non-game mobile app uses this file. A **game** (including a mobile game) uses `.instructions/PROJECT-DOCUMENTATION-GAME.md`, which covers engine export, signing and store builds; take from this file only what GAME does not cover for the platform (e.g. runtime permissions).
 
 Source every version and command from the project itself — `pubspec.yaml`, `package.json`, `android/app/build.gradle(.kts)` (`minSdk`, `targetSdk`, `compileSdk`), `ios/Podfile` / the Xcode project (deployment target), CI workflows.
 
@@ -54,3 +54,20 @@ Explain release signing (keystore and `key.properties` for Android, certificates
 - **Permissions:** list every runtime permission the app requests (from `AndroidManifest.xml` / `Info.plist`) and why.
 - **Screenshots:** placeholders under `docs/img/` (`![Home screen](docs/img/home.png)` + `<!-- TODO: capture -->`), one set per supported platform when they differ.
 - **Troubleshooting:** common build/run issues that actually apply (Gradle/JDK mismatches, CocoaPods, signing errors).
+
+---
+
+## Quality
+
+In addition to the base standard's checks:
+
+```bash
+# Values the docs must match (adapt paths to the project)
+grep -nE 'minSdk|targetSdk|compileSdk' android/app/build.gradle*
+grep -n 'IPHONEOS_DEPLOYMENT_TARGET' ios/Runner.xcodeproj/project.pbxproj | sort -u
+grep -n 'uses-permission' android/app/src/main/AndroidManifest.xml
+```
+
+- [ ] SDK levels, deployment target and framework versions in the docs match the project files.
+- [ ] Every documented build command was run (or its output path checked in CI) for the platforms the project ships.
+- [ ] Every permission requested by the app is listed with its reason; no signing secrets or keystore paths in the docs.

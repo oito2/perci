@@ -43,11 +43,49 @@ docker:
 | `docker` | objeto | Docker → Criar Container / Gerenciar Containers | A definição inteira da stack Docker de aplicativos — veja abaixo. Omitido do arquivo por completo enquanto vazio. |
 | `postinstall_applied` | mapa de listas | Linux → Pós-instalação | Por ID de perfil de pós-instalação (ex.: `ubuntu-2404`), os IDs dos itens sem estado detectável no sistema (`update-index`, `upgrade-system`, `detect-drivers`, `cleanup`) que terminaram com sucesso — eles aparecem como "Aplicado". Os demais itens são detectados no próprio sistema. Apague um ID para liberar o item de novo. |
 | `postinstall_machine_id` | string | Linux → Pós-instalação | O `/etc/machine-id` em que o `postinstall_applied` foi registrado. Registros feitos sob outro ID de máquina (por exemplo, depois de reinstalar o SO mantendo o `$HOME`) ou antes de esta chave existir não contam, então os itens voltam a ser oferecidos e o arquivo é regravado com o ID atual. Gravado junto com o `postinstall_applied`; não edite à mão. |
+| `git_accounts` | lista | Repositórios → Configurar Conta | As contas Git, na ordem do menu — veja [abaixo](#git_accounts). |
 | `agent_skills` | lista | Dev Tools → IA: SKILLs | Um registro por (`slug` da skill, `global`, `folder`) instalada. `agents` lista, por nome, os agentes que aceitaram a skill (vazio em registros de versões antigas); a tela mostra **parcial: …** quando algum falta. |
 | `mcp_servers` | lista | Dev Tools → IA: MCPs | Um registro por (`slug` do servidor, `global`, `folder`) registrado, mais o `param` (pasta ou caminho de arquivo) que alguns servidores precisam, mantido para que uma atualização registre de novo com o mesmo valor. `agents` lista os agentes que aceitaram o registro, como em `agent_skills`. |
 | `moodle_plugins` | lista | Dev Tools → Plugins Moodle | Um registro por montagem de plugin: `app` (a pasta do contêiner Moodle), `component` (ex.: `local_exemplo`), `dev_path` (a pasta de desenvolvimento) e `rel_path` (o destino dentro da pasta `html` do app, ex.: `public/local/exemplo`); `app` + `rel_path` identificam o registro. `mega_ignore` e `mega_ignore_rule` só existem quando o Perci acrescentou `mega_ignore_rule` a esse arquivo `.megaignore`, para que **Remover** apague essa linha de novo. Cada registro tem uma unidade de montagem systemd em `/etc/systemd/system`. O **Docker → Exportar/Importar** leva os registros sem `mega_ignore`/`mega_ignore_rule`, e a importação cria a montagem, a sua unidade e a exclusão do MEGA de que a máquina que importa precisa. Remova as montagens pela tela, não editando esta lista. |
 
-A distribuição e o ambiente de desktop são sempre detectados (`/etc/os-release`, `XDG_CURRENT_DESKTOP`); as chaves `distro`/`de` que versões anteriores documentavam nunca eram lidas e são ignoradas.
+A distribuição e o ambiente de desktop são sempre detectados (`/etc/os-release`, `XDG_CURRENT_DESKTOP`); as chaves `distro`/`de` que versões anteriores documentavam nunca eram lidas e são ignoradas. A chave `repo_folders` da tela removida Dev Tools → Repositórios não é mais lida e some no próximo salvamento.
+
+## `git_accounts`
+
+Uma entrada por conta Git; veja [Contas Git e repositórios](../guides/workflows/repositories.md). Edite as contas em **Repositórios → Configurar Conta**, não aqui: salvar também grava os arquivos da conta e a regra dela no `~/.gitconfig`.
+
+```yaml
+git_accounts:
+  - id: oito2
+    name: OITO2
+    provider: github
+    host: github.com
+    username: oito2
+    git_name: Oito Dois
+    git_email: dev@example.com
+    folder: /home/user/repos/oito2
+    ssh_key: /home/user/.ssh/perci_oito2
+    key_generated: true
+    has_token: true
+    pending:
+      - path: labs/perci
+        url: git@github.com:oito2/perci.git
+```
+
+| Chave | Tipo | Descrição |
+|---|---|---|
+| `id` | string | Chave estável usada nos nomes de arquivo (`~/.perci/git/<id>.gitconfig`, `~/.ssh/perci_<id>`): o slug do primeiro nome. Mantida quando a conta é renomeada. |
+| `name` | string | Nome no menu. Único (sem diferenciar maiúsculas), até 40 caracteres. |
+| `provider` | string | `github` ou `gitlab`. |
+| `host` | string | `github.com`, `gitlab.com` ou o host de um servidor próprio. |
+| `ssh_port` | int | Porta SSH de um servidor próprio; omitida para 22. Com outra porta, as URLs SSH têm a forma `ssh://git@host:porta/usuario/repo.git`. |
+| `username` | string | O usuário da conta no provedor: o dono dos repositórios que a conta lista. |
+| `git_name` / `git_email` | string | Identidade dos commits aplicada dentro de `folder`. |
+| `folder` | string | A pasta da conta. Nunca igual à pasta de outra conta, dentro dela ou contendo-a. |
+| `ssh_key` | string | Caminho da chave privada; a pública é `<ssh_key>.pub`. |
+| `key_generated` | bool | O Perci gerou a chave. |
+| `has_token` | bool | Há um token de API guardado no chaveiro do sistema (`secret-tool`, atributos `service perci-git` e `account <id>`); o token em si nunca é gravado aqui. |
+| `pending` | lista | Repositórios importados e ainda não clonados: `path` (relativo a `folder`) e `url` SSH. Esvaziada por **Clonar pendentes** ou **Descartar**. |
 
 ## `docker.*` (Stack Docker de Aplicativos)
 
@@ -88,7 +126,10 @@ Veja a [arquitetura da stack Docker de aplicativos](../architecture/appstack.md)
 | `~/.perci/appstack/nginx/default.conf` | Config gerada do Nginx, um bloco `server{}` por app em `docker.apps`; regenerada e recarregada automaticamente a cada criação/edição/remoção. |
 | `~/.perci/appstack/php-conf/<pasta>/zz-perci-overrides.ini` | Snippet de php.ini gerado por app (hoje só `memory_limit`), bind-montado somente leitura no próprio container do app em `/usr/local/etc/php/conf.d/`; regenerado a cada criação/edição. |
 | `{{workspace_path}}/localhost/html\|data\|logs\|databases/*` | Pastas bind-montadas por app — veja [arquitetura da stack Docker de aplicativos](../architecture/appstack.md#convenções-de-caminho). |
-| `<projeto-alvo>/AGENTS.md`, `CLAUDE.md`, `.aiexclude`, `.claude/settings.json`, `.instructions/*.md` | Gerados pela tela **Dev Tools → IA: Contextos** da GUI dentro de um projeto alvo — não é config do próprio perci. |
+| `~/.perci/git/<id>.gitconfig` | Identidade `[user]` e `core.sshCommand` de uma conta Git, incluídos pela regra `includeIf "gitdir:<pasta>/"` que o Perci adiciona ao `~/.gitconfig` com `git config --global`. |
+| `~/.perci/git/known_hosts` | Chaves de servidor confiáveis para as contas Git (as embutidas do github.com/gitlab.com, ou as confirmadas para um servidor próprio). Separado do `~/.ssh/known_hosts`. |
+| `~/.ssh/perci_<id>`, `~/.ssh/perci_<id>.pub` | Par de chaves SSH gerado para uma conta Git (`0600`, num `~/.ssh` `0700`). Nunca apagado pelo Perci. |
+| `<projeto-alvo>/AGENTS.md`, `.instructions/*.md` (inclusive o `PROJECT.md`, nunca reescrito) e, por agente marcado, `CLAUDE.md`, `.claude/rules/perci/*.md`, `.claude/settings.json`, `GEMINI.md`, `.aiexclude`, `.geminiignore`, a entrada `instructions` do `opencode.json` | Gerados pela tela **Dev Tools → IA: Contextos** da GUI dentro de um projeto alvo — não é config do próprio perci. Veja [Managers](../architecture/managers.md#managerai--geração-de-contexto-ia). |
 | `<projeto-alvo>/.agents/skills/<slug>/`, `~/.agents/skills/<slug>/` | Escrito pela ferramenta `npx skills` (só na GUI, "Dev Tools :: IA: SKILLs") pra OpenCode/Antigravity/Codex — Claude Code usa `.claude/skills/`/`~/.claude/skills/` em vez disso; não é config do próprio perci. |
 | `<projeto-alvo>/.agents/mcp_config.json`, `~/.gemini/config/mcp_config.json` | Registro de servidores MCP do Antigravity, editado diretamente (só na GUI, "Dev Tools :: IA: MCPs", `internal/dev/mcpservers` — Claude Code/Codex usam seu próprio `mcp add`/config em vez disso). |
 | `<arquivo gerado>.perci-bak` | Cópia da versão anterior de um arquivo gerado de projeto (contexto de IA, `.claude/settings.json`, código de conduta, wrapper do Flutter, entradas de menu de contexto; não os arquivos de configuração de MCP, que podem conter tokens) mantida quando o Perci o sobrescreve com conteúdo diferente. Pode ser apagada. |

@@ -20,7 +20,6 @@ import { FakeElement, evalIn, loadScripts, scriptOrder } from "./harness.mjs";
 const { ctx, calls, element } = loadScripts(scriptOrder(), {
   fixtures: {
     GetPostinstallProfile: { supported: true, label: "Ubuntu" },
-    GetRepoFolders: [{ path: "/home/u/a", name: "a" }, { path: "/home/u/b", name: "b" }],
   },
 });
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -188,24 +187,6 @@ test("multiselect extras", async () => {
   assert.equal(calls.filter((c) => c.name === "ApplyStarship").length, 1, "Aplicar runs without confirmation");
   evalIn(ctx, "running = false; activeRun = null");
   await tick();
-});
-
-test("repos cards keep a single Novo repositório card", async () => {
-  const cards = element("repos-list-cards").children;
-  const addCards = () => cards.filter((c) => c.children[0].children[0].textContent === "Novo repositório");
-
-  ctx.renderReposScreen({ actionId: "repos" });
-  await tick();
-  ctx.renderReposScreen({ actionId: "repos" }); // reopening the screen
-  await tick();
-  ctx.selectRepoFolder("/home/u/a"); // "Selecionar"
-  await tick();
-  ctx.loadRepoFolders(); // after adding/removing a folder
-  await tick();
-
-  assert.equal(addCards().length, 1);
-  assert.equal(cards.length, 3, "two folders plus the add card");
-  assert.equal(cards[cards.length - 1], addCards()[0], "the add card stays last");
 });
 
 test("Moodle version select keeps a saved value that is no longer offered", () => {

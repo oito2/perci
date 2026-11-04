@@ -13,12 +13,12 @@ perci.gnl is a GUI-only desktop app — Go backend, JS frontend, built on Wails 
 ```
 cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → domain packages   → internal/executor
 (launch GUI window)    (Go methods bound to the    (per category,       (single point of
-                         JS frontend, five           see below)           sudo escalation)
+                         JS frontend, six            see below)           sudo escalation)
                          categories, see below)
 ```
 
 - **`cmd/prci-gui/main.go`** does nothing but configure and launch the Wails window (`wails.Run`) — no logic lives here. The `prci`/`perci` commands take no command-line arguments at all; running either just opens the GUI window.
-- **`cmd/prci-gui`** (`app.go` plus one `app_*.go` per screen area, and `catalog.go` for the sidebar menu definitions) holds the Go methods that Wails binds to the JS frontend — one method per action, wired to a `MenuItem.ActionID` inside one of the five sidebar categories.
+- **`cmd/prci-gui`** (`app.go` plus one `app_*.go` per screen area, and `catalog.go` for the sidebar menu definitions) holds the Go methods that Wails binds to the JS frontend — one method per action, wired to a `MenuItem.ActionID` inside one of the six sidebar categories.
 - **Domain packages** implement the actual work, grouped by category (see below). None of them contain interactive prompts (no forms, no stdin reads) — they take plain parameters and are called directly by the GUI's Go methods.
 - **`internal/executor`** is the single point through which every privileged command is escalated via `sudo` — no domain package calls `sudo` directly.
 
@@ -28,7 +28,7 @@ cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → domain packages   → inte
 
 | Package | Responsibility |
 |---|---|
-| `cmd/prci-gui` | Wails desktop app: `main.go` (window setup), `app.go`/`app_*.go` (Go methods bound to the JS frontend), `catalog.go` (the five sidebar categories and their menu items) |
+| `cmd/prci-gui` | Wails desktop app: `main.go` (window setup), `app.go`/`app_*.go` (Go methods bound to the JS frontend), `catalog.go` (the six sidebar categories and their menu items; the Repositórios category is built per call, with one item per Git account) |
 | `internal/ui` | Terminal primitives (`PrintHeader`, `Info`, `Err`, `Warning`, `Success`, `Step`), streamed into the GUI's embedded terminal panel — no dependency on `config`/`distro` |
 | `internal/config` | `~/.perci/config.yaml` load/save |
 | `internal/distro` | Debian/Fedora family + desktop environment detection |
@@ -38,7 +38,7 @@ cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → domain packages   → inte
 | `internal/system/*` | **Linux category**: post-install (Mint/Zorin/Ubuntu/Fedora), fonts, file templates, Flatpak apps, system update |
 | `internal/dev/*` | **Desenvolvimento category**: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals; also backs the **Dev Tools category**'s AI skills (`agentskills`) and MCP server registration (`mcpservers`) |
 | `internal/appstack` | **Docker category**: per-project Docker application stack — Nginx/MariaDB/PHP/Node/PHP+Node container creation, lifecycle, Moodle routing, Moodle plugin mounts (Dev Tools), export/import |
-| `internal/manager/*` | **Dev Tools category**: AI context (`ai`), database backup/restore (`db`, used by `internal/appstack`), Git repository (`repo`), `.gitignore` (`gitignore`) |
+| `internal/manager/*` | **Repositórios category**: Git accounts and their repositories (`gitaccount`), with the global identity and Code of Conduct (`repo`) and `.gitignore` (`gitignore`). **Dev Tools category**: AI context (`ai`). Database backup/restore (`db`, used by `internal/appstack`) |
 
 ## Data Flow
 
@@ -50,4 +50,6 @@ There is no persistent process or database. Every GUI action follows the same sh
 - **APT / DNF / Flatpak / Snap** — system package managers, invoked through `internal/executor`.
 - **Docker Engine** (`docker run`/`create`/`start`/`stop`/`rm`, no `docker-compose`) — the per-project Nginx/MariaDB/PHP/Node application stack.
 - **mkcert** — local HTTPS for `*.localhost`, one wildcard certificate shared by every app.
+- **git, ssh, ssh-keygen, ssh-add, secret-tool** — the Git accounts: one `includeIf` rule per account in `~/.gitconfig`, keys under `~/.ssh`, passphrases through the session's SSH agent and API tokens in the system keyring.
+- **GitHub / GitLab REST APIs** — only to list an account's repositories in **Novo Repositório** (with the account's token, when one is saved).
 - **Various upstream installers** (Go, Flutter, Node-based MCP servers, IDEs, terminal tools) — each with its own download/verification strategy; see [System management](../architecture/system-management.md) and [Dev environment](../architecture/dev-environment.md) for specifics, and the [decisions log](../architecture/decisions.md) for accepted risks where no upstream checksum exists.

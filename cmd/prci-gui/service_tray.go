@@ -31,9 +31,9 @@ import (
 
 // TrayService binds the system tray / compact window domain. mainWindow
 // is captured on the main window's creation; tray is non-nil only while
-// TrayEnabled is on; compactWindow is the single compact window the 3
-// tray menu items open/focus — Contêineres/Repositórios/Atualizar
-// Sistema become tabs inside it (one reused window, not one per item).
+// TrayEnabled is on; compactWindow is the single compact window the 2
+// tray menu items open/focus — Contêineres/Atualizar Sistema become tabs
+// inside it (one reused window, not one per item).
 // windowMu protects tray and compactWindow — each bound method the
 // frontend calls runs on its own goroutine, so concurrent SetTrayEnabled
 // calls (e.g. a quick double-click on the tray toggle) can't leave `tray`
@@ -50,11 +50,10 @@ type TrayService struct {
 // compactTabs is the fixed set of tabs the single compact window's tab
 // bar offers — each one matches the `?compact=` query value /
 // "compact-switch-tab" event payload, which the frontend resolves back to
-// a MenuItem by actionId — the 3 keys here are literally the actionId of
-// the 3 items ("docker-manage"/"repos"/"system-update").
+// a MenuItem by actionId — the 2 keys here are literally the actionId of
+// the 2 items ("docker-manage"/"system-update").
 var compactTabs = map[string]bool{
 	"docker-manage": true,
-	"repos":         true,
 	"system-update": true,
 }
 
@@ -133,9 +132,9 @@ func (t *TrayService) destroyTray() {
 
 // buildTrayMenu builds the tray menu — Abrir Aplicativo (shows/focuses the
 // main window, same as the compact window's header button) +
-// Contêineres/Repositórios/Atualizar Sistema (each opens/focuses the
-// single compact window, already on the matching tab — one window with 3
-// tabs, not 3 separate windows) + Sair (the only way to quit Perci while
+// Contêineres/Atualizar Sistema (each opens/focuses the single compact
+// window, already on the matching tab — one window with 2 tabs, not 2
+// separate windows) + Sair (the only way to quit Perci while
 // the tray is enabled, since closing the main window only hides it).
 func (t *TrayService) buildTrayMenu() *application.Menu {
 	menu := t.wailsApp.NewMenu()
@@ -145,9 +144,6 @@ func (t *TrayService) buildTrayMenu() *application.Menu {
 	menu.AddSeparator()
 	menu.Add("Contêineres").OnClick(func(_ *application.Context) {
 		t.openCompactWindow("docker-manage")
-	})
-	menu.Add("Repositórios").OnClick(func(_ *application.Context) {
-		t.openCompactWindow("repos")
 	})
 	menu.Add("Atualizar Sistema").OnClick(func(_ *application.Context) {
 		t.openCompactWindow("system-update")
@@ -217,8 +213,8 @@ func (t *TrayService) FocusMainWindow() {
 // openCompactWindow opens the tray menu's single compact window (if it
 // doesn't exist yet) already on the requested tab, or — if it's already
 // open — just focuses it and tells the frontend to switch tabs via an
-// event (one window with 3 tabs — Contêineres/Repositórios/Atualizar
-// Sistema — sized 735×825). The header (image+"Perci"+"Abrir
+// event (one window with 2 tabs — Contêineres/Atualizar Sistema — sized
+// 735×825). The header (image+"Perci"+"Abrir
 // Aplicativo") and the tabs themselves live entirely in the frontend
 // (?compact=<tab> skips the sidebar).
 func (t *TrayService) openCompactWindow(tab string) {

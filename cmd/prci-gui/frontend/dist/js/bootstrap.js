@@ -23,10 +23,11 @@
 // App is a merge of the domain services — Object.assign keeps every
 // App.Method(...) call working without naming each service.
 import {
-  HomeService, LinuxService, DevSetupService, DockerService, DevToolsService, TrayService,
+  HomeService, LinuxService, DevSetupService, DockerService, DevToolsService, RepositoriesService, TrayService,
 } from "../bindings/github.com/oito2/perci/cmd/prci-gui/index.js";
-import { Events, Browser } from "/wails/runtime.js";
+import { Events, Browser, Clipboard } from "/wails/runtime.js";
 
-window.App = Object.assign({}, HomeService, LinuxService, DevSetupService, DockerService, DevToolsService, TrayService);
+window.App = Object.assign({}, HomeService, LinuxService, DevSetupService, DockerService, DevToolsService, RepositoriesService, TrayService);
 window.Events = Events;
 window.Browser = Browser;
+window.Clipboard = Clipboard;

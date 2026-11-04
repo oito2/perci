@@ -13,12 +13,12 @@ O perci.gnl é uma aplicação desktop exclusivamente GUI — backend Go, fronte
 ```
 cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → pacotes de domínio → internal/executor
 (abre a janela GUI)    (métodos Go ligados ao       (por categoria,       (único ponto de
-                         frontend JS, cinco           veja abaixo)          escalada sudo)
+                         frontend JS, seis            veja abaixo)          escalada sudo)
                          categorias, veja abaixo)
 ```
 
 - **`cmd/prci-gui/main.go`** não faz nada além de configurar e abrir a janela do Wails (`wails.Run`) — nenhuma lógica vive aqui. Os comandos `prci`/`perci` não recebem nenhum argumento de linha de comando — rodar qualquer um dos dois simplesmente abre a janela da GUI.
-- **`cmd/prci-gui`** (`app.go` mais um `app_*.go` por área de tela, e `catalog.go` com as definições do menu lateral) contém os métodos Go que o Wails liga ao frontend JS — um método por ação, ligado a um `MenuItem.ActionID` dentro de uma das cinco categorias da barra lateral.
+- **`cmd/prci-gui`** (`app.go` mais um `app_*.go` por área de tela, e `catalog.go` com as definições do menu lateral) contém os métodos Go que o Wails liga ao frontend JS — um método por ação, ligado a um `MenuItem.ActionID` dentro de uma das seis categorias da barra lateral.
 - **Pacotes de domínio** implementam o trabalho de fato, agrupados por categoria (veja abaixo). Nenhum deles contém prompts interativos (sem formulários, sem leitura de stdin) — recebem parâmetros simples e são chamados diretamente pelos métodos Go da GUI.
 - **`internal/executor`** é o único ponto pelo qual todo comando privilegiado é escalado via `sudo` — nenhum pacote de domínio chama `sudo` diretamente.
 
@@ -28,7 +28,7 @@ O `internal/ui` (helpers de terminal estilo script: `PrintHeader`/`Info`/`Err`/`
 
 | Pacote | Responsabilidade |
 |---|---|
-| `cmd/prci-gui` | Aplicação desktop Wails: `main.go` (configuração da janela), `app.go`/`app_*.go` (métodos Go ligados ao frontend JS), `catalog.go` (as cinco categorias da barra lateral e seus itens de menu) |
+| `cmd/prci-gui` | Aplicação desktop Wails: `main.go` (configuração da janela), `app.go`/`app_*.go` (métodos Go ligados ao frontend JS), `catalog.go` (as seis categorias da barra lateral e seus itens de menu; a categoria Repositórios é montada a cada chamada, com um item por conta Git) |
 | `internal/ui` | Primitivos de terminal (`PrintHeader`, `Info`, `Err`, `Warning`, `Success`, `Step`), transmitidos para o painel de terminal embutido da GUI — sem dependência de `config`/`distro` |
 | `internal/config` | Carregamento/gravação de `~/.perci/config.yaml` |
 | `internal/distro` | Detecção de família Debian/Fedora + ambiente de desktop |
@@ -38,7 +38,7 @@ O `internal/ui` (helpers de terminal estilo script: `PrintHeader`/`Info`/`Err`/`
 | `internal/system/*` | **Categoria Linux**: pós-instalação (Mint/Zorin/Ubuntu/Fedora), fontes, modelos de arquivos, apps Flatpak, atualização de sistema |
 | `internal/dev/*` | **Categoria Desenvolvimento**: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais; também dá suporte às skills de IA (`agentskills`) e ao registro de servidores MCP (`mcpservers`) da **categoria Dev Tools** |
 | `internal/appstack` | **Categoria Docker**: stack Docker de aplicativos por projeto — criação, ciclo de vida e roteamento Moodle de containers Nginx/MariaDB/PHP/Node/PHP+Node, montagens de plugins Moodle (Dev Tools), exportar/importar |
-| `internal/manager/*` | **Categoria Dev Tools**: contexto IA (`ai`), backup/restore de banco de dados (`db`, usado por `internal/appstack`), repositório Git (`repo`), `.gitignore` (`gitignore`) |
+| `internal/manager/*` | **Categoria Repositórios**: contas Git e seus repositórios (`gitaccount`), com a identidade global e o Código de Conduta (`repo`) e o `.gitignore` (`gitignore`). **Categoria Dev Tools**: contexto IA (`ai`). Backup/restore de banco de dados (`db`, usado por `internal/appstack`) |
 
 ## Fluxo de Dados
 
@@ -50,4 +50,6 @@ Não há processo persistente nem banco de dados. Toda ação na GUI segue o mes
 - **APT / DNF / Flatpak / Snap** — gerenciadores de pacotes do sistema, invocados através do `internal/executor`.
 - **Docker Engine** (`docker run`/`create`/`start`/`stop`/`rm`, sem `docker-compose`) — a stack de aplicativos Nginx/MariaDB/PHP/Node por projeto.
 - **mkcert** — HTTPS local para `*.localhost`, um certificado wildcard compartilhado por todo app.
+- **git, ssh, ssh-keygen, ssh-add, secret-tool** — as contas Git: uma regra `includeIf` por conta no `~/.gitconfig`, chaves em `~/.ssh`, senhas pelo agente SSH da sessão e tokens de API no chaveiro do sistema.
+- **APIs REST do GitHub / GitLab** — só para listar os repositórios de uma conta em **Novo Repositório** (com o token da conta, quando há um salvo).
 - **Diversos instaladores upstream** (Go, Flutter, servidores MCP em Node, IDEs, ferramentas de terminal) — cada um com sua própria estratégia de download/verificação; veja [Gerenciamento de Sistema](../architecture/system-management.md) e [Ambiente de Desenvolvimento](../architecture/dev-environment.md) para detalhes específicos, e o [log de decisões](../architecture/decisions.md) para riscos aceitos onde não existe checksum upstream.

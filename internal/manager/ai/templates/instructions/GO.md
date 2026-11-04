@@ -3,13 +3,15 @@
 Standard for Go command-line tools, MCP servers and desktop-application backends.
 Apply it whenever Go code, `go.mod`, tests, lint configuration or release builds are written or reviewed. Complements: `GO-MCP.md` (MCP servers) and `WAILS.md` (Wails desktop apps).
 
+Last verified: 2026-11-04
+
 ---
 
 ## Toolchain & `go.mod`
 
 - The `go` directive is the **minimum** Go version the module needs, and the toolchain enforces it. Raise it only when the code uses a newer language feature or standard-library API, never as routine bumping.
-- Keep it on a Go release that still receives security fixes (each major release is supported until two newer majors ship).
-- Before using a recent standard-library API, check that it exists in the module's `go` version (`go doc <pkg>.<Symbol>`, or `$(go env GOROOT)/api/go1.N.txt`). Examples: `os.Root`, `testing.T.Context` (1.24), `sync.WaitGroup.Go`, `testing/synctest` (1.25), `errors.AsType` (1.26).
+- Keep it on a Go release that still receives security fixes: each major release is supported until two newer majors ship (at the date above: **1.26 and 1.27**). Check the current lines at <https://go.dev/doc/devel/release> instead of trusting this or any example version.
+- Before using a recent standard-library API, check that it exists in the module's `go` version (`go doc <pkg>.<Symbol>`, or `$(go env GOROOT)/api/go1.N.txt`). Examples with their minimum version: `os.Root`, `testing.T.Context` (1.24), `sync.WaitGroup.Go`, `testing/synctest` (1.25), `errors.AsType` (1.26).
 - Commit `go.mod` and `go.sum`. Never commit `replace` directives that point to local paths.
 - Pin development tools in `go.mod` with `go get -tool <pkg>@<version>` and run them with `go tool <name>`, or pin their version in CI — never `@latest` in CI.
 
@@ -312,17 +314,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
 
 ## CI
 
-Minimum pipeline, on every push and pull request:
-
-1. `gofmt -l .` produces no output.
-2. `go vet ./...`
-3. `golangci-lint run` (pinned version).
-4. `go mod tidy -diff`
-5. `go build ./...`
-6. `go test -race ./...`
-7. `govulncheck ./...`
-
-Use least-privilege workflow permissions (`contents: read`), pin third-party actions by commit SHA, and read the Go version from `go.mod` (`go-version-file: go.mod` in `actions/setup-go`).
+Run the [Quality](#quality) commands on every push and pull request, with golangci-lint and govulncheck at pinned versions. Use least-privilege workflow permissions (`contents: read`), pin third-party actions by commit SHA, and read the Go version from `go.mod` (`go-version-file: go.mod` in `actions/setup-go`).
 
 ---
 
@@ -347,13 +339,14 @@ Use least-privilege workflow permissions (`contents: read`), pin third-party act
 
 ## Quality
 
-Run before reporting any Go change as done:
+Run before reporting any Go change as done (CI runs the same list):
 
 ```bash
 gofmt -l .                 # must print nothing
 go vet ./...
-golangci-lint run
-go mod tidy -diff
+golangci-lint run          # zero issues
+go mod tidy -diff          # must print nothing
+go build ./...
 go test -race ./...
 govulncheck ./...
 ```

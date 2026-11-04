@@ -24,14 +24,16 @@ tem nenhum dos dois).
   512 px do conjunto hicolor em `packaging/icons/`. Com a bandeja ativa, o
   autostart abre `prci --hidden`: a janela nasce oculta e o Perci fica só
   na bandeja.
-- `service_base.go` + `service_*.go` — 6 structs, um `application.Service`
+- `service_base.go` + `service_*.go` — 7 structs, um `application.Service`
   do Wails por domínio (`application.NewService(x)` para cada um, em vez
   do `Bind` do v2): `HomeService` (service_home.go), `LinuxService`
   (service_linux.go), `DevSetupService` (service_devsetup.go),
-  `DockerService` (service_docker.go), `DevToolsService`
-  (service_repos.go/service_agentskills.go/service_aicontext.go/
-  service_mcpservers.go — um struct só, métodos espalhados em 4 arquivos)
-  e `TrayService` (service_tray.go). Cada um embute `serviceBase`
+  `DockerService` (service_docker.go), `RepositoriesService`
+  (service_repositories.go — contas Git, telas das contas, Gerenciar
+  Repositórios), `DevToolsService` (service_moodleplugins.go/
+  service_agentskills.go/service_aicontext.go/service_mcpservers.go — um
+  struct só, métodos espalhados em 4 arquivos) e `TrayService`
+  (service_tray.go). Cada um embute `serviceBase`
   (service_base.go: `wailsApp`/`exe`/`pickFolder`/`runAction`/
   `eventWriter`, compartilhados sem duplicar código). `runAction` executa
   uma ação longa por vez no app inteiro (trava global `runMu`, inclusive a
