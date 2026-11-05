@@ -66,6 +66,10 @@ type Config struct {
 	// Moodle containers through the GUI.
 	MoodlePlugins []MoodlePluginMount `yaml:"moodle_plugins,omitempty"`
 
+	// AIContexts lists the folders whose AI context was applied or
+	// registered through the GUI, in registration order.
+	AIContexts []AIContext `yaml:"ai_contexts,omitempty"`
+
 	// PostinstallApplied lists, per post-install profile ID, the IDs of the
 	// post-install actions without a detectable system state that finished
 	// successfully.
@@ -94,6 +98,17 @@ type MoodlePluginMount struct {
 	// removes that line again.
 	MegaIgnore     string `yaml:"mega_ignore,omitempty" json:"-"`
 	MegaIgnoreRule string `yaml:"mega_ignore_rule,omitempty" json:"-"`
+}
+
+// AIContext is one folder with an AI context: Name is the unique label
+// shown in the list, Path the folder (the record's key), Models and Agents
+// the standards (catalog names) and agent IDs the context was applied
+// with.
+type AIContext struct {
+	Name   string   `yaml:"name"`
+	Path   string   `yaml:"path"`
+	Models []string `yaml:"models,omitempty"`
+	Agents []string `yaml:"agents,omitempty"`
 }
 
 // GitAccount is one registered Git hosting account: its identity and SSH

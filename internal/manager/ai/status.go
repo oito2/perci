@@ -140,6 +140,14 @@ func Preview(dir string, active []Model, agentIDs []string) ([]Change, error) {
 	if _, err := agentSet(agentIDs); err != nil {
 		return nil, err
 	}
+	return previewRun(dir, func(tmp string) error {
+		return generate(tmp, dir, active, agentIDs, true, io.Discard)
+	})
+}
+
+// previewRun tells what run changes when it works on a temporary copy of
+// the files of dir a generation reads or writes (see Preview).
+func previewRun(dir string, run func(tmp string) error) ([]Change, error) {
 	tmp, err := os.MkdirTemp("", "perci-preview-*")
 	if err != nil {
 		return nil, err
@@ -156,7 +164,7 @@ func Preview(dir string, active []Model, agentIDs []string) ([]Change, error) {
 			return nil, err
 		}
 	}
-	if err := generate(tmp, dir, active, agentIDs, true, io.Discard); err != nil {
+	if err := run(tmp); err != nil {
 		return nil, err
 	}
 	after := snapshot(tmp)

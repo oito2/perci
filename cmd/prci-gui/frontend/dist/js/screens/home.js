@@ -94,15 +94,17 @@ btnSuUpdate.addEventListener("click", function () {
   });
 });
 
-// --- "Desinstalar Perci" (embedded in Visão Geral) — four independent
-// checkboxes (back up config / back up repositories / remove Docker
-// containers / also remove config), a "Desinstalar" button after them. The
-// config backup is a full export, in the format "Docker ::
+// --- "Desinstalar Perci" (embedded in Visão Geral) — five independent
+// checkboxes (back up config / back up repositories / back up AI contexts /
+// remove Docker containers / also remove config), a "Desinstalar" button
+// after them. The config backup is a full export, in the format "Docker ::
 // Exportar/Importar" reads (App.PickUninstallBackupPath); the repositories
-// backup is a separate file, in the format "Repositórios :: Gerenciar
-// Repositórios" reads (App.PickUninstallReposBackupPath). If the user checks
-// a backup and then cancels its "Salvar Como" dialog, the whole uninstall
-// is aborted instead of proceeding without the requested backup. Success
+// and AI contexts backups are separate files, in the formats "Repositórios
+// :: Gerenciar Repositórios" (App.PickUninstallReposBackupPath) and "Dev
+// Tools :: IA: Contextos" (App.PickUninstallAIContextsBackupPath) read. If
+// the user checks a backup and then cancels its "Salvar Como" dialog, the
+// whole uninstall is aborted instead of proceeding without the requested
+// backup. Success
 // closes the GUI's own window (App.RunSelfUninstall handles that). ------
 btnSu2Uninstall.addEventListener("click", function () {
   if (running) return;
@@ -110,10 +112,12 @@ btnSu2Uninstall.addEventListener("click", function () {
   const removeDocker = su2RemoveDocker.checked;
   const backupConfig = su2BackupConfig.checked;
   const backupRepos = su2BackupRepos.checked;
+  const backupAI = su2BackupAI.checked;
 
   let message = "O binário do Perci será removido do sistema.";
   if (backupConfig) message += "\nUm backup das configurações será salvo antes.";
   if (backupRepos) message += "\nUm backup das contas Git e dos repositórios será salvo antes.";
+  if (backupAI) message += "\nUm backup dos contextos de IA será salvo antes.";
   if (removeDocker) message += "\nOs contêineres Docker registrados serão removidos (dados em disco são mantidos).";
   message += removeConfig
     ? "\nAs configurações em ~/.perci também serão removidas, junto com as regras das contas Git no ~/.gitconfig e os tokens do chaveiro (chaves SSH e repositórios ficam)."
@@ -121,11 +125,11 @@ btnSu2Uninstall.addEventListener("click", function () {
   message += "\n\nEsta ação não pode ser desfeita.";
 
   openConfirm("Desinstalar o Perci?", message, function () {
-    function startUninstall(backupPath, reposBackupPath) {
+    function startUninstall(backupPath, reposBackupPath, aiBackupPath) {
       if (running || activeRun) return; // re-checked: the dialogs are async
       dashboardRunningAction = "self-uninstall";
       beginRun("Desinstalar", function () {
-        return App.RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath);
+        return App.RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath, aiBackupPath);
       }, {
         buttons: [btnSu2Uninstall],
         maxSteps: 1,
@@ -140,17 +144,24 @@ btnSu2Uninstall.addEventListener("click", function () {
       return picker().then(function (path) { return path || null; });
     }
 
-    pick(backupConfig, App.PickUninstallBackupPath).then(function (backupPath) {
-      if (backupPath === null) return [null, null];
-      return pick(backupRepos, App.PickUninstallReposBackupPath).then(function (reposPath) {
-        return [backupPath, reposPath];
+    // Each picker opens only after the previous one got a path; the first
+    // cancelled dialog stops the chain.
+    const wanted = [
+      [backupConfig, App.PickUninstallBackupPath],
+      [backupRepos, App.PickUninstallReposBackupPath],
+      [backupAI, App.PickUninstallAIContextsBackupPath],
+    ];
+    wanted.reduce(function (chain, w) {
+      return chain.then(function (paths) {
+        if (paths.indexOf(null) >= 0) return paths.concat([null]);
+        return pick(w[0], w[1]).then(function (path) { return paths.concat([path]); });
       });
-    }).then(function (paths) {
-      if (paths[0] === null || paths[1] === null) {
+    }, Promise.resolve([])).then(function (paths) {
+      if (paths.indexOf(null) >= 0) {
         openMessage("Desinstalação cancelada", "Nenhum caminho foi escolhido para o backup — a desinstalação não foi iniciada.", false);
         return;
       }
-      startUninstall(paths[0], paths[1]);
+      startUninstall(paths[0], paths[1], paths[2]);
     }).catch(function (err) { openError("Falha ao escolher o arquivo de backup: " + err); });
   });
 });

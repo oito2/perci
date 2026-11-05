@@ -66,7 +66,7 @@ Both use `cfg.Docker.MariaDB.*` credentials against the shared MariaDB container
 
 ## 8. AI Context for the New Project
 
-**Dev Tools → IA: Contextos**, pick the cloned project's folder, check **Moodle**, then click **Aplicar**.
+**Dev Tools → IA: Contextos → Definir Contexto**, pick the cloned project's folder, give it a **Nome**, check **Moodle**, then click **Aplicar**. The folder then appears on the **Contextos** tab (see [AI contexts](./ai-contexts.md)).
 
 This generates `AGENTS.md`, `.instructions/MOODLE.md` (with the Moodle version filled from `version.php`) and `.instructions/PROJECT.md`, plus each checked agent's files (e.g. `CLAUDE.md` and `.claude/rules/perci/MOODLE.md` for Claude Code). (The `php` model was removed 2026-09-11 — generic PHP guidance is now covered by third-party skills instead, e.g. "PHP: Specialist"/"PHP: Pro 8.3+" via `Dev Tools :: IA: SKILLs` in the GUI, which also replaced the old skills-apply flow — "Claude Code Mode" and the rest of `internal/manager/skills`'s own catalog were removed the same day.)
 

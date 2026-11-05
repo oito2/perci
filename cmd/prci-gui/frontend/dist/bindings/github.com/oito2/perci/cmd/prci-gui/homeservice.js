@@ -123,6 +123,16 @@ export function GetTheme() {
 }
 
 /**
+ * PickUninstallAIContextsBackupPath opens the native "Salvar Como" dialog
+ * for the uninstall's "Fazer backup dos contextos de IA" checkbox — the
+ * file "Dev Tools :: IA: Contextos" imports.
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickUninstallAIContextsBackupPath() {
+    return $Call.ByName("main.HomeService.PickUninstallAIContextsBackupPath");
+}
+
+/**
  * PickUninstallBackupPath opens the native "Salvar Como" dialog for the
  * uninstall's "Fazer backup das configurações" checkbox — it differs from
  * PickExportConfigPath only in its title/default filename; both save
@@ -154,7 +164,7 @@ export function PickWorkspaceFolder() {
 
 /**
  * RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
- * Three steps run first, all optional:
+ * Four steps run first, all optional:
  * 
  *   - backupPath != "": exports cfg.Docker and the Moodle plugin mounts to
  *     that path first (appstack.ExportConfig) — reimportable later via
@@ -162,6 +172,10 @@ export function PickWorkspaceFolder() {
  *   - reposBackupPath != "": exports the Git accounts and their
  *     repositories to that path (gitaccount.Exportable/WriteTransfer) —
  *     reimportable via "Repositórios :: Gerenciar Repositórios".
+ *   - aiBackupPath != "": exports the registered AI context folders to
+ *     that path (managerai.Exportable/WriteTransfer) — reimportable via
+ *     "Dev Tools :: IA: Contextos"; the context files in those folders are
+ *     never touched by the uninstall.
  *   - removeDocker: removes every registered container (apps, then
  *     MariaDB, then Nginx — apps first so nothing routes through infra
  *     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
@@ -187,10 +201,11 @@ export function PickWorkspaceFolder() {
  * @param {boolean} removeDocker
  * @param {string} backupPath
  * @param {string} reposBackupPath
+ * @param {string} aiBackupPath
  * @returns {$CancellablePromise<void>}
  */
-export function RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath) {
-    return $Call.ByName("main.HomeService.RunSelfUninstall", removeConfig, removeDocker, backupPath, reposBackupPath);
+export function RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath, aiBackupPath) {
+    return $Call.ByName("main.HomeService.RunSelfUninstall", removeConfig, removeDocker, backupPath, reposBackupPath, aiBackupPath);
 }
 
 /**

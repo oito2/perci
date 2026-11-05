@@ -116,13 +116,15 @@
      by the checked radio, since daisyUI's `.tab-content` has no
      `display:none` rule for an inactive tab. */
   #panel-desc, #panel-terminal, #panel-mp-mounted, #panel-transfer-import,
-  #panel-git-identity, #panel-git-import { display: none; }
+  #panel-git-identity, #panel-git-import, #panel-aic-define, #panel-aic-transfer { display: none; }
   .tabs:has(#tab-radio-desc:checked) #panel-desc { display: block; }
   .tabs:has(#tab-radio-terminal:checked) #panel-terminal { display: flex; }
   .tabs:has(#tab-radio-mp-mounted:checked) #panel-mp-mounted { display: block; }
   .tabs:has(#tab-radio-transfer-import:checked) #panel-transfer-import { display: block; }
   .tabs:has(#tab-radio-git-identity:checked) #panel-git-identity { display: block; }
   .tabs:has(#tab-radio-git-import:checked) #panel-git-import { display: block; }
+  .tabs:has(#tab-radio-aic-define:checked) #panel-aic-define { display: block; }
+  .tabs:has(#tab-radio-aic-transfer:checked) #panel-aic-transfer { display: block; }
 
   /* "Docker :: Criar Contêiner" and "Docker :: Gerenciar Contêineres ::
      Editar" — "label on the right + field" layout, styled like a
@@ -259,9 +261,9 @@
             </div>
 
             <!-- "Desinstalar Perci" (ActionID "self-uninstall"): the
-                 configuration and repositories backup, Docker container
-                 removal and "Também remover configurações" checkboxes, with
-                 the "Desinstalar" button after all four. -->
+                 configuration, repositories and AI contexts backup, Docker
+                 container removal and "Também remover configurações"
+                 checkboxes, with the "Desinstalar" button after all five. -->
             <div>
               <h3 class="font-semibold mb-3">Desinstalar Perci</h3>
               <div class="alert alert-warning mb-4">
@@ -275,6 +277,10 @@
                 <label class="label cursor-pointer justify-start gap-2">
                   <input id="su2-backup-repos" type="checkbox" class="checkbox" />
                   <span class="label-text">Fazer backup dos repositórios (contas Git) antes de desinstalar</span>
+                </label>
+                <label class="label cursor-pointer justify-start gap-2">
+                  <input id="su2-backup-ai" type="checkbox" class="checkbox" />
+                  <span class="label-text">Fazer backup dos contextos de IA (pastas registradas) antes de desinstalar — os arquivos de contexto nas pastas ficam</span>
                 </label>
                 <label class="label cursor-pointer justify-start gap-2">
                   <input id="su2-remove-docker" type="checkbox" class="checkbox" />
@@ -847,39 +853,31 @@
             </div>
           </div>
 
-          <!-- "Dev Tools :: IA: Contextos": working-folder picker (same
-               pattern as Repositórios/IA: SKILLs) + a simple checklist of
-               AI context models + a single "Aplicar" button. -->
+          <!-- "Dev Tools :: IA: Contextos", main tab "Contextos": every
+               registered folder with its state and the Atualizar /
+               Alterar / Remover actions. The other two tabs are
+               #panel-aic-define and #panel-aic-transfer. -->
           <div id="aicontext-container" class="hidden">
-            <p class="opacity-80 mb-4">Contextos de IA são regras para direcionar o seu agente na realização de tarefas.</p>
-
-            <div role="alert" class="alert mb-4 flex-wrap">
-              <div>
-                <h3 id="aic-alert-title" class="font-bold"></h3>
-                <div id="aic-alert-desc" class="text-sm opacity-80"></div>
-              </div>
-              <button id="btn-aic-pick-folder" class="btn btn-sm ml-auto">Selecionar Pasta</button>
+            <p class="opacity-80 mb-4">Contextos de IA são regras para direcionar o seu agente na realização de tarefas. Aqui ficam as pastas onde o Perci aplicou um contexto.</p>
+            <div class="flex gap-2 mb-4 flex-wrap">
+              <button id="btn-aic-update-all" class="btn btn-sm" disabled>Atualizar todos</button>
             </div>
-
-            <!-- The coding agents the context is generated for: only the
-                 checked agents' files are written. -->
-            <div class="mb-4">
-              <div class="label"><span class="label-text">Agentes de IA</span></div>
-              <div id="aic-agents" class="flex flex-wrap gap-x-6 gap-y-2"></div>
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Pasta</th>
+                    <th>Padrões</th>
+                    <th>Agentes</th>
+                    <th>Estado</th>
+                    <th class="w-px">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="aic-rows"></tbody>
+              </table>
             </div>
-
-            <!-- Project type: checks the standards of one project kind at
-                 once; the checkboxes below stay editable. -->
-            <label class="form-control max-w-md mb-2">
-              <div class="label"><span class="label-text">Tipo de projeto</span></div>
-              <select id="aic-preset" class="select select-bordered" disabled>
-                <option value="">Personalizado</option>
-              </select>
-            </label>
-            <p id="aic-preset-hint" class="text-sm opacity-70 mb-4 hidden"></p>
-
-            <ul id="aic-items" class="space-y-2 mb-4"></ul>
-            <button id="btn-aic-apply" class="btn btn-primary" disabled>Aplicar</button>
+            <p id="aic-empty" class="opacity-70 mt-2 hidden">Nenhuma pasta com contexto registrada ainda. Defina o contexto de uma pasta na aba Definir Contexto.</p>
           </div>
 
           <!-- "Dev Tools :: IA: MCPs": same Global/Local structure as IA:
@@ -1003,6 +1001,85 @@
             </label>
           </div>
           <button id="btn-ga-id-apply" class="btn btn-primary mt-4">Aplicar identidade padrão</button>
+        </div>
+
+        <!-- Own top-level tab for "Dev Tools :: IA: Contextos": the
+             folder, name, agents and standards of one context, and
+             Aplicar. Only visible when the selected item is "aicontext". -->
+        <label id="tab-label-aic-define" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-aic-define" />
+          <span class="mr-1">✏️</span> Definir Contexto
+        </label>
+        <div id="panel-aic-define" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <div role="alert" class="alert mb-4 flex-wrap">
+            <div>
+              <h3 id="aic-alert-title" class="font-bold"></h3>
+              <div id="aic-alert-desc" class="text-sm opacity-80"></div>
+            </div>
+            <button id="btn-aic-pick-folder" class="btn btn-sm ml-auto">Selecionar Pasta</button>
+          </div>
+
+          <!-- Unique name of the folder in the Contextos list. -->
+          <label class="form-control max-w-md mb-4">
+            <div class="label"><span class="label-text">Nome</span></div>
+            <input id="aic-name" type="text" class="input input-bordered" maxlength="80" placeholder="Ex.: Perci" disabled />
+          </label>
+
+          <!-- A folder whose files hold a context Perci generated but
+               that is not in the list yet. -->
+          <div id="aic-unregistered" role="status" class="alert alert-info mb-4 flex-wrap hidden">
+            <div>
+              <h3 class="font-bold">Contexto não registrado</h3>
+              <div id="aic-unregistered-desc" class="text-sm opacity-80"></div>
+            </div>
+            <button id="btn-aic-register" class="btn btn-sm ml-auto">Registrar</button>
+          </div>
+
+          <!-- The coding agents the context is generated for: only the
+               checked agents' files are written. -->
+          <div class="mb-4">
+            <div class="label"><span class="label-text">Agentes de IA</span></div>
+            <div id="aic-agents" class="flex flex-wrap gap-x-6 gap-y-2"></div>
+          </div>
+
+          <!-- Project type: checks the standards of one project kind at
+               once; the checkboxes below stay editable. -->
+          <label class="form-control max-w-md mb-2">
+            <div class="label"><span class="label-text">Tipo de projeto</span></div>
+            <select id="aic-preset" class="select select-bordered" disabled>
+              <option value="">Personalizado</option>
+            </select>
+          </label>
+          <p id="aic-preset-hint" class="text-sm opacity-70 mb-4 hidden"></p>
+
+          <ul id="aic-items" class="space-y-2 mb-4"></ul>
+          <button id="btn-aic-apply" class="btn btn-primary" disabled>Aplicar</button>
+        </div>
+
+        <!-- Own top-level tab for "Dev Tools :: IA: Contextos": export the
+             registered folders and import them from an export file. -->
+        <label id="tab-label-aic-transfer" class="tab flex-none hidden">
+          <input type="radio" name="content-tabs" id="tab-radio-aic-transfer" />
+          <span class="mr-1">🔁</span> Exportar/Importar
+        </label>
+        <div id="panel-aic-transfer" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
+          <h3 class="font-bold mb-2">Exportar</h3>
+          <p class="opacity-80 mb-4">Marque as pastas a exportar. Pastas dentro do workspace são gravadas com o caminho relativo a ele e, na importação, vão para o workspace da outra máquina.</p>
+          <div id="aic-export-list" class="mb-2"></div>
+          <p id="aic-export-empty" class="opacity-70 mb-2 hidden">Nenhuma pasta registrada para exportar.</p>
+          <button id="btn-aic-export" class="btn btn-primary mb-8" disabled>Exportar</button>
+
+          <h3 class="font-bold mb-2">Importar</h3>
+          <p class="opacity-80 mb-4">Escolha um arquivo exportado e marque o que importar. Pastas que existem nesta máquina recebem o contexto; as que ainda não existem ficam pendentes na aba Contextos. Pastas já registradas aqui são mantidas como estão.</p>
+          <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <button id="btn-aic-import-pick" class="btn btn-sm">Selecionar arquivo</button>
+            <span id="aic-import-path" class="text-sm break-all opacity-60">Nenhum arquivo selecionado</span>
+          </div>
+          <div id="aic-import-list" class="mb-2"></div>
+          <div id="aic-import-note" role="status" class="alert alert-warning mb-4 hidden">
+            <span id="aic-import-note-text" class="whitespace-pre-line"></span>
+          </div>
+          <button id="btn-aic-import" class="btn btn-primary" disabled>Importar</button>
         </div>
 
         <label id="tab-label-terminal" class="tab flex-none">

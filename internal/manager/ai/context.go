@@ -347,26 +347,15 @@ func generate(dir, gitDir string, active []Model, agentIDs []string, overwrite b
 		ui.Info(stdout, "Contexto \""+name+"\" incluído automaticamente (necessário para os complementos selecionados).")
 	}
 
-	rawBasic, err := readTpl("templates/BASIC.md")
-	if err != nil {
-		return err
-	}
-
 	// Rules hand-written into AGENTS.md move to PROJECT.md before AGENTS.md
 	// is regenerated.
 	if err := ensureProjectRules(dir, overwrite, stdout); err != nil {
 		return err
 	}
 
-	// The list of standards (one line per active model, the file named in
-	// a code span so no agent imports it) and each referenced file on disk.
-	claudeRules := false
+	// Each referenced standard on disk.
 	rendered := make(map[string]string, len(active))
-	var list strings.Builder
 	for _, m := range active {
-		fmt.Fprintf(&list, "\n- %s: `.instructions/%s`", m.AppliesTo, filepath.Base(m.Instruction))
-		claudeRules = claudeRules || (selected[AgentClaude] && len(m.Paths) > 0)
-
 		var vars map[string]string
 		if m.Name == "Moodle" {
 			vars = moodleVars(stdout, dir)
@@ -381,11 +370,10 @@ func generate(dir, gitDir string, active []Model, agentIDs []string, overwrite b
 		rendered[m.Name] = substitute(content, vars)
 	}
 
-	agentsContent := strings.TrimRight(rawBasic, "\n")
-	if len(active) > 0 {
-		agentsContent += standardsHeader(claudeRules) + list.String()
+	agentsContent, err := agentsFile(active, selected)
+	if err != nil {
+		return err
 	}
-	agentsContent += "\n\n" + agentsMarker(selected) + "\n"
 	if err := WriteFile(filepath.Join(dir, "AGENTS.md"), agentsContent, overwrite, stdout); err != nil {
 		return err
 	}
@@ -425,6 +413,28 @@ func generate(dir, gitDir string, active []Model, agentIDs []string, overwrite b
 	}
 
 	return nil
+}
+
+// agentsFile is the AGENTS.md content for the models of active (already
+// resolved by withRequired) and the agents of selected: the base rules,
+// the list of standards (one line per model, the file named in a code
+// span so no agent imports it) and the marker naming the agents.
+func agentsFile(active []Model, selected map[string]bool) (string, error) {
+	rawBasic, err := readTpl("templates/BASIC.md")
+	if err != nil {
+		return "", err
+	}
+	claudeRules := false
+	var list strings.Builder
+	for _, m := range active {
+		fmt.Fprintf(&list, "\n- %s: `.instructions/%s`", m.AppliesTo, filepath.Base(m.Instruction))
+		claudeRules = claudeRules || (selected[AgentClaude] && len(m.Paths) > 0)
+	}
+	content := strings.TrimRight(rawBasic, "\n")
+	if len(active) > 0 {
+		content += standardsHeader(claudeRules) + list.String()
+	}
+	return content + "\n\n" + agentsMarker(selected) + "\n", nil
 }
 
 // writeAgentFiles writes the files of the selected agents and removes

@@ -50,10 +50,10 @@ func TestAIContextAgents(t *testing.T) {
 			t.Errorf("agent %s unchecked for a new folder", a.ID)
 		}
 	}
-	if err := d.ApplyAIContext(folder, nil, nil); err == nil {
+	if err := d.ApplyAIContext(folder, "X", nil, nil); err == nil {
 		t.Error("Aplicar without agents started")
 	}
-	if err := d.ApplyAIContext(folder, []string{"Linux Bash"}, []string{managerai.AgentCodex}); err != nil {
+	if err := d.ApplyAIContext(folder, "X", []string{"Linux Bash"}, []string{managerai.AgentCodex}); err != nil {
 		t.Fatal(err)
 	}
 	if logs, done := rec.wait(t); done["ok"] != true {
@@ -90,7 +90,7 @@ func TestAIContextItemsAndPreview(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(folder, "AGENTS.md")); err == nil {
 		t.Error("the preview wrote AGENTS.md")
 	}
-	if err := d.ApplyAIContext(folder, []string{"Linux Bash"}, []string{managerai.AgentCodex}); err != nil {
+	if err := d.ApplyAIContext(folder, "X", []string{"Linux Bash"}, []string{managerai.AgentCodex}); err != nil {
 		t.Fatal(err)
 	}
 	if _, done := rec.wait(t); done["ok"] != true {

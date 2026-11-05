@@ -28,7 +28,8 @@ import (
 
 // requireKnownFolder is requireFolder plus: the folder was picked in a
 // native dialog this session, or the user registered it in an earlier one
-// (the folder of a local SKILL or MCP record). A folder that is neither is refused, so nothing running in the
+// (the folder of a local SKILL or MCP record, or of a registered AI
+// context). A folder that is neither is refused, so nothing running in the
 // webview can point an action at $HOME or any other directory it names.
 func requireKnownFolder(p string) error {
 	if err := requireFolder(p); err != nil {
@@ -46,6 +47,11 @@ func requireKnownFolder(p string) error {
 		}
 		for _, r := range cfg.MCPServers {
 			if !r.Global && filepath.Clean(r.Folder) == clean {
+				return nil
+			}
+		}
+		for _, r := range cfg.AIContexts {
+			if r.Path == clean {
 				return nil
 			}
 		}

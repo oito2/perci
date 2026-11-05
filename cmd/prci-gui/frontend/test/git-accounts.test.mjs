@@ -462,6 +462,7 @@ test("Desinstalar: the repositories backup has its own picker, and cancelling it
   const run = load({ PickUninstallBackupPath: "/tmp/b.yaml", PickUninstallReposBackupPath: "/tmp/r.yaml" });
   run.element("su2-backup-config").checked = true;
   run.element("su2-backup-repos").checked = true;
+  run.element("su2-backup-ai").checked = false;
   run.element("su2-remove-docker").checked = false;
   run.element("su2-remove-config").checked = true;
   click(run.element("btn-su2-uninstall"));
@@ -469,11 +470,12 @@ test("Desinstalar: the repositories backup has its own picker, and cancelling it
   await tick();
   await tick();
   await tick();
-  assert.deepEqual(run.calls.find((c) => c.name === "RunSelfUninstall").args, [true, false, "/tmp/b.yaml", "/tmp/r.yaml"]);
+  assert.deepEqual(run.calls.find((c) => c.name === "RunSelfUninstall").args, [true, false, "/tmp/b.yaml", "/tmp/r.yaml", ""]);
 
   const cancel = load({ PickUninstallReposBackupPath: "" });
   cancel.element("su2-backup-config").checked = false;
   cancel.element("su2-backup-repos").checked = true;
+  cancel.element("su2-backup-ai").checked = true;
   cancel.element("su2-remove-docker").checked = false;
   cancel.element("su2-remove-config").checked = false;
   click(cancel.element("btn-su2-uninstall"));
@@ -483,6 +485,33 @@ test("Desinstalar: the repositories backup has its own picker, and cancelling it
   await tick();
   assert.ok(!cancel.calls.some((c) => c.name === "RunSelfUninstall"));
   assert.ok(!cancel.calls.some((c) => c.name === "PickUninstallBackupPath"));
+  assert.ok(!cancel.calls.some((c) => c.name === "PickUninstallAIContextsBackupPath"), "no dialog after a cancelled one");
+});
+
+test("Desinstalar: the AI contexts backup has its own picker, and cancelling it stops the uninstall", async () => {
+  const start = (fixtures, config) => {
+    const run = load(fixtures);
+    run.element("su2-backup-config").checked = config;
+    run.element("su2-backup-repos").checked = false;
+    run.element("su2-backup-ai").checked = true;
+    run.element("su2-remove-docker").checked = false;
+    run.element("su2-remove-config").checked = false;
+    click(run.element("btn-su2-uninstall"));
+    assert.match(run.element("confirm-modal-message").textContent, /backup dos contextos de IA/);
+    click(run.element("btn-confirm-ok"));
+    return run;
+  };
+  const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
+
+  const run = start({ PickUninstallBackupPath: "/tmp/b.yaml", PickUninstallAIContextsBackupPath: "/tmp/ia.yaml" }, true);
+  await settle();
+  assert.deepEqual(run.calls.find((c) => c.name === "RunSelfUninstall").args, [false, false, "/tmp/b.yaml", "", "/tmp/ia.yaml"]);
+  assert.ok(!run.calls.some((c) => c.name === "PickUninstallReposBackupPath"));
+
+  const cancel = start({ PickUninstallAIContextsBackupPath: "" }, false);
+  await settle();
+  assert.ok(!cancel.calls.some((c) => c.name === "RunSelfUninstall"));
+  assert.match(cancel.element("error-modal-message").textContent, /desinstalação não foi iniciada/);
 });
 
 test("Configurar Conta: the form explains the SSH key and the token, and opens the provider's pages", () => {

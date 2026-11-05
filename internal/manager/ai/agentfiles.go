@@ -17,6 +17,8 @@ package ai
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -81,11 +83,31 @@ func syncClaudeRules(dir string, active []Model, rendered map[string]string, ove
 		if err != nil {
 			return err
 		}
-		removeIfPristine(path, stdout, claudeRule(m, content))
+		generated := []string{claudeRule(m, content)}
+		if data, err := os.ReadFile(path); err == nil && earlierRule(m, data) {
+			generated = append(generated, string(data))
+		}
+		removeIfPristine(path, stdout, generated...)
 	}
 	// Leaves the folder only when nothing else lives in it.
 	_ = os.Remove(rulesDir)
 	return nil
+}
+
+// earlierRule reports whether data is model's rule as an earlier Perci
+// version wrote it: a paths frontmatter followed by a standard whose
+// SHA-256 is in templateHistory.
+func earlierRule(model Model, data []byte) bool {
+	rest, ok := bytes.CutPrefix(data, []byte("---\npaths:\n"))
+	if !ok {
+		return false
+	}
+	_, body, ok := bytes.Cut(rest, []byte("\n---\n\n"))
+	if !ok {
+		return false
+	}
+	sum := sha256.Sum256(body)
+	return slices.Contains(templateHistory[filepath.Base(model.Instruction)], hex.EncodeToString(sum[:]))
 }
 
 // removeIfPristine deletes the regular file at path when its content is

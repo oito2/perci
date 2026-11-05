@@ -216,7 +216,7 @@ function screenTable() {
     "git-account": { el: gitaccountContainer, render: renderGitAccountScreen },
     "git-transfer": { el: gittransferContainer, alsoShow: [tabLabelGitImport], render: renderGitTransferScreen },
     agentskills: { el: agentskillsContainer, render: renderAgentSkillsScreen },
-    aicontext: { el: aicontextContainer, render: renderAIContextScreen },
+    aicontext: { el: aicontextContainer, alsoShow: [tabLabelAicDefine, tabLabelAicTransfer], render: renderAIContextScreen },
     mcpservers: { el: mcpserversContainer, render: renderMCPServersScreen },
   };
 }
@@ -239,13 +239,14 @@ function screenFor(item) {
 }
 
 // Every screen container (plus the tab labels only some screens show:
-// moodleplugins, docker-transfer, git-accounts, git-transfer) — all hidden
+// moodleplugins, docker-transfer, git-accounts, git-transfer, aicontext) — all hidden
 // before the selected screen shows its own.
 function screenContainers() {
   const table = screenTable();
   return Object.keys(table).map(function (k) { return table[k].el; }).concat([
     simpleContainer, itemTableContainer, multiselectContainer, fileappContainer,
     tabLabelMpMounted, tabLabelTransferImport, tabLabelGitIdentity, tabLabelGitImport,
+    tabLabelAicDefine, tabLabelAicTransfer,
   ]);
 }
 

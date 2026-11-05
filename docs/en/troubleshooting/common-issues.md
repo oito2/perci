@@ -134,6 +134,15 @@ Only repositories owned by the account user can be cloned from the account scree
 **Aplicar fails with "pasta não escolhida no seletor"**
 Folders handed to the AI Context, Repositórios and MCP screens must have been picked in the native folder dialog in this session (or already be registered). Use the folder-picker button (**Selecionar pasta**) instead of typing or pasting a path.
 
+**A folder on the Contextos tab shows "pendente", and Atualizar and Alterar are disabled**
+The folder doesn't exist on this machine — usually a folder imported before its repository was cloned, or a folder that was moved or renamed. Create or clone it at the path shown: the row turns "desatualizado" and **Atualizar** writes the context. For a folder that moved, **Remover** it from the list (nothing is removed from disk) and define the context again at the new path.
+
+**A folder with a context isn't on the Contextos tab**
+Folders whose context was applied before 1.8.0 aren't on the list. Open the folder on **Definir Contexto**, type a **Nome** and click **Registrar** on the "Contexto não registrado" alert.
+
+**Importar stays disabled with a warning about a name**
+Each imported folder needs a name not used by another folder on this machine nor by another folder of the import. Change the name in its row; folders marked "já registrada aqui" are kept as they are and can't be imported again.
+
 **There is no `.claudeignore` anymore, and `*.perci-bak` files appeared**
 Claude Code ignores `.claudeignore`, so Perci stopped generating it: the equivalent read rules are merged into the project's `.claude/settings.json` (`permissions.deny`); `.aiexclude` and `.geminiignore` are only for Gemini. If an old `.claudeignore` is found, a warning says it can be deleted. A `<file>.perci-bak` is the previous version of a generated file that Perci replaced with different content — delete it when you no longer need it.
 

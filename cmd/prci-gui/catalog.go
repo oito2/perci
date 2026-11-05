@@ -289,12 +289,13 @@ var categories = []MenuCategory{
 				Tab:      "Plugins Moodle",
 			},
 			{
-				// "IA: Contextos" mode (#aicontext-container): a working-folder picker +
-				// a simple checklist of internal/manager/ai.Models().
+				// "IA: Contextos" mode: the registered folders (#aicontext-container)
+				// plus the "Definir Contexto" (folder picker + checklist of
+				// internal/manager/ai.Models()) and "Exportar/Importar" tabs.
 				Title:    "IA: Contextos",
 				Desc:     "Contextos de IA são regras para direcionar o seu agente na realização de tarefas.",
 				ActionID: "aicontext",
-				Tab:      "Definir Contextos",
+				Tab:      "Contextos",
 			},
 			{
 				// "IA: SKILLs" mode (#agentskills-container): shortcuts to install

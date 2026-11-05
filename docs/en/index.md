@@ -41,6 +41,7 @@ perci.gnl (`prci`) is a personal desktop GUI (Go + [Wails](https://wails.io)) th
 - [End-to-end workflow](./guides/workflows/examples.md) — from a fresh machine to a running Moodle dev environment.
 - [Docker application stack environment](./guides/environments/docker.md) — day-to-day operation of the per-project Nginx/PHP/Node/MariaDB stack.
 - [Git accounts and repositories](./guides/workflows/repositories.md) — accounts with their folder, identity and SSH key, the account screens, cloning, and moving accounts to another machine.
+- [AI contexts](./guides/workflows/ai-contexts.md) — defining a project's AI context, the list of folders with their state, updating and removing, and moving the list to another machine.
 
 ---
 

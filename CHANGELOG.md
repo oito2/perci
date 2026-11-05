@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-05
+
+### Added
+- Dev Tools → IA: Contextos → **Contextos** tab: every folder with a context Perci applied, with its name, standards, agents and state (em dia, desatualizado, editado or pendente, plus "seleção diferente" when the files hold another selection), and per folder **Atualizar** (regenerates the recorded selection), **Alterar** (opens it on Definir Contexto) and **Remover** (removes the unchanged files Perci generated, keeping edited files and `.instructions/PROJECT.md`, and takes the folder off the list), each after listing the files. **Atualizar todos** regenerates every outdated or edited folder.
+- IA: Contextos → **Definir Contexto**: a required **Nome** for the folder; a successful Aplicar adds the folder to the list. A folder with a context from an earlier version shows **Contexto não registrado** with a **Registrar** button that adds it without writing any file.
+- IA: Contextos → **Exportar/Importar**: exports the chosen folders (name, path, standards and agents; paths inside the workspace relative to it) to a YAML file of its own, and imports them with an editable name and folder each: existing folders get their context, missing ones become pending, folders already registered are kept.
+- Home → Visão Geral → Desinstalar Perci: **Fazer backup dos contextos de IA** saves the AI contexts export to a file of its own before uninstalling.
+
+### Changed
+- Dev Tools → IA: Contextos: the screen's main tab is now **Contextos**; the folder, agents and standards moved to the **Definir Contexto** tab.
+- IA: Contextos: unchecking a standard also removes its `.claude/rules/perci/` copy when an earlier version of Perci wrote it, instead of keeping it as edited.
+
 ## [1.7.0] - 2026-11-04
 
 ### Added
@@ -205,7 +217,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/oito2/perci/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/oito2/perci/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/oito2/perci/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/oito2/perci/compare/v1.4.1...v1.5.0

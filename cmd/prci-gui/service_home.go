@@ -27,6 +27,7 @@ import (
 	"github.com/oito2/perci/internal/appstack"
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/executor"
+	managerai "github.com/oito2/perci/internal/manager/ai"
 	"github.com/oito2/perci/internal/manager/gitaccount"
 	"github.com/oito2/perci/internal/selfupdate"
 	"github.com/oito2/perci/internal/ui"
@@ -283,8 +284,19 @@ func (h *HomeService) PickUninstallReposBackupPath() (string, error) {
 	}).PromptForSingleSelection())
 }
 
+// PickUninstallAIContextsBackupPath opens the native "Salvar Como" dialog
+// for the uninstall's "Fazer backup dos contextos de IA" checkbox — the
+// file "Dev Tools :: IA: Contextos" imports.
+func (h *HomeService) PickUninstallAIContextsBackupPath() (string, error) {
+	return approvePath(h.wailsApp.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:    "Salvar backup dos contextos de IA",
+		Filename: "perci-contextos-ia-" + time.Now().Format("2006-01-02-150405") + ".yaml",
+		Filters:  []application.FileFilter{{DisplayName: "YAML (*.yaml)", Pattern: "*.yaml;*.yml"}},
+	}).PromptForSingleSelection())
+}
+
 // RunSelfUninstall removes the Perci binary — internal/selfupdate.Uninstall.
-// Three steps run first, all optional:
+// Four steps run first, all optional:
 //
 //   - backupPath != "": exports cfg.Docker and the Moodle plugin mounts to
 //     that path first (appstack.ExportConfig) — reimportable later via
@@ -292,6 +304,10 @@ func (h *HomeService) PickUninstallReposBackupPath() (string, error) {
 //   - reposBackupPath != "": exports the Git accounts and their
 //     repositories to that path (gitaccount.Exportable/WriteTransfer) —
 //     reimportable via "Repositórios :: Gerenciar Repositórios".
+//   - aiBackupPath != "": exports the registered AI context folders to
+//     that path (managerai.Exportable/WriteTransfer) — reimportable via
+//     "Dev Tools :: IA: Contextos"; the context files in those folders are
+//     never touched by the uninstall.
 //   - removeDocker: removes every registered container (apps, then
 //     MariaDB, then Nginx — apps first so nothing routes through infra
 //     that's about to disappear) via appstack.DeleteApp/DeleteMariaDB/
@@ -313,10 +329,10 @@ func (h *HomeService) PickUninstallReposBackupPath() (string, error) {
 // error (ok:true) before the "action-done" event is sent; the window
 // closes a short moment later (time enough to read the success line in
 // the terminal panel).
-func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPath, reposBackupPath string) error {
+func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPath, reposBackupPath, aiBackupPath string) error {
 	// A backup path not chosen in its picker refuses the whole uninstall —
 	// checked before anything destructive starts.
-	for _, p := range []string{backupPath, reposBackupPath} {
+	for _, p := range []string{backupPath, reposBackupPath, aiBackupPath} {
 		if p != "" {
 			if err := requireApprovedPath(p); err != nil {
 				return err
@@ -331,7 +347,7 @@ func (h *HomeService) RunSelfUninstall(removeConfig, removeDocker bool, backupPa
 		w := h.newEventWriter()
 		quit := false
 		err := runRecovered(func() error {
-			err := h.selfUninstall(w, removeConfig, removeDocker, backupPath, reposBackupPath)
+			err := h.selfUninstall(w, removeConfig, removeDocker, backupPath, reposBackupPath, aiBackupPath)
 			if errors.Is(err, selfupdate.ErrUninstalled) {
 				quit = true
 				return nil
@@ -362,7 +378,7 @@ var uninstallPerci = selfupdate.Uninstall
 // success). The tray's autostart entry — and, with removeConfig, the Git
 // accounts' rules and tokens — are removed only once the uninstall itself
 // succeeded.
-func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool, backupPath, reposBackupPath string) error {
+func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool, backupPath, reposBackupPath, aiBackupPath string) error {
 	ctx := context.Background()
 
 	if backupPath != "" {
@@ -383,6 +399,16 @@ func (h *HomeService) selfUninstall(w io.Writer, removeConfig, removeDocker bool
 			ui.Warning(w, "Nada para exportar no backup dos repositórios: "+err.Error())
 		} else {
 			ui.Success(w, "Backup dos repositórios salvo em "+reposBackupPath+".")
+		}
+	}
+	if aiBackupPath != "" {
+		if err := backupAIContexts(aiBackupPath); err != nil {
+			if !errors.Is(err, managerai.ErrNothingToExport) {
+				return fmt.Errorf("o backup dos contextos de IA falhou, nada foi removido: %w", err)
+			}
+			ui.Warning(w, "Nada para exportar no backup dos contextos de IA: "+err.Error())
+		} else {
+			ui.Success(w, "Backup dos contextos de IA salvo em "+aiBackupPath+".")
 		}
 	}
 
@@ -442,4 +468,19 @@ func backupRepositories(ctx context.Context, exe *executor.Executor, path string
 		return err
 	}
 	return gitaccount.WriteTransfer(path, file)
+}
+
+// backupAIContexts writes every registered AI context folder to path, in
+// the format of "Dev Tools :: IA: Contextos" (folders inside the
+// workspace with a path relative to it).
+func backupAIContexts(path string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ws, err := cfg.Workspace()
+	if err != nil {
+		return err
+	}
+	return managerai.WriteTransfer(path, managerai.Exportable(cfg.AIContexts, ws))
 }

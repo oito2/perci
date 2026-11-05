@@ -71,7 +71,7 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 			return err
 		},
 		"ApplyAIContext": func(b *serviceBase, f string) error {
-			return (&DevToolsService{*b}).ApplyAIContext(f, []string{"x"}, []string{"claude"})
+			return (&DevToolsService{*b}).ApplyAIContext(f, "x", []string{"x"}, []string{"claude"})
 		},
 		"InstallAgentSkill": func(b *serviceBase, f string) error {
 			return (&DevToolsService{*b}).InstallAgentSkill("daisyui", false, f)
@@ -111,10 +111,13 @@ func TestBoundMethods_RefuseBadPathsBeforeRunning(t *testing.T) {
 		"RestoreMariaDBContainer": func(b *serviceBase, p string) error { return (&DockerService{*b}).RestoreMariaDBContainer(p) },
 		"SetWorkspacePath":        func(b *serviceBase, p string) error { return (&HomeService{*b}).SetWorkspacePath(p) },
 		"RunSelfUninstall": func(b *serviceBase, p string) error {
-			return (&HomeService{*b}).RunSelfUninstall(false, false, p, "")
+			return (&HomeService{*b}).RunSelfUninstall(false, false, p, "", "")
 		},
 		"RunSelfUninstall (repositories)": func(b *serviceBase, p string) error {
-			return (&HomeService{*b}).RunSelfUninstall(false, false, "", p)
+			return (&HomeService{*b}).RunSelfUninstall(false, false, "", p, "")
+		},
+		"RunSelfUninstall (AI contexts)": func(b *serviceBase, p string) error {
+			return (&HomeService{*b}).RunSelfUninstall(false, false, "", "", p)
 		},
 	}
 

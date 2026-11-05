@@ -22,8 +22,12 @@ export {
 export {
     AIContextAgent,
     AIContextChange,
+    AIContextFolderChanges,
+    AIContextImportPreview,
     AIContextItem,
     AIContextPreset,
+    AIContextRecord,
+    AIContextRow,
     AgentSkillRow,
     ContainerFormRequest,
     ContainerRow,

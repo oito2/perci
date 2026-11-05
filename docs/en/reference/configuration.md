@@ -46,6 +46,7 @@ docker:
 | `git_accounts` | list | Repositórios → Configurar Conta | The Git accounts, in menu order — see [below](#git_accounts). |
 | `agent_skills` | list | Dev Tools → IA: SKILLs | One record per (skill `slug`, `global`, `folder`) installed. `agents` lists, by name, the agents that accepted the skill (empty in records written by older versions); the screen shows **parcial: …** when one is missing. |
 | `mcp_servers` | list | Dev Tools → IA: MCPs | One record per (server `slug`, `global`, `folder`) registered, plus the `param` (folder or file path) some servers need, kept so an update re-registers with the same value. `agents` lists the agents that accepted the registration, as for `agent_skills`. |
+| `ai_contexts` | list | Dev Tools → IA: Contextos | The folders with an AI context — see [below](#ai_contexts). |
 | `moodle_plugins` | list | Dev Tools → Plugins Moodle | One record per plugin mount: `app` (the Moodle container's folder), `component` (e.g. `local_example`), `dev_path` (the development folder) and `rel_path` (the destination inside the app's `html` folder, e.g. `public/local/example`); `app` + `rel_path` identify the record. `mega_ignore` and `mega_ignore_rule` are set only when Perci added `mega_ignore_rule` to that `.megaignore` file, so **Remover** removes that line again. Each record has a systemd mount unit in `/etc/systemd/system`. **Docker → Exportar/Importar** carries the records without `mega_ignore`/`mega_ignore_rule`, and the import creates the mount, its unit and the MEGA exclusion the importing machine needs. Remove mounts on the screen, not by editing this list. |
 
 The distribution and desktop environment are always detected (`/etc/os-release`, `XDG_CURRENT_DESKTOP`); the `distro`/`de` keys older versions documented were never read and are ignored. The `repo_folders` key of the removed Dev Tools → Repositórios screen is no longer read and disappears on the next save.
@@ -86,6 +87,31 @@ git_accounts:
 | `key_generated` | bool | Perci generated the key. |
 | `has_token` | bool | An API token is stored in the system keyring (`secret-tool`, attributes `service perci-git` and `account <id>`); the token itself is never written here. |
 | `pending` | list | Imported repositories not cloned yet: `path` (relative to `folder`) and SSH `url`. Cleared by **Clonar pendentes** or **Descartar**. |
+
+## `ai_contexts`
+
+One entry per folder on the **Contextos** tab of **Dev Tools → IA: Contextos**, in the order they were registered; see [AI contexts](../guides/workflows/ai-contexts.md). An entry is added or updated by a successful **Aplicar**, **Registrar** or **Importar**, and removed by **Remover**.
+
+```yaml
+ai_contexts:
+  - name: Perci
+    path: /home/user/workspace/perci
+    models:
+      - Go
+      - "Go: Wails v3"
+    agents:
+      - claude
+      - codex
+```
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | string | The name shown on the list. Required, up to 80 characters, on one line, unique (case-insensitive). |
+| `path` | string | The folder, absolute and cleaned. The record's key. |
+| `models` | list | The standards, by catalog name, in catalog order. A complement's base is always included. |
+| `agents` | list | The agent IDs: `claude`, `gemini`, `codex`, `opencode`, `antigravity`. At least one. |
+
+The export file (**Exportar/Importar** tab, and the uninstall's AI contexts backup) is a separate YAML file with `kind: perci-ai-contexts`, `version: 1` and a `contexts` list. Each entry has `name`, `path`, `models` and `agents`, plus `relative: true` when `path` is relative to the workspace.
 
 ## `docker.*` (Docker Application Stack)
 

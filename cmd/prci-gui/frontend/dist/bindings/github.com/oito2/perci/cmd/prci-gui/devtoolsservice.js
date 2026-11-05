@@ -15,6 +15,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as ai$0 from "../../internal/manager/ai/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -34,16 +38,19 @@ export function AddMoodlePlugin(dev, folder, ptype, name) {
  * ApplyAIContext (re)generates, in folder, AGENTS.md, each checked model's
  * .instructions/*.md and the files of each checked agent, and removes what
  * Perci wrote for unchecked models and agents (see GenerateSharedFiles'
- * own doc comment). "Aplicar" always overwrites (overwrite=true) with no
- * extra confirmation — the button click is itself the confirmation, same
+ * own doc comment), then registers folder as name with that selection
+ * (managerai.RecordContext). The name is checked before anything is
+ * written. "Aplicar" always overwrites (overwrite=true) with no extra
+ * confirmation — the button click is itself the confirmation, same
  * convention as every non-interactive GUI action.
  * @param {string} folder
+ * @param {string} name
  * @param {string[]} selectedNames
  * @param {string[]} agentIDs
  * @returns {$CancellablePromise<void>}
  */
-export function ApplyAIContext(folder, selectedNames, agentIDs) {
-    return $Call.ByName("main.DevToolsService.ApplyAIContext", folder, selectedNames, agentIDs);
+export function ApplyAIContext(folder, name, selectedNames, agentIDs) {
+    return $Call.ByName("main.DevToolsService.ApplyAIContext", folder, name, selectedNames, agentIDs);
 }
 
 /**
@@ -54,6 +61,18 @@ export function ApplyAIContext(folder, selectedNames, agentIDs) {
  */
 export function ApplyMoodlePlugins(folder) {
     return $Call.ByName("main.DevToolsService.ApplyMoodlePlugins", folder);
+}
+
+/**
+ * ExportAIContexts writes the registered folders of paths to path (only a
+ * path chosen in PickAIContextExportPath); folders inside the workspace
+ * get a path relative to it.
+ * @param {string} path
+ * @param {string[]} paths
+ * @returns {$CancellablePromise<void>}
+ */
+export function ExportAIContexts(path, paths) {
+    return $Call.ByName("main.DevToolsService.ExportAIContexts", path, paths);
 }
 
 /**
@@ -91,6 +110,18 @@ export function GetAIContextPresets() {
 }
 
 /**
+ * GetAIContextRecord returns the record of folder, or what its files hold
+ * when it is not registered.
+ * @param {string} folder
+ * @returns {$CancellablePromise<$models.AIContextRecord>}
+ */
+export function GetAIContextRecord(folder) {
+    return $Call.ByName("main.DevToolsService.GetAIContextRecord", folder).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * GetAIContextSuggestedPreset names the project type the files in folder
  * point to ("" for none).
  * @param {string} folder
@@ -98,6 +129,17 @@ export function GetAIContextPresets() {
  */
 export function GetAIContextSuggestedPreset(folder) {
     return $Call.ByName("main.DevToolsService.GetAIContextSuggestedPreset", folder);
+}
+
+/**
+ * GetAIContexts lists the registered folders, in registration order, each
+ * with its state read from its files.
+ * @returns {$CancellablePromise<$models.AIContextRow[]>}
+ */
+export function GetAIContexts() {
+    return $Call.ByName("main.DevToolsService.GetAIContexts").then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
 }
 
 /**
@@ -109,7 +151,7 @@ export function GetAIContextSuggestedPreset(folder) {
  */
 export function GetAgentSkillsRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetAgentSkillsRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType10($result);
     }));
 }
 
@@ -122,7 +164,7 @@ export function GetAgentSkillsRows(global, folder) {
  */
 export function GetMCPServerRows(global, folder) {
     return $Call.ByName("main.DevToolsService.GetMCPServerRows", global, folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType12($result);
     }));
 }
 
@@ -134,7 +176,7 @@ export function GetMCPServerRows(global, folder) {
  */
 export function GetMoodlePluginTypes(folder) {
     return $Call.ByName("main.DevToolsService.GetMoodlePluginTypes", folder).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType13($result);
     }));
 }
 
@@ -145,8 +187,21 @@ export function GetMoodlePluginTypes(folder) {
  */
 export function GetMoodlePlugins() {
     return $Call.ByName("main.DevToolsService.GetMoodlePlugins").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType14($result);
     }));
+}
+
+/**
+ * ImportAIContexts imports the picks of the export file at path
+ * (managerai.Import), on the Execução tab: existing folders get their
+ * context and are registered, missing ones are registered as pending. The
+ * picks are checked before the action starts.
+ * @param {string} path
+ * @param {ai$0.ImportPick[]} picks
+ * @returns {$CancellablePromise<void>}
+ */
+export function ImportAIContexts(path, picks) {
+    return $Call.ByName("main.DevToolsService.ImportAIContexts", path, picks);
 }
 
 /**
@@ -160,7 +215,7 @@ export function GetMoodlePlugins() {
  */
 export function InspectMoodlePlugin(dev, folder, ptype, name) {
     return $Call.ByName("main.DevToolsService.InspectMoodlePlugin", dev, folder, ptype, name).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType15($result);
     }));
 }
 
@@ -190,12 +245,30 @@ export function InstallMCPServer(slug, global, folder, param) {
 }
 
 /**
+ * PickAIContextExportPath opens the native "Salvar Como" dialog for the
+ * AI contexts export file.
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickAIContextExportPath() {
+    return $Call.ByName("main.DevToolsService.PickAIContextExportPath");
+}
+
+/**
  * PickAIContextFolder opens the native folder picker for the working
  * folder this screen operates on.
  * @returns {$CancellablePromise<string>}
  */
 export function PickAIContextFolder() {
     return $Call.ByName("main.DevToolsService.PickAIContextFolder");
+}
+
+/**
+ * PickAIContextImportPath opens the native "Selecionar arquivo" dialog
+ * for an AI contexts export file.
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickAIContextImportPath() {
+    return $Call.ByName("main.DevToolsService.PickAIContextImportPath");
 }
 
 /**
@@ -247,8 +320,86 @@ export function PickMoodlePluginDevFolder() {
  */
 export function PreviewAIContext(folder, selectedNames, agentIDs) {
     return $Call.ByName("main.DevToolsService.PreviewAIContext", folder, selectedNames, agentIDs).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType17($result);
     }));
+}
+
+/**
+ * PreviewAIContextImport reads the export file at path and checks each of
+ * its folders against this machine, with paths (keyed by the folder's
+ * name in the file, each chosen in the folder picker) replacing the
+ * folders the file gives — without applying anything.
+ * @param {string} path
+ * @param {{ [_ in string]?: string }} paths
+ * @returns {$CancellablePromise<$models.AIContextImportPreview>}
+ */
+export function PreviewAIContextImport(path, paths) {
+    return $Call.ByName("main.DevToolsService.PreviewAIContextImport", path, paths).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType18($result);
+    }));
+}
+
+/**
+ * PreviewAIContextImportChanges tells, for each pick of the export file
+ * at path, the files ImportAIContexts would change in its folder (none
+ * for a pending folder), without changing anything.
+ * @param {string} path
+ * @param {ai$0.ImportPick[]} picks
+ * @returns {$CancellablePromise<$models.AIContextFolderChanges[]>}
+ */
+export function PreviewAIContextImportChanges(path, picks) {
+    return $Call.ByName("main.DevToolsService.PreviewAIContextImportChanges", path, picks).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType20($result);
+    }));
+}
+
+/**
+ * PreviewAIContextRemove tells what RemoveAIContext(path) would remove
+ * from the registered folder at path, without changing anything: nothing
+ * for a missing folder, which is only dropped from the list.
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.AIContextChange[]>}
+ */
+export function PreviewAIContextRemove(path) {
+    return $Call.ByName("main.DevToolsService.PreviewAIContextRemove", path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType17($result);
+    }));
+}
+
+/**
+ * PreviewAIContextUpdate tells, for each registered folder of paths, what
+ * UpdateAIContexts would change in it, without changing anything.
+ * @param {string[]} paths
+ * @returns {$CancellablePromise<$models.AIContextFolderChanges[]>}
+ */
+export function PreviewAIContextUpdate(paths) {
+    return $Call.ByName("main.DevToolsService.PreviewAIContextUpdate", paths).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType20($result);
+    }));
+}
+
+/**
+ * RegisterAIContext adds folder, whose files hold a context Perci
+ * generated, to the list as name with the standards and agents they hold;
+ * no file is written.
+ * @param {string} folder
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function RegisterAIContext(folder, name) {
+    return $Call.ByName("main.DevToolsService.RegisterAIContext", folder, name);
+}
+
+/**
+ * RemoveAIContext removes, from the registered folder at path, the context
+ * files Perci generated that were not edited (managerai.RemoveContext),
+ * then drops the folder from the list. A missing folder is only dropped
+ * from the list.
+ * @param {string} path
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveAIContext(path) {
+    return $Call.ByName("main.DevToolsService.RemoveAIContext", path);
 }
 
 /**
@@ -288,6 +439,19 @@ export function RemoveMoodlePlugin(folder, relPath) {
 }
 
 /**
+ * UpdateAIContexts regenerates, in each registered folder of paths, the
+ * context of its record (standards and agents), one folder after the
+ * other. A missing folder or a failing generation is reported and the
+ * next folder still runs; the action then ends with
+ * executor.ErrCompletedWithWarnings.
+ * @param {string[]} paths
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateAIContexts(paths) {
+    return $Call.ByName("main.DevToolsService.UpdateAIContexts", paths);
+}
+
+/**
  * UpdateAgentSkill reinstalls slug at its pinned commit for the same agents
  * as the install and refreshes the agents recorded for it.
  * @param {string} slug
@@ -320,12 +484,18 @@ const $$createType2 = $models.AIContextItem.createFrom;
 const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = $models.AIContextPreset.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.AgentSkillRow.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.MCPServerRow.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $Create.Array($Create.Any);
-const $$createType11 = $models.MoodlePluginsScreen.createFrom;
-const $$createType12 = $models.MoodlePluginCheck.createFrom;
-const $$createType13 = $models.AIContextChange.createFrom;
-const $$createType14 = $Create.Array($$createType13);
+const $$createType6 = $models.AIContextRecord.createFrom;
+const $$createType7 = $models.AIContextRow.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = $models.AgentSkillRow.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = $models.MCPServerRow.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $Create.Array($Create.Any);
+const $$createType14 = $models.MoodlePluginsScreen.createFrom;
+const $$createType15 = $models.MoodlePluginCheck.createFrom;
+const $$createType16 = $models.AIContextChange.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.AIContextImportPreview.createFrom;
+const $$createType19 = $models.AIContextFolderChanges.createFrom;
+const $$createType20 = $Create.Array($$createType19);

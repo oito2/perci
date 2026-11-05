@@ -37,7 +37,7 @@ A GUI agrupa toda ação em seis categorias na barra lateral:
 ![Docker → Gerenciar Contêineres](../../img/screenshots/perci-docker.png)
 
 ![Dev Tools → IA: Contextos](../../img/screenshots/devtools-window.png)
-<!-- TODO: recapture devtools-window.png with a folder picked, to show the agent checkboxes and the grouped standards -->
+<!-- TODO: recapture devtools-window.png showing the Contextos tab (registered folders with their states) and the Definir Contexto tab with a folder picked -->
 
 ![Repositórios → os repositórios de uma conta](../../img/screenshots/repositories-window.png)
 

@@ -364,6 +364,7 @@ const btnSuCheck = document.getElementById("btn-su-check");
 const btnSuUpdate = document.getElementById("btn-su-update");
 const su2BackupConfig = document.getElementById("su2-backup-config");
 const su2BackupRepos = document.getElementById("su2-backup-repos");
+const su2BackupAI = document.getElementById("su2-backup-ai");
 const su2RemoveDocker = document.getElementById("su2-remove-docker");
 const su2RemoveConfig = document.getElementById("su2-remove-config");
 const btnSu2Uninstall = document.getElementById("btn-su2-uninstall");
@@ -502,7 +503,7 @@ const ACTION_DONE_HANDLERS = {
   // Importar — re-reads both checklists and the menu (new accounts).
   "git-transfer": function () { refreshGitTransferScreen(); },
   agentskills: function () { renderAgentSkillsTable(); },
-  aicontext: function () { if (aicFolder) renderAicItems(); },
+  aicontext: function () { refreshAIContextScreen(); },
   mcpservers: function () { renderMCPServersTable(); },
   // "Atualizar Perci" and "Desinstalar Perci" both live in Visão Geral —
   // dashboardRunningAction (set before each one) says which one finished.

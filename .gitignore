@@ -23,6 +23,11 @@ coverage.html
 /.instructions/
 /.aiexclude
 /.claudeignore
+/.geminiignore
+/GEMINI.md
+/.claude/rules/
+/*.perci-bak
+/.claude/*.perci-bak
 
 # Frontend tests use plain Node — no npm dependencies, just in case
 node_modules/

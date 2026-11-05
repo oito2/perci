@@ -134,6 +134,15 @@ O `AGENTS.md` e os guias em `.instructions/` são regenerados a cada Aplicar (a 
 **Aplicar falha com "pasta não escolhida no seletor"**
 As pastas passadas às telas de Contexto IA, Repositórios e MCP precisam ter sido escolhidas no diálogo nativo de pastas nesta sessão (ou já estar registradas). Use o botão do seletor de pastas (**Selecionar pasta**) em vez de digitar ou colar um caminho.
 
+**Uma pasta na aba Contextos aparece como "pendente", e Atualizar e Alterar estão desabilitados**
+A pasta não existe nesta máquina — normalmente uma pasta importada antes de o repositório dela ser clonado, ou uma pasta movida ou renomeada. Crie ou clone a pasta no caminho mostrado: a linha vira "desatualizado" e **Atualizar** grava o contexto. Para uma pasta que mudou de lugar, use **Remover** para tirá-la da lista (nada é apagado do disco) e defina o contexto de novo no caminho novo.
+
+**Uma pasta com contexto não aparece na aba Contextos**
+Pastas cujo contexto foi aplicado antes da 1.8.0 não estão na lista. Abra a pasta em **Definir Contexto**, digite um **Nome** e clique em **Registrar** no aviso "Contexto não registrado".
+
+**Importar continua desabilitado com um aviso sobre um nome**
+Cada pasta importada precisa de um nome que não seja usado por outra pasta desta máquina nem por outra pasta da importação. Troque o nome na linha dela; pastas marcadas como "já registrada aqui" ficam como estão e não podem ser importadas de novo.
+
 **Não existe mais `.claudeignore`, e apareceram arquivos `*.perci-bak`**
 O Claude Code ignora o `.claudeignore`, então o Perci parou de gerá-lo: as regras de leitura equivalentes são mescladas no `.claude/settings.json` do projeto (`permissions.deny`); o `.aiexclude` e o `.geminiignore` são só para o Gemini. Se um `.claudeignore` antigo for encontrado, um aviso diz que ele pode ser apagado. Um `<arquivo>.perci-bak` é a versão anterior de um arquivo gerado que o Perci substituiu por conteúdo diferente — apague-o quando não precisar mais.
 

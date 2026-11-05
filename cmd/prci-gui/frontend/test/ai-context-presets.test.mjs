@@ -46,6 +46,7 @@ async function render(fixtures = {}) {
   loaded.ctx.renderAicItems();
   await tick();
   await tick();
+  if (!loaded.element("aic-name").value) loaded.element("aic-name").value = "Proj";
   const checked = () => loaded.element("aic-items").children.map((li) => li.children[0].checked);
   return { ...loaded, checked };
 }
@@ -87,7 +88,7 @@ test("IA: Contextos: Aplicar sends the checked agents and needs at least one", a
   assert.match(element("confirm-modal-message").textContent, /atualizar: AGENTS\.md/);
   element("btn-confirm-ok").listeners.click.forEach((fn) => fn({}));
   const apply = calls.find((c) => c.name === "ApplyAIContext");
-  assert.deepEqual(JSON.parse(JSON.stringify(apply.args[2])), ["claude", "codex"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(apply.args[3])), ["claude", "codex"]);
 
   evalIn(ctx, "running = false; activeRun = null");
   boxes.forEach((b) => { b.checked = false; });
@@ -127,7 +128,8 @@ test("IA: Contextos: a folder without standards starts on the suggested project 
 });
 
 test("IA: Contextos: Aplicar with nothing to change says so and runs nothing", async () => {
-  const { element, calls } = await render({ PreviewAIContext: [] });
+  const record = { registered: true, hasContext: true, name: "Proj", models: ["Rust + Tauri v2"], agents: ["claude"] };
+  const { element, calls } = await render({ PreviewAIContext: [], GetAIContextRecord: record });
   element("btn-aic-apply").onclick();
   await tick();
   assert.match(element("error-modal-title").textContent || element("error-modal-message").textContent, /Nada a mudar|já estão/);

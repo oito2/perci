@@ -8,6 +8,9 @@ import { Create as $Create } from "/wails/runtime.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as ai$0 from "../../internal/manager/ai/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as gitaccount$0 from "../../internal/manager/gitaccount/models.js";
 
 /**
@@ -93,6 +96,112 @@ export class AIContextChange {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new AIContextChange(/** @type {Partial<AIContextChange>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextFolderChanges is the preview of one registered folder: the
+ * files an Atualizar would change in it, or Pending when the folder does
+ * not exist (it is skipped).
+ */
+export class AIContextFolderChanges {
+    /**
+     * Creates a new AIContextFolderChanges instance.
+     * @param {Partial<AIContextFolderChanges>} [$$source = {}] - The source object to create the AIContextFolderChanges.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("pending" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pending"] = false;
+        }
+        if (!("changes" in $$source)) {
+            /**
+             * @member
+             * @type {AIContextChange[]}
+             */
+            this["changes"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextFolderChanges instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextFolderChanges}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("changes" in $$parsedSource) {
+            $$parsedSource["changes"] = $$createField3_0($$parsedSource["changes"]);
+        }
+        return new AIContextFolderChanges(/** @type {Partial<AIContextFolderChanges>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextImportPreview is the Importar checklist: each folder of the
+ * file checked against this machine, and the names registered here (a
+ * picked name must not be one of them).
+ */
+export class AIContextImportPreview {
+    /**
+     * Creates a new AIContextImportPreview instance.
+     * @param {Partial<AIContextImportPreview>} [$$source = {}] - The source object to create the AIContextImportPreview.
+     */
+    constructor($$source = {}) {
+        if (!("items" in $$source)) {
+            /**
+             * @member
+             * @type {ai$0.ImportContext[]}
+             */
+            this["items"] = [];
+        }
+        if (!("taken" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["taken"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextImportPreview instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextImportPreview}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType3;
+        const $$createField1_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("items" in $$parsedSource) {
+            $$parsedSource["items"] = $$createField0_0($$parsedSource["items"]);
+        }
+        if ("taken" in $$parsedSource) {
+            $$parsedSource["taken"] = $$createField1_0($$parsedSource["taken"]);
+        }
+        return new AIContextImportPreview(/** @type {Partial<AIContextImportPreview>} */($$parsedSource));
     }
 }
 
@@ -198,12 +307,161 @@ export class AIContextPreset {
      * @returns {AIContextPreset}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType0;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("models" in $$parsedSource) {
             $$parsedSource["models"] = $$createField1_0($$parsedSource["models"]);
         }
         return new AIContextPreset(/** @type {Partial<AIContextPreset>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextRecord is what "Definir Contexto" loads for a folder:
+ * Registered says it is in the list (Name, Models and Agents are then the
+ * record); otherwise HasContext says its files hold a context Perci
+ * generated (Models and Agents are then what they hold) that can be
+ * registered with RegisterAIContext.
+ */
+export class AIContextRecord {
+    /**
+     * Creates a new AIContextRecord instance.
+     * @param {Partial<AIContextRecord>} [$$source = {}] - The source object to create the AIContextRecord.
+     */
+    constructor($$source = {}) {
+        if (!("registered" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["registered"] = false;
+        }
+        if (!("hasContext" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasContext"] = false;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("models" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["models"] = [];
+        }
+        if (!("agents" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["agents"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextRecord instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextRecord}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType4;
+        const $$createField4_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField3_0($$parsedSource["models"]);
+        }
+        if ("agents" in $$parsedSource) {
+            $$parsedSource["agents"] = $$createField4_0($$parsedSource["agents"]);
+        }
+        return new AIContextRecord(/** @type {Partial<AIContextRecord>} */($$parsedSource));
+    }
+}
+
+/**
+ * AIContextRow is one registered folder of the "Contextos" tab: State is
+ * "applied", "outdated", "edited" or "pending" (managerai.ContextState),
+ * Divergent says its files hold other standards or agents than the
+ * recorded ones; Models and Agents are the recorded standards and agent
+ * IDs.
+ */
+export class AIContextRow {
+    /**
+     * Creates a new AIContextRow instance.
+     * @param {Partial<AIContextRow>} [$$source = {}] - The source object to create the AIContextRow.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("state" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["state"] = "";
+        }
+        if (!("divergent" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["divergent"] = false;
+        }
+        if (!("models" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["models"] = [];
+        }
+        if (!("agents" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["agents"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIContextRow instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIContextRow}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType4;
+        const $$createField5_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField4_0($$parsedSource["models"]);
+        }
+        if ("agents" in $$parsedSource) {
+            $$parsedSource["agents"] = $$createField5_0($$parsedSource["agents"]);
+        }
+        return new AIContextRow(/** @type {Partial<AIContextRow>} */($$parsedSource));
     }
 }
 
@@ -272,7 +530,7 @@ export class AgentSkillRow {
      * @returns {AgentSkillRow}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
+        const $$createField4_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("agents" in $$parsedSource) {
             $$parsedSource["agents"] = $$createField4_0($$parsedSource["agents"]);
@@ -577,9 +835,9 @@ export class DockerCreateCatalog {
      * @returns {DockerCreateCatalog}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
-        const $$createField5_0 = $$createType0;
-        const $$createField6_0 = $$createType0;
+        const $$createField4_0 = $$createType4;
+        const $$createField5_0 = $$createType4;
+        const $$createField6_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("phpVersions" in $$parsedSource) {
             $$parsedSource["phpVersions"] = $$createField4_0($$parsedSource["phpVersions"]);
@@ -1020,7 +1278,7 @@ export class MCPServerRow {
      * @returns {MCPServerRow}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType0;
+        const $$createField6_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("agents" in $$parsedSource) {
             $$parsedSource["agents"] = $$createField6_0($$parsedSource["agents"]);
@@ -1095,7 +1353,7 @@ export class ManagedItemInfo {
      * @returns {ManagedItemInfo}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
+        const $$createField4_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("missing" in $$parsedSource) {
             $$parsedSource["missing"] = $$createField4_0($$parsedSource["missing"]);
@@ -1137,7 +1395,7 @@ export class MenuCategory {
      * @returns {MenuCategory}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType2;
+        const $$createField1_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField1_0($$parsedSource["items"]);
@@ -1229,7 +1487,7 @@ export class MenuItem {
      * @returns {MenuItem}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
+        const $$createField4_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("notes" in $$parsedSource) {
             $$parsedSource["notes"] = $$createField4_0($$parsedSource["notes"]);
@@ -1467,8 +1725,8 @@ export class MoodlePluginsScreen {
      * @returns {MoodlePluginsScreen}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType4;
-        const $$createField1_0 = $$createType6;
+        const $$createField0_0 = $$createType8;
+        const $$createField1_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("apps" in $$parsedSource) {
             $$parsedSource["apps"] = $$createField0_0($$parsedSource["apps"]);
@@ -1641,7 +1899,7 @@ export class PostinstallProfileInfo {
      * @returns {PostinstallProfileInfo}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType8;
+        const $$createField2_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("actions" in $$parsedSource) {
             $$parsedSource["actions"] = $$createField2_0($$parsedSource["actions"]);
@@ -1694,7 +1952,7 @@ export class RemoteRepoList {
      * @returns {RemoteRepoList}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType10;
+        const $$createField0_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField0_0($$parsedSource["repos"]);
@@ -1738,8 +1996,8 @@ export class RepoExportItems {
      * @returns {RepoExportItems}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType12;
-        const $$createField1_0 = $$createType0;
+        const $$createField0_0 = $$createType16;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("accounts" in $$parsedSource) {
             $$parsedSource["accounts"] = $$createField0_0($$parsedSource["accounts"]);
@@ -2026,9 +2284,9 @@ export class TransferItems {
      * @returns {TransferItems}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType14;
-        const $$createField4_0 = $$createType16;
-        const $$createField7_0 = $$createType0;
+        const $$createField3_0 = $$createType18;
+        const $$createField4_0 = $$createType20;
+        const $$createField7_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("apps" in $$parsedSource) {
             $$parsedSource["apps"] = $$createField3_0($$parsedSource["apps"]);
@@ -2160,8 +2418,8 @@ export class TransferSelection {
      * @returns {TransferSelection}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType0;
-        const $$createField3_0 = $$createType0;
+        const $$createField2_0 = $$createType4;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("apps" in $$parsedSource) {
             $$parsedSource["apps"] = $$createField2_0($$parsedSource["apps"]);
@@ -2174,20 +2432,24 @@ export class TransferSelection {
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = MenuItem.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = MoodleAppOption.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = MoodlePluginRow.createFrom;
+const $$createType0 = AIContextChange.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = ai$0.ImportContext.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = MenuItem.createFrom;
 const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = PostinstallActionInfo.createFrom;
+const $$createType7 = MoodleAppOption.createFrom;
 const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = gitaccount$0.RemoteRepo.createFrom;
+const $$createType9 = MoodlePluginRow.createFrom;
 const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = gitaccount$0.TransferAccount.createFrom;
+const $$createType11 = PostinstallActionInfo.createFrom;
 const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = TransferApp.createFrom;
+const $$createType13 = gitaccount$0.RemoteRepo.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = TransferPlugin.createFrom;
+const $$createType15 = gitaccount$0.TransferAccount.createFrom;
 const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = TransferApp.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = TransferPlugin.createFrom;
+const $$createType20 = $Create.Array($$createType19);
