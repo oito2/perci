@@ -48,6 +48,8 @@ export {
     PostinstallProfileInfo,
     RemoteRepoList,
     RepoExportItems,
+    RepoFileChoice,
+    RepoFilesView,
     SelfConfigInfo,
     SelfUpdateInfo,
     SingleAppInfo,

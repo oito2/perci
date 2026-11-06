@@ -134,6 +134,20 @@ type GitAccount struct {
 	// Pending lists repositories imported for this account and not
 	// cloned yet.
 	Pending []PendingRepo `yaml:"pending,omitempty"`
+	// ContactEmail is the contact address written into the generated
+	// community files of the account's repositories.
+	ContactEmail string `yaml:"contact_email,omitempty"`
+	// RepoSettings holds per-repository settings that override the
+	// account's.
+	RepoSettings []RepoSettings `yaml:"repo_settings,omitempty"`
+}
+
+// RepoSettings are the settings of one repository of an account, at Path
+// (relative to the account folder, written with "/"; "." for the folder
+// itself).
+type RepoSettings struct {
+	Path         string `yaml:"path"`
+	ContactEmail string `yaml:"contact_email,omitempty"`
 }
 
 // PendingRepo is a repository waiting to be cloned into Path (relative

@@ -12,6 +12,9 @@ import * as ai$0 from "../../internal/manager/ai/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as gitaccount$0 from "../../internal/manager/gitaccount/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as repofiles$0 from "../../internal/manager/repofiles/models.js";
 
 /**
  * AIContextAgent is one coding agent of "Dev Tools :: IA: Contextos";
@@ -2010,6 +2013,154 @@ export class RepoExportItems {
 }
 
 /**
+ * RepoFileChoice holds the LICENSE choices of the Arquivos tab.
+ */
+export class RepoFileChoice {
+    /**
+     * Creates a new RepoFileChoice instance.
+     * @param {Partial<RepoFileChoice>} [$$source = {}] - The source object to create the RepoFileChoice.
+     */
+    constructor($$source = {}) {
+        if (!("license" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["license"] = "";
+        }
+        if (!("holder" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["holder"] = "";
+        }
+        if (!("year" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["year"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepoFileChoice instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RepoFileChoice}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RepoFileChoice(/** @type {Partial<RepoFileChoice>} */($$parsedSource));
+    }
+}
+
+/**
+ * RepoFilesView is the Arquivos tab of a repository: the files table and
+ * the values the files are generated with.
+ */
+export class RepoFilesView {
+    /**
+     * Creates a new RepoFilesView instance.
+     * @param {Partial<RepoFilesView>} [$$source = {}] - The source object to create the RepoFilesView.
+     */
+    constructor($$source = {}) {
+        if (!("rows" in $$source)) {
+            /**
+             * @member
+             * @type {repofiles$0.Row[]}
+             */
+            this["rows"] = [];
+        }
+        if (!("licenses" in $$source)) {
+            /**
+             * @member
+             * @type {repofiles$0.License[]}
+             */
+            this["licenses"] = [];
+        }
+        if (!("license" in $$source)) {
+            /**
+             * License is the license the LICENSE row is compared against.
+             * @member
+             * @type {string}
+             */
+            this["license"] = "";
+        }
+        if (!("holder" in $$source)) {
+            /**
+             * Holder and Year are the suggested copyright line of the licenses
+             * that have one: the account's git name and the current year.
+             * @member
+             * @type {string}
+             */
+            this["holder"] = "";
+        }
+        if (!("year" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["year"] = 0;
+        }
+        if (!("contactEmail" in $$source)) {
+            /**
+             * ContactEmail is the address the files use: RepoEmail when set,
+             * otherwise AccountEmail.
+             * @member
+             * @type {string}
+             */
+            this["contactEmail"] = "";
+        }
+        if (!("accountEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["accountEmail"] = "";
+        }
+        if (!("repoEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["repoEmail"] = "";
+        }
+        if (!("webUrl" in $$source)) {
+            /**
+             * WebURL is the repository page the links point to; empty without an
+             * origin of the account.
+             * @member
+             * @type {string}
+             */
+            this["webUrl"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepoFilesView instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RepoFilesView}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType18;
+        const $$createField1_0 = $$createType20;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("rows" in $$parsedSource) {
+            $$parsedSource["rows"] = $$createField0_0($$parsedSource["rows"]);
+        }
+        if ("licenses" in $$parsedSource) {
+            $$parsedSource["licenses"] = $$createField1_0($$parsedSource["licenses"]);
+        }
+        return new RepoFilesView(/** @type {Partial<RepoFilesView>} */($$parsedSource));
+    }
+}
+
+/**
  * SelfConfigInfo is what "Home :: Configurar" needs to render its form —
  * the two fields internal/selfupdate.Configure lets the user edit.
  * Distro/DE and Theme are deliberately left out: Distro/DE are
@@ -2284,8 +2435,8 @@ export class TransferItems {
      * @returns {TransferItems}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType18;
-        const $$createField4_0 = $$createType20;
+        const $$createField3_0 = $$createType22;
+        const $$createField4_0 = $$createType24;
         const $$createField7_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("apps" in $$parsedSource) {
@@ -2449,7 +2600,11 @@ const $$createType13 = gitaccount$0.RemoteRepo.createFrom;
 const $$createType14 = $Create.Array($$createType13);
 const $$createType15 = gitaccount$0.TransferAccount.createFrom;
 const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = TransferApp.createFrom;
+const $$createType17 = repofiles$0.Row.createFrom;
 const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = TransferPlugin.createFrom;
+const $$createType19 = repofiles$0.License.createFrom;
 const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = TransferApp.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = TransferPlugin.createFrom;
+const $$createType24 = $Create.Array($$createType23);

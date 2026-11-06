@@ -40,7 +40,7 @@ perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](ht
 
 - [Fluxo de trabalho ponta a ponta](./guides/workflows/examples.md) — de uma máquina nova até um ambiente Moodle de dev funcionando.
 - [Ambiente da stack Docker de aplicativos](./guides/environments/docker.md) — operação do dia a dia da stack Nginx/PHP/Node/MariaDB por projeto.
-- [Contas Git e repositórios](./guides/workflows/repositories.md) — contas com pasta, identidade e chave SSH, as telas das contas, clonar e levar as contas para outra máquina.
+- [Contas Git e repositórios](./guides/workflows/repositories.md) — contas com pasta, identidade e chave SSH, as telas das contas, as configurações e os arquivos de comunidade de cada repositório, clonar e levar as contas para outra máquina.
 - [Contextos de IA](./guides/workflows/ai-contexts.md) — definir o contexto de IA de um projeto, a lista de pastas com o estado de cada uma, atualizar e remover, e levar a lista para outra máquina.
 
 ---

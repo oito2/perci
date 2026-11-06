@@ -42,7 +42,7 @@ Uma interface gráfica de desktop (Go + [Wails](https://wails.io)), seis categor
 - **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak.
 - **Desenvolvimento** — pré-requisitos de build, SDKs Go/Rust/Flutter, aplicativos de IA, terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — stack Docker por projeto (contêineres Nginx/MariaDB/PHP/Node/PHP+Node, com roteamento Moodle), criar e gerenciar contêineres.
-- **Repositórios** — contas do GitHub/GitLab, cada uma com sua pasta, identidade dos commits e chave SSH (usadas também pelo `git` no terminal); buscar, baixar e clonar os repositórios da conta; exportar/importar contas e repositórios para outra máquina.
+- **Repositórios** — contas do GitHub/GitLab, cada uma com sua pasta, identidade dos commits e chave SSH (usadas também pelo `git` no terminal); buscar, baixar e clonar os repositórios da conta; gerar LICENSE, código de conduta, página de suporte e modelos de issue/pull request deles; exportar/importar contas e repositórios para outra máquina.
 - **Dev Tools** — pastas de desenvolvimento de plugins montadas nos contêineres Moodle, geração de contexto de IA para Claude Code, Gemini, Codex, OpenCode e Antigravity (`AGENTS.md`, `.instructions/*.md` e os arquivos de cada agente) com uma lista das pastas que têm um, atualizadas ou exportadas por ali, skills de agente de IA, registro de servidores MCP.
 
 Um ícone opcional na bandeja do sistema dá acesso rápido a contêineres e atualizações do sistema numa janela compacta.

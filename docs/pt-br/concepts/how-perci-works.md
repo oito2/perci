@@ -20,7 +20,7 @@ A GUI agrupa toda ação em seis categorias na barra lateral:
 | 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, WebApps. |
 | 3 | **Desenvolvimento** | Construir um ambiente de dev: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais. |
 | 4 | **Docker** | A stack Docker de aplicativos por projeto: criação e gerenciamento de containers Nginx/MariaDB/PHP/Node, exportar/importar. |
-| 5 | **Repositórios** | Contas do GitHub/GitLab, cada uma com sua pasta, identidade dos commits e chave SSH; uma tela por conta com os repositórios dela; exportar/importar contas e repositórios. Veja [Contas Git e repositórios](../guides/workflows/repositories.md). |
+| 5 | **Repositórios** | Contas do GitHub/GitLab, cada uma com sua pasta, identidade dos commits e chave SSH; uma tela por conta com os repositórios dela e, por repositório, o e-mail de contato, o remote e os arquivos de comunidade; exportar/importar contas e repositórios. Veja [Contas Git e repositórios](../guides/workflows/repositories.md). |
 | 6 | **Dev Tools** | Trabalhar dentro de um projeto já configurado: pastas de desenvolvimento de plugins montadas nos contêineres Moodle, geração de Contexto IA, skills de IA, registro de servidores MCP. |
 
 ### Telas

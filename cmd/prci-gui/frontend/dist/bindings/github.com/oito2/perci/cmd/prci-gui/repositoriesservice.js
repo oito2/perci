@@ -21,6 +21,21 @@ import * as gitaccount$0 from "../../internal/manager/gitaccount/models.js";
 import * as $models from "./models.js";
 
 /**
+ * ApplyGitAccountRepoFile creates or updates the files of row (a
+ * repofiles row ID) in the repository at dir of account id, with the
+ * account's contact e-mail and the LICENSE choices, and returns a short
+ * summary. Holds the action lock.
+ * @param {string} id
+ * @param {string} dir
+ * @param {string} row
+ * @param {$models.RepoFileChoice} choice
+ * @returns {$CancellablePromise<string>}
+ */
+export function ApplyGitAccountRepoFile(id, dir, row, choice) {
+    return $Call.ByName("main.RepositoriesService.ApplyGitAccountRepoFile", id, dir, row, choice);
+}
+
+/**
  * ApplyGlobalGitIdentity sets the global git user.name/user.email and, when
  * none is configured yet, credential.helper (managerrepo.ConfigureGlobal),
  * on the Execução tab.
@@ -69,19 +84,6 @@ export function CloneGitAccountRepo(id, source, rel) {
 }
 
 /**
- * CreateGitAccountRepoConduct writes CODE_OF_CONDUCT.md and its Portuguese
- * mirror into the repository at dir, replacing existing copies, with
- * contactEmail for reports, on the Execução tab.
- * @param {string} id
- * @param {string} dir
- * @param {string} contactEmail
- * @returns {$CancellablePromise<void>}
- */
-export function CreateGitAccountRepoConduct(id, dir, contactEmail) {
-    return $Call.ByName("main.RepositoriesService.CreateGitAccountRepoConduct", id, dir, contactEmail);
-}
-
-/**
  * DiscardGitAccountPending removes the pending repository at path from
  * account id without cloning it.
  * @param {string} id
@@ -116,17 +118,6 @@ export function FixGitAccountRepoURLs(id, dir) {
 }
 
 /**
- * GenerateGitAccountRepoGitignore creates the .gitignore of the repository
- * at dir, or merges the missing patterns into it, on the Execução tab.
- * @param {string} id
- * @param {string} dir
- * @returns {$CancellablePromise<void>}
- */
-export function GenerateGitAccountRepoGitignore(id, dir) {
-    return $Call.ByName("main.RepositoriesService.GenerateGitAccountRepoGitignore", id, dir);
-}
-
-/**
  * GetGitAccount returns the account id with its key and host state.
  * @param {string} id
  * @returns {$CancellablePromise<$models.GitAccountView>}
@@ -138,12 +129,28 @@ export function GetGitAccount(id) {
 }
 
 /**
+ * GetGitAccountRepoFiles returns the Arquivos tab of the repository at
+ * dir of account id. license picks the license the LICENSE row is
+ * compared against; empty means the one found in LICENSE, or the default
+ * license when none is recognized.
+ * @param {string} id
+ * @param {string} dir
+ * @param {string} license
+ * @returns {$CancellablePromise<$models.RepoFilesView>}
+ */
+export function GetGitAccountRepoFiles(id, dir, license) {
+    return $Call.ByName("main.RepositoriesService.GetGitAccountRepoFiles", id, dir, license).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * GetGitRepoExportItems lists what the registered accounts can export.
  * @returns {$CancellablePromise<$models.RepoExportItems>}
  */
 export function GetGitRepoExportItems() {
     return $Call.ByName("main.RepositoriesService.GetGitRepoExportItems").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
@@ -154,7 +161,7 @@ export function GetGitRepoExportItems() {
  */
 export function GetGlobalGitIdentity() {
     return $Call.ByName("main.RepositoriesService.GetGlobalGitIdentity").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -193,7 +200,7 @@ export function InitGitAccountRepo(id, rel, remoteName) {
  */
 export function ListGitAccountRemoteRepos(id) {
     return $Call.ByName("main.RepositoriesService.ListGitAccountRemoteRepos", id).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -206,7 +213,7 @@ export function ListGitAccountRemoteRepos(id) {
  */
 export function ListGitAccountRepos(id) {
     return $Call.ByName("main.RepositoriesService.ListGitAccountRepos", id).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -217,7 +224,7 @@ export function ListGitAccountRepos(id) {
  */
 export function ListGitAccounts() {
     return $Call.ByName("main.RepositoriesService.ListGitAccounts").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -268,7 +275,7 @@ export function PickGitRepoImportPath() {
  */
 export function PreviewGitRepoImport(path, folders) {
     return $Call.ByName("main.RepositoriesService.PreviewGitRepoImport", path, folders).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -292,6 +299,18 @@ export function PullGitAccountRepos(id, dir) {
  */
 export function RemoveGitAccount(id) {
     return $Call.ByName("main.RepositoriesService.RemoveGitAccount", id);
+}
+
+/**
+ * RemoveGitAccountRepoFile deletes the files of row (a repofiles row ID)
+ * from the repository at dir of account id. Holds the action lock.
+ * @param {string} id
+ * @param {string} dir
+ * @param {string} row
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveGitAccountRepoFile(id, dir, row) {
+    return $Call.ByName("main.RepositoriesService.RemoveGitAccountRepoFile", id, dir, row);
 }
 
 /**
@@ -328,8 +347,22 @@ export function SaveGitAccount($in) {
  */
 export function ScanGitAccountHostKeys(id) {
     return $Call.ByName("main.RepositoriesService.ScanGitAccountHostKeys", id).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
+}
+
+/**
+ * SetGitAccountContactEmail saves the contact e-mail of account id: the
+ * account's own when dir is empty, otherwise the override of the
+ * repository at dir. An empty email clears the value. Holds the action
+ * lock.
+ * @param {string} id
+ * @param {string} dir
+ * @param {string} email
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetGitAccountContactEmail(id, dir, email) {
+    return $Call.ByName("main.RepositoriesService.SetGitAccountContactEmail", id, dir, email);
 }
 
 /**
@@ -389,12 +422,13 @@ export function VerifyGitAccountRepos(id, dir) {
 
 // Private type creation functions
 const $$createType0 = $models.GitAccountView.createFrom;
-const $$createType1 = $models.RepoExportItems.createFrom;
-const $$createType2 = $models.GitIdentity.createFrom;
-const $$createType3 = $models.RemoteRepoList.createFrom;
-const $$createType4 = gitaccount$0.AccountRepos.createFrom;
-const $$createType5 = $Create.Array($$createType0);
-const $$createType6 = gitaccount$0.ImportAccount.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = gitaccount$0.HostKey.createFrom;
-const $$createType9 = $Create.Array($$createType8);
+const $$createType1 = $models.RepoFilesView.createFrom;
+const $$createType2 = $models.RepoExportItems.createFrom;
+const $$createType3 = $models.GitIdentity.createFrom;
+const $$createType4 = $models.RemoteRepoList.createFrom;
+const $$createType5 = gitaccount$0.AccountRepos.createFrom;
+const $$createType6 = $Create.Array($$createType0);
+const $$createType7 = gitaccount$0.ImportAccount.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = gitaccount$0.HostKey.createFrom;
+const $$createType10 = $Create.Array($$createType9);

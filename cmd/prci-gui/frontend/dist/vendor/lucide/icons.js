@@ -19,6 +19,7 @@
     play: '<polygon points="6 3 20 12 6 21 6 3" />',
     circleArrowUp: '<circle cx="12" cy="12" r="10" /><path d="m16 12-4-4-4 4" /><path d="M12 16V8" />',
     gitBranch: '<line x1="6" x2="6" y1="3" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />',
+    plus: '<path d="M5 12h14" /><path d="M12 5v14" />',
     square: '<rect width="18" height="18" x="3" y="3" rx="2" />',
     rotateCw:
       '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />' +

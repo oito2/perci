@@ -51,12 +51,45 @@ Abra **Repositórios → <conta>**. A tabela lista todos os repositórios da pas
 |---|---|
 | **Verificar Alterações** | `git fetch --prune` em todos os repositórios (4 por vez), ou só numa linha. Os arquivos não mudam. |
 | **Baixar Alterações** | Busca e depois avança a branch atual até o upstream (fast-forward). Um repositório com alterações não commitadas, sem upstream, com HEAD solto ou que divergiu é pulado, com o motivo na aba Execução. |
-| **Ajustar URL** / **Ajustar todas as URLs** | Troca um origin HTTPS da conta pela URL SSH do mesmo repositório, depois de conferir com `git ls-remote` que a chave da conta o alcança. Um token embutido na URL antiga vai embora junto. |
-| **Definir remote** | Adiciona o `origin` a um repositório sem remote, a partir do nome do repositório no provedor. |
-| **Corrigir identidade** | Remove o `user.name`/`user.email` que o repositório define para si, para ele usar os da conta. |
-| **.gitignore** / **Código de Conduta** | Gera ou mescla o `.gitignore` do projeto; grava `CODE_OF_CONDUCT.md` e o espelho em português. |
+| **Ajustar todas as URLs** | Troca o origin HTTPS de todos os repositórios listados da conta pela URL SSH, depois de conferir com `git ls-remote` que a chave da conta o alcança. Um token embutido na URL antiga vai embora junto. |
+| **+** (por linha) | Abre o diálogo do repositório: configurações, remote e arquivos (abaixo). |
 
 As ações de rede nunca pedem senha: rodam com `BatchMode=yes` e falham com uma mensagem. Uma chave com senha precisa ser desbloqueada antes.
+
+### O Diálogo do Repositório
+
+O botão **+** de uma linha abre um diálogo com três abas.
+
+**Configurações**
+
+- **E-mail de contato**: o endereço gravado no `CODE_OF_CONDUCT.md` (denúncias) e no `SUPPORT.md` (contato privado). O e-mail da conta vale para todos os repositórios dela; o e-mail próprio do repositório, quando preenchido, o substitui só naquele repositório — deixe-o vazio para usar o da conta. Cada campo tem o seu **Salvar**.
+- **Corrigir identidade**, quando o repositório define o próprio `user.name`/`user.email`: remove os dois, para ele usar os da conta. Os commits já feitos não mudam.
+
+**Remote e SSH**
+
+- Um `origin` que já usa SSH com a conta só é mostrado.
+- Um `origin` HTTPS da conta oferece **Trocar para SSH**, a mesma verificação do Ajustar todas as URLs, só para este repositório.
+- Sem remote, **Definir remote** adiciona o `origin` a partir do nome do repositório no provedor. Ele não precisa existir lá ainda: crie-o vazio no site antes do primeiro push.
+
+**Arquivos**
+
+Uma tabela dos arquivos de comunidade que o Perci gera, com o estado de cada um e as suas ações:
+
+| Arquivo | O que o Perci grava |
+|---|---|
+| `.gitignore` | Os padrões do tipo de projeto detectado na raiz do repositório (Go, Flutter, Node.js, Python, ...), ou os genéricos. **Atualizar** só acrescenta os padrões que faltam. |
+| `LICENSE` | O texto sem alterações da licença escolhida acima da tabela: GPL-3.0 (padrão), AGPL-3.0, LGPL-3.0, MIT, Apache-2.0, MPL-2.0 ou BSD-3-Clause. MIT e BSD-3-Clause pedem também o titular dos direitos (o nome Git da conta) e o ano. |
+| `CODE_OF_CONDUCT.md` | O Contributor Covenant com o e-mail de contato, mais o espelho em português `docs/pt-br/codigo-de-conduta.md`. |
+| `SUPPORT.md` | Onde obter ajuda: as issues do repositório e o e-mail de contato, mais o espelho em português `docs/pt-br/suporte.md`. |
+| Modelos de issue | GitHub: `.github/ISSUE_TEMPLATE/bug_report.yml` e `feature_request.yml` (issue forms) e `config.yml`, que desliga as issues em branco e aponta para o `SUPPORT.md`. GitLab: `.gitlab/issue_templates/Bug.md` e `Feature.md`. |
+| Modelo de pull request | GitHub: `.github/PULL_REQUEST_TEMPLATE.md`. GitLab: `.gitlab/merge_request_templates/Default.md`. Resumo, issue relacionada, como foi testado e um checklist. |
+| `.github/FUNDING.yml` | Ainda não disponível. |
+
+- **Status**: **não existe**; **em dia** (igual ao que o Perci grava agora); **diferente** (editado, de uma versão anterior, com outro e-mail ou endereço, ou faltando um dos seus arquivos); **faltam N padrões** no `.gitignore`; **existe** quando o arquivo depende do e-mail de contato e nenhum está definido. No `LICENSE`, mostra a licença encontrada no arquivo — outro titular ou ano continua em dia — ou diz **licença não reconhecida**; outros arquivos de licença (`COPYING`, `LICENSE.md`, ...) são avisados.
+- **Criar** grava um arquivo que falta. **Atualizar** substitui os arquivos depois de uma confirmação, e a versão substituída de cada arquivo fica em `<arquivo>.perci-bak`. **Remover** apaga os arquivos da linha depois de uma confirmação, mais as pastas `.github/` ou `.gitlab/` que ficarem vazias; `docs/pt-br/` nunca é removida.
+- `CODE_OF_CONDUCT.md` e `SUPPORT.md` precisam de um e-mail de contato: sem ele, Criar e Atualizar ficam desabilitados.
+- Os links do `SUPPORT.md` e do `config.yml` apontam para a página do repositório, tirada do `origin` (SSH ou HTTPS da conta). Sem remote, viram texto simples; depois que um remote é definido, os arquivos aparecem como diferente e o Atualizar acrescenta os links.
+- Os arquivos gerados são em inglês, com espelho em português só do `CODE_OF_CONDUCT.md` e do `SUPPORT.md`. Nada é commitado: revise os arquivos e faça o commit você mesmo.
 
 ## 3. Adicionar um Repositório
 
@@ -72,9 +105,9 @@ O destino é uma pasta relativa à pasta da conta (`labs/perci`), nova ou vazia,
 
 **Repositórios → Gerenciar Repositórios**:
 
-1. **Exportar**: marque as contas e os repositórios a exportar e escolha o arquivo. De cada conta vão o nome, o provedor, o host, a porta SSH, o usuário, a identidade dos commits e a pasta; de cada repositório, a pasta e a URL SSH. Chaves SSH e tokens nunca vão no arquivo. Repositórios sem remote ficam de fora, com um aviso. Este arquivo é separado do export do Docker.
+1. **Exportar**: marque as contas e os repositórios a exportar e escolha o arquivo. De cada conta vão o nome, o provedor, o host, a porta SSH, o usuário, a identidade dos commits, a pasta e o e-mail de contato; de cada repositório, a pasta, a URL SSH e o e-mail de contato próprio. Chaves SSH e tokens nunca vão no arquivo. Repositórios sem remote ficam de fora, com um aviso. Este arquivo é separado do export do Docker.
 2. **Importar** (na outra máquina): escolha o arquivo e marque o que importar.
-   - Uma conta do mesmo usuário no mesmo servidor de uma já cadastrada mantém os dados e a pasta dela, e só ganha os repositórios novos.
+   - Uma conta do mesmo usuário no mesmo servidor de uma já cadastrada mantém os dados e a pasta dela, e só ganha os repositórios novos e os e-mails de contato que ela ainda não tem.
    - Uma conta nova ganha a pasta (a exportada, ou outra escolhida em **Trocar pasta**), uma chave SSH e a regra no `~/.gitconfig`. A chave é `~/.ssh/perci_<id>`: reaproveitada quando existe, senão gerada sem senha. A aba Execução mostra a chave pública a cadastrar.
    - Um repositório cuja pasta já tem o mesmo repositório é pulado como já clonado; um cuja pasta tem outra coisa é pulado com um aviso.
 3. Os repositórios importados aparecem como **Pendentes** na tela de cada conta. Cadastre a chave pública da conta no provedor e use **Clonar pendentes**: ele testa a conexão antes e clona os pendentes um por vez. **Descartar** tira um da lista sem cloná-lo.

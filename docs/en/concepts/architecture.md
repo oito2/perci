@@ -38,7 +38,7 @@ cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → domain packages   → inte
 | `internal/system/*` | **Linux category**: post-install (Mint/Zorin/Ubuntu/Fedora), fonts, file templates, Flatpak apps, system update |
 | `internal/dev/*` | **Desenvolvimento category**: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals; also backs the **Dev Tools category**'s AI skills (`agentskills`) and MCP server registration (`mcpservers`) |
 | `internal/appstack` | **Docker category**: per-project Docker application stack — Nginx/MariaDB/PHP/Node/PHP+Node container creation, lifecycle, Moodle routing, Moodle plugin mounts (Dev Tools), export/import |
-| `internal/manager/*` | **Repositórios category**: Git accounts and their repositories (`gitaccount`), with the global identity and Code of Conduct (`repo`) and `.gitignore` (`gitignore`). **Dev Tools category**: AI context (`ai`). Database backup/restore (`db`, used by `internal/appstack`) |
+| `internal/manager/*` | **Repositórios category**: Git accounts and their repositories (`gitaccount`), the global identity (`repo`), and the repository files — `.gitignore`, LICENSE, code of conduct, support page, issue and pull request templates (`repofiles`, with `gitignore`). **Dev Tools category**: AI context (`ai`). Database backup/restore (`db`, used by `internal/appstack`) |
 
 ## Data Flow
 

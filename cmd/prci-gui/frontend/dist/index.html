@@ -1215,41 +1215,85 @@
 <!-- "Repositórios :: <conta>": the actions of one repository. Sections
      show only when they apply (HTTPS origin, no origin, own identity). -->
 <dialog id="repo-actions-modal" class="modal">
-  <div class="modal-box max-w-xl">
+  <div class="modal-box max-w-3xl">
     <h3 id="ra-title" class="font-bold text-lg"></h3>
     <p id="ra-subtitle" class="text-xs opacity-60 break-all mb-4"></p>
 
-    <div id="ra-url" class="flex flex-col gap-2 mb-6 hidden">
-      <span class="font-semibold">Ajustar URL</span>
-      <p id="ra-url-text" class="text-sm opacity-80 break-all whitespace-pre-line"></p>
-      <button id="btn-ra-url" type="button" class="btn btn-sm btn-primary self-start">Trocar para SSH</button>
-    </div>
+    <div role="tablist" class="tabs tabs-border">
+      <input type="radio" name="ra-tabs" id="ra-tab-settings" class="tab" aria-label="Configurações" checked />
+      <div class="tab-content pt-4">
+        <div class="flex flex-col gap-2 mb-6">
+          <span class="font-semibold">E-mail de contato</span>
+          <span class="text-xs opacity-70">Usado no CODE_OF_CONDUCT.md (denúncias) e no SUPPORT.md (contato privado).</span>
+          <span class="text-xs opacity-70 mt-2">Padrão da conta — vale para todos os repositórios dela:</span>
+          <div class="join w-full">
+            <input id="ra-account-email" type="email" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+            <button id="btn-ra-account-email" type="button" class="btn btn-outline join-item">Salvar</button>
+          </div>
+          <span class="text-xs opacity-70 mt-2">Só deste repositório — vazio usa o da conta:</span>
+          <div class="join w-full">
+            <input id="ra-repo-email" type="email" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+            <button id="btn-ra-repo-email" type="button" class="btn btn-outline join-item">Salvar</button>
+          </div>
+          <span id="ra-email-effective" class="text-xs opacity-70"></span>
+        </div>
 
-    <div id="ra-remote" class="flex flex-col gap-2 mb-6 hidden">
-      <span class="font-semibold">Definir remote</span>
-      <span class="text-xs opacity-70">Nome do repositório no provedor. Ele não precisa existir ainda: crie-o vazio no site antes do primeiro push.</span>
-      <div class="join w-full">
-        <input id="ra-remote-name" type="text" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
-        <button id="btn-ra-remote" type="button" class="btn btn-primary join-item">Definir</button>
+        <div id="ra-ident" class="flex flex-col gap-2 hidden">
+          <span class="font-semibold">Corrigir identidade</span>
+          <p id="ra-ident-text" class="text-sm opacity-80 break-all"></p>
+          <button id="btn-ra-ident" type="button" class="btn btn-sm btn-primary self-start">Usar a identidade da conta</button>
+        </div>
       </div>
-      <span id="ra-remote-preview" class="text-xs opacity-70 break-all"></span>
-    </div>
 
-    <div id="ra-ident" class="flex flex-col gap-2 mb-6 hidden">
-      <span class="font-semibold">Corrigir identidade</span>
-      <p id="ra-ident-text" class="text-sm opacity-80 break-all"></p>
-      <button id="btn-ra-ident" type="button" class="btn btn-sm btn-primary self-start">Usar a identidade da conta</button>
-    </div>
+      <input type="radio" name="ra-tabs" id="ra-tab-remote" class="tab" aria-label="Remote e SSH" />
+      <div class="tab-content pt-4">
+        <div id="ra-ssh-ok" class="flex flex-col gap-2 hidden">
+          <span class="font-semibold">Já usa SSH</span>
+          <p id="ra-ssh-ok-text" class="text-sm opacity-80 break-all"></p>
+        </div>
 
-    <div class="flex flex-col gap-2">
-      <span class="font-semibold">Arquivos</span>
-      <button id="btn-ra-gitignore" type="button" class="btn btn-sm btn-outline self-start">Criar/Atualizar .gitignore</button>
-      <span class="text-xs opacity-70 mt-2">E-mail de contato para denúncias do Código de Conduta:</span>
-      <div class="join w-full">
-        <input id="ra-conduct-email" type="email" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
-        <button id="btn-ra-conduct" type="button" class="btn btn-outline join-item">Criar/Atualizar Código de Conduta</button>
+        <div id="ra-url" class="flex flex-col gap-2 hidden">
+          <span class="font-semibold">Migrar para SSH</span>
+          <p id="ra-url-text" class="text-sm opacity-80 break-all whitespace-pre-line"></p>
+          <button id="btn-ra-url" type="button" class="btn btn-sm btn-primary self-start">Trocar para SSH</button>
+        </div>
+
+        <div id="ra-remote" class="flex flex-col gap-2 hidden">
+          <span class="font-semibold">Definir remote</span>
+          <span class="text-xs opacity-70">Nome do repositório no provedor. Ele não precisa existir ainda: crie-o vazio no site antes do primeiro push.</span>
+          <div class="join w-full">
+            <input id="ra-remote-name" type="text" class="input input-bordered join-item flex-1" autocomplete="off" spellcheck="false" />
+            <button id="btn-ra-remote" type="button" class="btn btn-primary join-item">Definir</button>
+          </div>
+          <span id="ra-remote-preview" class="text-xs opacity-70 break-all"></span>
+        </div>
       </div>
-      <span class="text-xs opacity-60">Gera CODE_OF_CONDUCT.md na raiz e docs/pt-br/codigo-de-conduta.md, substituindo as cópias existentes.</span>
+
+      <input type="radio" name="ra-tabs" id="ra-tab-files" class="tab" aria-label="Arquivos" />
+      <div class="tab-content pt-4">
+        <div class="flex flex-wrap items-end gap-2 mb-4">
+          <label class="flex flex-col gap-1">
+            <span class="text-xs opacity-70">Licença</span>
+            <select id="ra-license" class="select select-bordered select-sm"></select>
+          </label>
+          <label id="ra-license-holder-wrap" class="flex flex-col gap-1 flex-1 hidden">
+            <span class="text-xs opacity-70">Titular dos direitos</span>
+            <input id="ra-license-holder" type="text" class="input input-bordered input-sm" autocomplete="off" spellcheck="false" />
+          </label>
+          <label id="ra-license-year-wrap" class="flex flex-col gap-1 w-24 hidden">
+            <span class="text-xs opacity-70">Ano</span>
+            <input id="ra-license-year" type="number" min="1000" max="9999" class="input input-bordered input-sm" />
+          </label>
+        </div>
+        <div id="ra-files-msg" class="alert alert-soft text-sm mb-3 hidden"></div>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead><tr><th>Arquivo</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="ra-files-rows"></tbody>
+          </table>
+        </div>
+        <p class="text-xs opacity-60 mt-2">Atualizar substitui o arquivo; a versão anterior fica em &lt;arquivo&gt;.perci-bak. No .gitignore, Atualizar só acrescenta os padrões que faltam.</p>
+      </div>
     </div>
 
     <div class="modal-action">

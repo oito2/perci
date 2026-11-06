@@ -38,7 +38,7 @@ O `internal/ui` (helpers de terminal estilo script: `PrintHeader`/`Info`/`Err`/`
 | `internal/system/*` | **Categoria Linux**: pós-instalação (Mint/Zorin/Ubuntu/Fedora), fontes, modelos de arquivos, apps Flatpak, atualização de sistema |
 | `internal/dev/*` | **Categoria Desenvolvimento**: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais; também dá suporte às skills de IA (`agentskills`) e ao registro de servidores MCP (`mcpservers`) da **categoria Dev Tools** |
 | `internal/appstack` | **Categoria Docker**: stack Docker de aplicativos por projeto — criação, ciclo de vida e roteamento Moodle de containers Nginx/MariaDB/PHP/Node/PHP+Node, montagens de plugins Moodle (Dev Tools), exportar/importar |
-| `internal/manager/*` | **Categoria Repositórios**: contas Git e seus repositórios (`gitaccount`), com a identidade global e o Código de Conduta (`repo`) e o `.gitignore` (`gitignore`). **Categoria Dev Tools**: contexto IA (`ai`). Backup/restore de banco de dados (`db`, usado por `internal/appstack`) |
+| `internal/manager/*` | **Categoria Repositórios**: contas Git e seus repositórios (`gitaccount`), a identidade global (`repo`) e os arquivos do repositório — `.gitignore`, LICENSE, código de conduta, página de suporte, modelos de issue e de pull request (`repofiles`, com `gitignore`). **Categoria Dev Tools**: contexto IA (`ai`). Backup/restore de banco de dados (`db`, usado por `internal/appstack`) |
 
 ## Fluxo de Dados
 

@@ -51,12 +51,45 @@ Open **Repositórios → <account>**. The table lists every repository under the
 |---|---|
 | **Verificar Alterações** | `git fetch --prune` in every repository (4 at a time), or only in one row. Files aren't changed. |
 | **Baixar Alterações** | Fetches, then fast-forwards the current branch to its upstream. A repository with uncommitted changes, without upstream, with a detached HEAD or that diverged is skipped, with the reason on the Execução tab. |
-| **Ajustar URL** / **Ajustar todas as URLs** | Replaces an HTTPS origin of the account with the SSH URL of the same repository, after checking with `git ls-remote` that the account key reaches it. Any token embedded in the old URL goes away. |
-| **Definir remote** | Adds `origin` to a repository without a remote, from the repository name on the provider. |
-| **Corrigir identidade** | Removes the `user.name`/`user.email` the repository sets for itself, so it uses the account's. |
-| **.gitignore** / **Código de Conduta** | Generates or merges the project's `.gitignore`; writes `CODE_OF_CONDUCT.md` and its Portuguese mirror. |
+| **Ajustar todas as URLs** | Replaces the HTTPS origin of every listed repository of the account with its SSH URL, after checking with `git ls-remote` that the account key reaches it. Any token embedded in the old URL goes away. |
+| **+** (per row) | Opens the repository's dialog: settings, remote and files (below). |
 
 Network actions never ask for a password: they run with `BatchMode=yes` and fail with a message instead. A key with a passphrase must be unlocked first.
+
+### The Repository Dialog
+
+The **+** button of a row opens a dialog with three tabs.
+
+**Configurações**
+
+- **Contact e-mail**: the address written into `CODE_OF_CONDUCT.md` (reports) and `SUPPORT.md` (private contact). The account's e-mail applies to all its repositories; the repository's own e-mail, when filled in, replaces it for that repository only — leave it empty to use the account's. Each field has its own **Salvar**.
+- **Corrigir identidade**, when the repository sets its own `user.name`/`user.email`: removes them, so it uses the account's. Commits already made don't change.
+
+**Remote e SSH**
+
+- An `origin` that already uses SSH with the account is just shown.
+- An HTTPS `origin` of the account offers **Trocar para SSH**, the same check as Ajustar todas as URLs, for this repository only.
+- Without a remote, **Definir remote** adds `origin` from the repository name on the provider. The repository doesn't need to exist there yet: create it empty on the site before the first push.
+
+**Arquivos**
+
+A table of the community files Perci generates, with the state of each one and its actions:
+
+| File | What Perci writes |
+|---|---|
+| `.gitignore` | The patterns of the project type detected at the repository root (Go, Flutter, Node.js, Python, ...), or generic ones. **Atualizar** only appends the missing patterns. |
+| `LICENSE` | The unmodified text of the license chosen above the table: GPL-3.0 (default), AGPL-3.0, LGPL-3.0, MIT, Apache-2.0, MPL-2.0 or BSD-3-Clause. MIT and BSD-3-Clause also ask for the copyright holder (the account's Git name) and the year. |
+| `CODE_OF_CONDUCT.md` | The Contributor Covenant with the contact e-mail, plus its Portuguese mirror `docs/pt-br/codigo-de-conduta.md`. |
+| `SUPPORT.md` | Where to get help: the repository's issues and the contact e-mail, plus its Portuguese mirror `docs/pt-br/suporte.md`. |
+| Issue templates | GitHub: `.github/ISSUE_TEMPLATE/bug_report.yml` and `feature_request.yml` (issue forms) and `config.yml`, which turns off blank issues and links to `SUPPORT.md`. GitLab: `.gitlab/issue_templates/Bug.md` and `Feature.md`. |
+| Pull request template | GitHub: `.github/PULL_REQUEST_TEMPLATE.md`. GitLab: `.gitlab/merge_request_templates/Default.md`. Summary, related issue, how it was tested and a checklist. |
+| `.github/FUNDING.yml` | Not available yet. |
+
+- **Status**: **não existe**; **em dia** (the same as what Perci writes now); **diferente** (edited, from an earlier version, with another e-mail or address, or missing one of its files); **faltam N padrões** for the `.gitignore`; **existe** when the file depends on the contact e-mail and none is set. For `LICENSE` it names the license found in the file — another holder or year still counts as em dia — or says **licença não reconhecida**; other license files (`COPYING`, `LICENSE.md`, ...) are noted.
+- **Criar** writes a missing file. **Atualizar** replaces the files after a confirmation, and the replaced version of each file is kept as `<file>.perci-bak`. **Remover** deletes the row's files after a confirmation, plus the `.github/` or `.gitlab/` folders left empty; `docs/pt-br/` is never removed.
+- `CODE_OF_CONDUCT.md` and `SUPPORT.md` need a contact e-mail: without one, Criar and Atualizar stay disabled.
+- The links in `SUPPORT.md` and `config.yml` point to the repository page, taken from its `origin` (SSH or HTTPS of the account). Without a remote they become plain text; once a remote is set, the files show as diferente and Atualizar adds the links.
+- The generated files are in English, with Portuguese mirrors only for `CODE_OF_CONDUCT.md` and `SUPPORT.md`. Nothing is committed: review the files and commit them yourself.
 
 ## 3. Add a Repository
 
@@ -72,9 +105,9 @@ The destination is a folder relative to the account folder (`labs/perci`), new o
 
 **Repositórios → Gerenciar Repositórios**:
 
-1. **Exportar**: check the accounts and repositories to export and pick the file. Per account it holds the name, provider, host, SSH port, user, commit identity and folder; per repository, its folder and SSH URL. SSH keys and tokens never go into the file. Repositories without a remote are left out, with a note. This file is separate from the Docker export.
+1. **Exportar**: check the accounts and repositories to export and pick the file. Per account it holds the name, provider, host, SSH port, user, commit identity, folder and contact e-mail; per repository, its folder, SSH URL and own contact e-mail. SSH keys and tokens never go into the file. Repositories without a remote are left out, with a note. This file is separate from the Docker export.
 2. **Importar** (on the other machine): pick the file and check what to import.
-   - An account of the same user on the same server as one already registered keeps its data and folder, and only gains the new repositories.
+   - An account of the same user on the same server as one already registered keeps its data and folder, and only gains the new repositories and the contact e-mails it doesn't have yet.
    - A new account gets its folder (the exported one, or another picked with **Trocar pasta**), an SSH key and its `~/.gitconfig` rule. The key is `~/.ssh/perci_<id>`: reused when it exists, otherwise generated without a passphrase. The Execução tab shows the public key to register.
    - A repository whose folder already holds the same repository is skipped as already cloned; one whose folder holds something else is skipped with a warning.
 3. The imported repositories show as **Pendentes** on each account's screen. Register the account's public key on the provider, then use **Clonar pendentes**: it tests the connection first and clones the pending repositories one at a time. **Descartar** removes one from the list without cloning it.

@@ -153,8 +153,9 @@ func TestUpdateAIContexts(t *testing.T) {
 	if err := managerai.GenerateSharedFiles(a, managerai.ModelsNamed([]string{"Linux Bash"}), codex, true, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	for name, p := range map[string]string{"A": a, "Gone": missing} {
-		if err := managerai.RecordContext(name, p, []string{"Linux Bash"}, codex); err != nil {
+	// Registered in a fixed order: the list keeps the registration order.
+	for _, c := range []struct{ name, path string }{{"A", a}, {"Gone", missing}} {
+		if err := managerai.RecordContext(c.name, c.path, []string{"Linux Bash"}, codex); err != nil {
 			t.Fatal(err)
 		}
 	}

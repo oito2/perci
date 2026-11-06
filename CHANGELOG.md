@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-06
+
+### Added
+- Repositórios → <account>: the **+** button of each repository opens a dialog with three tabs: **Configurações**, **Remote e SSH** and **Arquivos**.
+- Repository dialog → **Configurações**: a contact e-mail saved for the account, with an optional e-mail of the repository's own, used by the generated code of conduct and support page.
+- Repository dialog → **Arquivos**: a table of the repository's community files with the state of each one (não existe, em dia, diferente, missing `.gitignore` patterns) and **Criar**, **Atualizar** and **Remover**: `.gitignore`, `LICENSE` (GPL-3.0 by default, or AGPL-3.0, LGPL-3.0, MIT, Apache-2.0, MPL-2.0 or BSD-3-Clause), `CODE_OF_CONDUCT.md`, `SUPPORT.md` with its Portuguese mirror, issue templates and a pull request template — under `.github/` for GitHub accounts (issue forms) and `.gitlab/` for GitLab accounts. Updating keeps the replaced file as `<file>.perci-bak`.
+- Repositórios → Gerenciar Repositórios: the export and import carry the contact e-mails; an import never replaces one already set.
+
+### Changed
+- Repository dialog: Trocar para SSH, Definir remote and an "already uses SSH" note moved to the **Remote e SSH** tab, and Corrigir identidade to **Configurações**. The `.gitignore` and Código de Conduta buttons were replaced by the **Arquivos** tab, and the code of conduct now uses the saved contact e-mail.
+
 ## [1.8.0] - 2026-11-05
 
 ### Added
@@ -217,7 +228,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/oito2/perci/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/oito2/perci/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/oito2/perci/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/oito2/perci/compare/v1.5.0...v1.6.0

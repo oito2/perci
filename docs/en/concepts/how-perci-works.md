@@ -20,7 +20,7 @@ The GUI groups every action into six sidebar categories:
 | 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, WebApps. |
 | 3 | **Desenvolvimento** | Building a dev environment: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals. |
 | 4 | **Docker** | The per-project Docker application stack: creating and managing Nginx/MariaDB/PHP/Node containers, export/import. |
-| 5 | **Repositórios** | GitHub/GitLab accounts, each with its folder, commit identity and SSH key; one screen per account with its repositories; export/import of accounts and repositories. See [Git accounts and repositories](../guides/workflows/repositories.md). |
+| 5 | **Repositórios** | GitHub/GitLab accounts, each with its folder, commit identity and SSH key; one screen per account with its repositories and, per repository, its contact e-mail, remote and community files; export/import of accounts and repositories. See [Git accounts and repositories](../guides/workflows/repositories.md). |
 | 6 | **Dev Tools** | Working inside an already-set-up project: Moodle plugin development folders mounted into Moodle containers, AI Context generation, AI skills, MCP server registration. |
 
 ### Screens

@@ -30,7 +30,7 @@ The single point through which every privileged command is escalated. `sudo` is 
 
 `WriteFileAtomic(path, data, mode)`: temp file in the same directory, `chmod` to `mode`, `fsync`, rename — the final mode always applies, even over an existing file (`os.WriteFile` only applies it on creation). Used for `config.yaml`, the Docker stack export, the exported container logs and generated `.gitignore` files.
 
-`WriteGenerated(path, data, mode)` is the writer for generated project files (AI context files, `.claude/settings.json`, the repository code-of-conduct file, the Flutter wrapper, file-manager context-menu entries): it writes through a symlink at `path` (the link's target is written and the link kept), atomically, and when a *different* version already exists it first saves it as `<path>.perci-bak`.
+`WriteGenerated(path, data, mode)` is the writer for generated project files (AI context files, `.claude/settings.json`, the repository community files, the Flutter wrapper, file-manager context-menu entries): it writes through a symlink at `path` (the link's target is written and the link kept), atomically, and when a *different* version already exists it first saves it as `<path>.perci-bak`.
 
 `WriteThroughLink(path, data, mode)` writes the same way (through a symlink, atomically) without any backup copy — used for MCP configuration files, which may hold tokens.
 

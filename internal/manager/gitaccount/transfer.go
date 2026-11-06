@@ -31,12 +31,14 @@ import (
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/fsutil"
+	"github.com/oito2/perci/internal/manager/repofiles"
 	"github.com/oito2/perci/internal/ui"
 )
 
-// TransferVersion is the version of the repositories export file format
-// this build writes and reads.
-const TransferVersion = 1
+// TransferVersion is the newest version of the repositories export file
+// format this build reads. Version 2 added the contact e-mails; a file
+// without them is still written as version 1, which older builds read.
+const TransferVersion = 2
 
 // TransferFile is the repositories export file: accounts with their
 // repositories. It never holds an SSH key or an API token.
@@ -47,15 +49,17 @@ type TransferFile struct {
 
 // TransferAccount is one account of a TransferFile.
 type TransferAccount struct {
-	Name     string         `yaml:"name" json:"name"`
-	Provider string         `yaml:"provider" json:"provider"`
-	Host     string         `yaml:"host" json:"host"`
-	SSHPort  int            `yaml:"ssh_port,omitempty" json:"sshPort"`
-	Username string         `yaml:"username" json:"username"`
-	GitName  string         `yaml:"git_name" json:"gitName"`
-	GitEmail string         `yaml:"git_email" json:"gitEmail"`
-	Folder   string         `yaml:"folder" json:"folder"`
-	Repos    []TransferRepo `yaml:"repos,omitempty" json:"repos"`
+	Name     string `yaml:"name" json:"name"`
+	Provider string `yaml:"provider" json:"provider"`
+	Host     string `yaml:"host" json:"host"`
+	SSHPort  int    `yaml:"ssh_port,omitempty" json:"sshPort"`
+	Username string `yaml:"username" json:"username"`
+	GitName  string `yaml:"git_name" json:"gitName"`
+	GitEmail string `yaml:"git_email" json:"gitEmail"`
+	Folder   string `yaml:"folder" json:"folder"`
+	// ContactEmail is the account's contact e-mail for generated files.
+	ContactEmail string         `yaml:"contact_email,omitempty" json:"contactEmail"`
+	Repos        []TransferRepo `yaml:"repos,omitempty" json:"repos"`
 }
 
 // TransferRepo is one repository of a TransferAccount: its folder
@@ -63,6 +67,9 @@ type TransferAccount struct {
 type TransferRepo struct {
 	Path string `yaml:"path" json:"path"`
 	URL  string `yaml:"url" json:"url"`
+	// ContactEmail is the repository's own contact e-mail, overriding
+	// the account's.
+	ContactEmail string `yaml:"contact_email,omitempty" json:"contactEmail"`
 }
 
 // TransferPick names one account of a TransferFile (by name) and the
@@ -99,7 +106,7 @@ func Exportable(ctx context.Context, exe *executor.Executor, accounts []config.G
 		t := TransferAccount{
 			Name: acc.Name, Provider: acc.Provider, Host: acc.Host, SSHPort: acc.SSHPort,
 			Username: acc.Username, GitName: acc.GitName, GitEmail: acc.GitEmail, Folder: acc.Folder,
-			Repos: []TransferRepo{},
+			ContactEmail: acc.ContactEmail, Repos: []TransferRepo{},
 		}
 		listed, err := ListRepos(ctx, exe, acc)
 		if err != nil {
@@ -114,16 +121,19 @@ func Exportable(ctx context.Context, exe *executor.Executor, accounts []config.G
 			}
 			path := filepath.ToSlash(st.Path)
 			seen[path] = true
-			t.Repos = append(t.Repos, TransferRepo{Path: path, URL: SSHURL(acc, r.Owner, r.Repo)})
+			_, own := ContactEmail(acc, path)
+			t.Repos = append(t.Repos, TransferRepo{Path: path, URL: SSHURL(acc, r.Owner, r.Repo), ContactEmail: own})
 		}
 		for _, p := range acc.Pending {
 			if path := filepath.ToSlash(p.Path); !seen[path] {
 				seen[path] = true
-				t.Repos = append(t.Repos, TransferRepo{Path: path, URL: p.URL})
+				_, own := ContactEmail(acc, path)
+				t.Repos = append(t.Repos, TransferRepo{Path: path, URL: p.URL, ContactEmail: own})
 			}
 		}
 		file.Accounts = append(file.Accounts, t)
 	}
+	file.Version = file.formatVersion()
 	return file, skipped, nil
 }
 
@@ -194,6 +204,7 @@ func WriteTransfer(path string, f TransferFile) error {
 	if len(f.Accounts) == 0 {
 		return ErrNothingToExport
 	}
+	f.Version = f.formatVersion()
 	data, err := yaml.Marshal(f)
 	if err != nil {
 		return fmt.Errorf("gerar yaml: %w", err)
@@ -202,6 +213,22 @@ func WriteTransfer(path string, f TransferFile) error {
 		return fmt.Errorf("escrever %s: %w", path, err)
 	}
 	return nil
+}
+
+// formatVersion returns the oldest file format version that holds f: 2
+// when it has a contact e-mail, otherwise 1.
+func (f TransferFile) formatVersion() int {
+	for _, t := range f.Accounts {
+		if t.ContactEmail != "" {
+			return 2
+		}
+		for _, r := range t.Repos {
+			if r.ContactEmail != "" {
+				return 2
+			}
+		}
+	}
+	return 1
 }
 
 // LoadTransfer reads and validates the export file at path. Unknown keys
@@ -247,6 +274,9 @@ func (f TransferFile) Validate() error {
 		if err := checkClash(acc, accounts); err != nil {
 			return fmt.Errorf("conta %q: %w", t.Name, err)
 		}
+		if err := checkOptionalEmail(t.ContactEmail); err != nil {
+			return fmt.Errorf("conta %q: %w", t.Name, err)
+		}
 		for _, o := range accounts {
 			if sameUser(o, acc) {
 				return fmt.Errorf("conta %q: o usuário %s em %s aparece mais de uma vez", t.Name, acc.Username, acc.Host)
@@ -266,6 +296,9 @@ func (f TransferFile) Validate() error {
 			if ClassifyRemote(acc, r.URL) != RemoteOK {
 				return fmt.Errorf("conta %q: %s não é uma URL SSH de %s em %s", t.Name, RedactURL(r.URL), acc.Username, acc.Host)
 			}
+			if err := checkOptionalEmail(r.ContactEmail); err != nil {
+				return fmt.Errorf("conta %q, repositório %s: %w", t.Name, r.Path, err)
+			}
 		}
 	}
 	return nil
@@ -278,6 +311,19 @@ func checkRepoPath(path string) error {
 		return fmt.Errorf("caminho de repositório inválido: %q", path)
 	}
 	return nil
+}
+
+// checkOptionalEmail accepts an empty e-mail or a valid contact address
+// written without surrounding spaces.
+func checkOptionalEmail(email string) error {
+	if email == "" {
+		return nil
+	}
+	checked, err := repofiles.CheckContactEmail(email)
+	if err == nil && checked != email {
+		err = fmt.Errorf("e-mail de contato com espaços: %q", email)
+	}
+	return err
 }
 
 // sameUser reports whether a and b are the same user on the same server.
@@ -435,7 +481,11 @@ func Import(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Tra
 			continue
 		}
 		var pending []config.PendingRepo
+		emails := map[string]string{}
 		for i, st := range plan.States {
+			if st.State != ImportConflict && t.Repos[i].ContactEmail != "" {
+				emails[st.Path] = t.Repos[i].ContactEmail
+			}
 			switch st.State {
 			case ImportNew:
 				pending = append(pending, config.PendingRepo{Path: st.Path, URL: t.Repos[i].URL})
@@ -453,6 +503,9 @@ func Import(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Tra
 			if err := addPending(plan.ExistingID, pending); err != nil {
 				return err
 			}
+			if err := mergeContactEmails(plan.ExistingID, t.ContactEmail, emails); err != nil {
+				return err
+			}
 			ui.Success(stdout, fmt.Sprintf("Conta %s já existe nesta máquina (%s): %d repositório(s) pendente(s) adicionado(s).", t.Name, plan.ExistingName, len(pending)))
 			continue
 		}
@@ -460,6 +513,12 @@ func Import(ctx context.Context, exe *executor.Executor, stdout io.Writer, f Tra
 		acc := t.account()
 		acc.Folder = plan.Folder
 		acc.Pending = pending
+		acc.ContactEmail = t.ContactEmail
+		for _, st := range plan.States {
+			if email := emails[st.Path]; email != "" {
+				acc.RepoSettings = append(acc.RepoSettings, config.RepoSettings{Path: st.Path, ContactEmail: email})
+			}
+		}
 		if err := createAccount(ctx, exe, stdout, acc, cfg.GitAccounts); err != nil {
 			return fmt.Errorf("conta %s: %w", t.Name, err)
 		}
@@ -539,6 +598,39 @@ func addPending(id string, repos []config.PendingRepo) error {
 				c.GitAccounts[i].Pending = append(c.GitAccounts[i].Pending, repos...)
 				return nil
 			}
+		}
+		return fmt.Errorf("conta não encontrada: %q", id)
+	})
+}
+
+// mergeContactEmails gives the account id the contact e-mails of an
+// import without replacing any it already has: account becomes the
+// account's address when it has none, and each repository (by path) of
+// repos gets its address when it has no override.
+func mergeContactEmails(id, account string, repos map[string]string) error {
+	if account == "" && len(repos) == 0 {
+		return nil
+	}
+	return config.Update(func(c *config.Config) error {
+		for i := range c.GitAccounts {
+			acc := &c.GitAccounts[i]
+			if acc.ID != id {
+				continue
+			}
+			if acc.ContactEmail == "" {
+				acc.ContactEmail = account
+			}
+			paths := make([]string, 0, len(repos))
+			for path := range repos {
+				paths = append(paths, path)
+			}
+			slices.Sort(paths)
+			for _, path := range paths {
+				if _, own := ContactEmail(*acc, path); own == "" {
+					acc.RepoSettings = setRepoEmail(acc.RepoSettings, path, repos[path])
+				}
+			}
+			return nil
 		}
 		return fmt.Errorf("conta não encontrada: %q", id)
 	})

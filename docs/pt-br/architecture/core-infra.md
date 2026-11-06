@@ -30,7 +30,7 @@ O `RunSudoSequence` recusa `Options.Env` (seria descartado em silêncio): variá
 
 `WriteFileAtomic(path, data, mode)`: arquivo temporário no mesmo diretório, `chmod` para `mode`, `fsync`, rename — o modo final sempre vale, inclusive sobre um arquivo existente (o `os.WriteFile` só o aplica na criação). Usado no `config.yaml`, no export da stack Docker, nos logs de contêiner exportados e nos `.gitignore` gerados.
 
-`WriteGenerated(path, data, mode)` é o gravador dos arquivos gerados em projetos (arquivos de contexto de IA, `.claude/settings.json`, o arquivo de código de conduta do repositório, o wrapper do Flutter, entradas do menu de contexto do gerenciador de arquivos): grava através de um symlink em `path` (o destino do link é escrito e o link é mantido), de forma atômica, e quando já existe uma versão *diferente* a salva antes como `<path>.perci-bak`.
+`WriteGenerated(path, data, mode)` é o gravador dos arquivos gerados em projetos (arquivos de contexto de IA, `.claude/settings.json`, os arquivos de comunidade do repositório, o wrapper do Flutter, entradas do menu de contexto do gerenciador de arquivos): grava através de um symlink em `path` (o destino do link é escrito e o link é mantido), de forma atômica, e quando já existe uma versão *diferente* a salva antes como `<path>.perci-bak`.
 
 `WriteThroughLink(path, data, mode)` grava do mesmo jeito (através de symlink, de forma atômica) sem nenhuma cópia de backup — usado nos arquivos de configuração de MCP, que podem conter tokens.
 

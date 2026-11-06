@@ -355,9 +355,7 @@ func TestGitAccounts_VerifyAndPullGuards(t *testing.T) {
 
 func TestGitAccounts_RepoActions(t *testing.T) {
 	home, _ := isolateGitAccounts(t)
-	b, rec := newTestBase(t)
-	b.exe = executor.New(nil, nil)
-	svc := &RepositoriesService{serviceBase: *b}
+	svc := newReposService()
 	ctx := t.Context()
 	folder := approvedFolder(t, home, "repos/oito2")
 	if _, err := svc.SaveGitAccount(ctx, oito2Input(folder)); err != nil {
@@ -391,15 +389,6 @@ func TestGitAccounts_RepoActions(t *testing.T) {
 		t.Errorf("after the actions: %+v, %v", res, err)
 	}
 
-	if err := svc.GenerateGitAccountRepoGitignore("oito2", draft); err != nil {
-		t.Fatalf("GenerateGitAccountRepoGitignore: %v", err)
-	}
-	if _, done := rec.wait(t); done["ok"] != true {
-		t.Errorf("gitignore action-done = %v", done)
-	}
-	if _, err := os.Stat(filepath.Join(draft, ".gitignore")); err != nil {
-		t.Errorf(".gitignore not created: %v", err)
-	}
 }
 
 func TestGitAccounts_NewRepository(t *testing.T) {

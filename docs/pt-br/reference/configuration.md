@@ -71,6 +71,10 @@ git_accounts:
     pending:
       - path: labs/perci
         url: git@github.com:oito2/perci.git
+    contact_email: contact@example.com
+    repo_settings:
+      - path: labs/perci
+        contact_email: perci@example.com
 ```
 
 | Chave | Tipo | Descrição |
@@ -87,6 +91,8 @@ git_accounts:
 | `key_generated` | bool | O Perci gerou a chave. |
 | `has_token` | bool | Há um token de API guardado no chaveiro do sistema (`secret-tool`, atributos `service perci-git` e `account <id>`); o token em si nunca é gravado aqui. |
 | `pending` | lista | Repositórios importados e ainda não clonados: `path` (relativo a `folder`) e `url` SSH. Esvaziada por **Clonar pendentes** ou **Descartar**. |
+| `contact_email` | string | Endereço de contato gravado nos arquivos de comunidade gerados (código de conduta, página de suporte) dos repositórios da conta. Opcional. |
+| `repo_settings` | lista | Configurações por repositório que substituem as da conta: `path` (relativo a `folder`, `.` para a própria pasta) e `contact_email`. Uma entrada que fica sem valor é descartada. |
 
 ## `ai_contexts`
 

@@ -106,18 +106,12 @@ func Generate(stdout io.Writer, dir string) (string, error) {
 		return "", fmt.Errorf("detectar tipo de projeto: %w", err)
 	}
 
-	sections := []section{sectionEditors, sectionOS}
 	if len(names) == 0 {
 		ui.Info(stdout, "Nenhum tipo de projeto reconhecido — usando o .gitignore genérico.")
-		sections = append(sections, genericSections...)
 	} else {
 		ui.Info(stdout, "Tipo de projeto detectado: "+strings.Join(names, ", "))
-		for _, s := range stacks {
-			if slices.Contains(names, s.Name) {
-				sections = append(sections, s.Section)
-			}
-		}
 	}
+	sections := sectionsFor(names)
 
 	dest := filepath.Join(dir, ".gitignore")
 	existing, err := os.ReadFile(dest)
@@ -150,6 +144,38 @@ func Generate(stdout io.Writer, dir string) (string, error) {
 		ui.Success(stdout, fmt.Sprintf(".gitignore atualizado em %s (%d padrão(ões) acrescentado(s)).", dest, added))
 	}
 	return dest, nil
+}
+
+// Missing returns how many patterns Generate would append to dir/.gitignore,
+// and whether the file exists.
+func Missing(dir string) (int, bool, error) {
+	names, err := DetectStacks(dir)
+	if err != nil {
+		return 0, false, fmt.Errorf("detectar tipo de projeto: %w", err)
+	}
+	existing, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	exists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return 0, false, fmt.Errorf("ler .gitignore: %w", err)
+	}
+	_, added := buildAddition(string(existing), sectionsFor(names))
+	return added, exists, nil
+}
+
+// sectionsFor returns the sections for the detected project types names:
+// editors and OS, then each stack's section in dictionary order, or the
+// generic sections when names is empty.
+func sectionsFor(names []string) []section {
+	sections := []section{sectionEditors, sectionOS}
+	if len(names) == 0 {
+		return append(sections, genericSections...)
+	}
+	for _, s := range stacks {
+		if slices.Contains(names, s.Name) {
+			sections = append(sections, s.Section)
+		}
+	}
+	return sections
 }
 
 // DetectStacks returns the names of every project type recognized at

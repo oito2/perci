@@ -263,7 +263,7 @@ test("repository actions: Corrigir identidade asks first", async () => {
   assert.ok(calls.some((c) => c.name === "ResetGitAccountRepoIdentity" && c.args[1] === "/srv/oito2/labs/perci"));
 });
 
-test("repository actions: URL, .gitignore and Código de Conduta run on the Execução tab", async () => {
+test("repository actions: Trocar para SSH runs on the Execução tab; an SSH remote is just reported", async () => {
   const { ctx, element, calls } = await openAccount();
   const https = repo({ remoteClass: "https", remote: "https://github.com/oito2/perci.git", sshUrl: "git@github.com:oito2/perci.git" });
   ctx.openRepoActions(https);
@@ -274,19 +274,177 @@ test("repository actions: URL, .gitignore and Código de Conduta run on the Exec
   ctx.finishRun({ ok: true });
 
   ctx.openRepoActions(repo());
-  assert.equal(element("ra-conduct-email").value, "dev@oito2.com", "pre-filled with the account e-mail");
-  element("ra-conduct-email").value = "";
-  element("btn-ra-conduct").disabled = false;
-  click(element("btn-ra-conduct"));
-  assert.ok(!calls.some((c) => c.name === "CreateGitAccountRepoConduct"), "no e-mail, no run");
-  element("ra-conduct-email").value = "abuse@oito2.com";
-  click(element("btn-ra-conduct"));
-  assert.ok(calls.some((c) => c.name === "CreateGitAccountRepoConduct" && c.args[2] === "abuse@oito2.com"));
-  ctx.finishRun({ ok: true });
+  assert.match(element("ra-ssh-ok-text").textContent, /git@github\.com:oito2\/perci\.git/);
 
   element("btn-gac-fix-urls").disabled = false;
   click(element("btn-gac-fix-urls"));
   assert.ok(calls.some((c) => c.name === "FixGitAccountRepoURLs" && c.args[1] === ""));
+});
+
+const fileRow = (extra) => ({ id: "pr-template", label: ".github/PULL_REQUEST_TEMPLATE.md", files: [".github/PULL_REQUEST_TEMPLATE.md"], state: "missing", ...extra });
+
+const filesView = (extra) => ({
+  rows: [
+    fileRow({ id: "gitignore", label: ".gitignore", files: [".gitignore"], state: "differs", missing: 3 }),
+    fileRow({ id: "license", label: "LICENSE", files: ["LICENSE"], state: "differs", license: "MIT", notes: ["Também existe COPYING."] }),
+    fileRow({ id: "conduct", label: "CODE_OF_CONDUCT.md", files: ["CODE_OF_CONDUCT.md", "docs/pt-br/codigo-de-conduta.md"], state: "present", needsEmail: true }),
+    fileRow({ id: "support", label: "SUPPORT.md", files: ["SUPPORT.md", "docs/pt-br/suporte.md"], state: "missing", needsEmail: true }),
+    fileRow({ id: "issue-templates", label: ".github/ISSUE_TEMPLATE/", files: [".github/ISSUE_TEMPLATE/bug_report.yml"], state: "current" }),
+    fileRow(),
+    fileRow({ id: "funding", label: ".github/FUNDING.yml", files: [".github/FUNDING.yml"], state: "disabled" }),
+  ],
+  licenses: [
+    { id: "GPL-3.0", name: "GNU GPL v3.0", copyright: false },
+    { id: "MIT", name: "MIT", copyright: true },
+  ],
+  license: "GPL-3.0", holder: "Oito Dois", year: 2026,
+  contactEmail: "", accountEmail: "", repoEmail: "", webUrl: "https://github.com/oito2/perci",
+  ...extra,
+});
+
+// fileButtons returns the action buttons of the files table row id.
+function fileButtons(element, id) {
+  const rows = element("ra-files-rows").children;
+  const tr = rows.find((r) => r.children[2].children.some((b) => b.dataset.row === id))
+    || rows.find((r) => r.children[0].children[0].textContent === id);
+  return tr ? tr.children[2].children : [];
+}
+
+test("repository dialog: the plus button opens it on Configurações and reads the files", async () => {
+  const { ctx, element, calls } = await openAccount({ GetGitAccountRepoFiles: filesView({ accountEmail: "acc@example.org", contactEmail: "acc@example.org" }) });
+  const more = element("gac-rows").children[0].children[4].children[2];
+  assert.equal(more.innerHTML, "<svg></svg>", "the button shows an icon");
+  element("ra-tab-settings").checked = false;
+  click(more);
+  await tick();
+  assert.equal(element("ra-tab-settings").checked, true);
+  assert.equal(element("ra-title").textContent, "labs/perci");
+  assert.ok(calls.some((c) => c.name === "GetGitAccountRepoFiles" && c.args[0] === "oito2" && c.args[1] === "/srv/oito2/labs/perci" && c.args[2] === ""));
+  assert.equal(element("ra-account-email").value, "acc@example.org");
+  assert.equal(element("ra-repo-email").value, "");
+  assert.match(element("ra-email-effective").textContent, /acc@example\.org \(padrão da conta\)/);
+  assert.equal(element("ra-license").value, "GPL-3.0");
+  assert.equal(element("ra-license-holder").value, "Oito Dois");
+  assert.equal(element("ra-license-year").value, "2026");
+});
+
+test("repository dialog: Status and actions follow each row's state", async () => {
+  const { ctx, element } = await openAccount({ GetGitAccountRepoFiles: filesView() });
+  ctx.openRepoActions(repo());
+  await tick();
+  const view = filesView();
+  const status = (id) => ctx.raStatus(view.rows.find((r) => r.id === id), view).label;
+  assert.equal(status("gitignore"), "faltam 3 padrão(ões)");
+  assert.equal(status("license"), "MIT");
+  assert.equal(status("conduct"), "existe");
+  assert.equal(status("support"), "não existe");
+  assert.equal(status("issue-templates"), "em dia");
+  assert.equal(status("funding"), "em breve");
+  assert.equal(ctx.raStatus(fileRow({ id: "license", state: "current", license: "GPL-3.0" }), view).label, "GPL-3.0 — em dia");
+  assert.equal(ctx.raStatus(fileRow({ id: "license", state: "differs", license: "" }), view).label, "licença não reconhecida");
+
+  const labels = (id) => fileButtons(element, id).map((b) => b.textContent);
+  assert.deepEqual(labels("gitignore"), ["Atualizar", "Remover"]);
+  assert.deepEqual(labels("support"), ["Criar"]);
+  assert.deepEqual(labels("issue-templates"), ["Remover"]);
+  assert.deepEqual(labels(".github/FUNDING.yml"), []);
+  assert.equal(fileButtons(element, "support")[0].disabled, true, "no e-mail, no SUPPORT.md");
+  assert.equal(fileButtons(element, "conduct")[0].disabled, true);
+  assert.equal(fileButtons(element, "conduct")[1].disabled, false, "removing needs no e-mail");
+  const notes = element("ra-files-rows").children[1].children[0].children.map((c) => c.textContent);
+  assert.ok(notes.includes("Também existe COPYING."));
+});
+
+test("repository dialog: Criar and the .gitignore run at once; replacing a file asks first", async () => {
+  const { ctx, element, calls } = await openAccount({
+    GetGitAccountRepoFiles: filesView({ contactEmail: "acc@example.org" }),
+    ApplyGitAccountRepoFile: "gravado.",
+  });
+  ctx.openRepoActions(repo());
+  await tick();
+  const applies = () => calls.filter((c) => c.name === "ApplyGitAccountRepoFile");
+
+  click(fileButtons(element, "support")[0]);
+  await tick();
+  assert.equal(applies().length, 1);
+  assert.deepEqual([...applies()[0].args.slice(0, 3)], ["oito2", "/srv/oito2/labs/perci", "support"]);
+  assert.equal(element("ra-files-msg").textContent, "gravado.");
+  const reloads = calls.filter((c) => c.name === "GetGitAccountRepoFiles");
+  assert.equal(reloads[reloads.length - 1].args[2], "GPL-3.0", "the reload keeps the chosen license");
+
+  click(fileButtons(element, "gitignore")[0]);
+  await tick();
+  assert.equal(applies().length, 2, "the .gitignore only gains patterns: no confirmation");
+
+  click(fileButtons(element, "conduct")[0]);
+  assert.equal(applies().length, 2, "replacing waits for the confirmation");
+  assert.match(element("confirm-modal-message").textContent, /\.perci-bak/);
+  click(element("btn-confirm-ok"));
+  await tick();
+  assert.equal(applies().length, 3);
+
+  element("ra-license-holder").value = " Outro ";
+  element("ra-license-year").value = "2025";
+  click(fileButtons(element, "license")[0]);
+  assert.match(element("confirm-modal-message").textContent, /Substituir a licença MIT por GPL-3\.0/);
+  click(element("btn-confirm-ok"));
+  await tick();
+  assert.deepEqual({ ...applies()[3].args[3] }, { license: "GPL-3.0", holder: "Outro", year: 2025 });
+});
+
+test("repository dialog: Remover asks first, and an error stays in the dialog", async () => {
+  const { ctx, element, calls } = await openAccount({
+    GetGitAccountRepoFiles: filesView(),
+    RemoveGitAccountRepoFile: () => Promise.reject(new Error("sem permissão")),
+  });
+  ctx.openRepoActions(repo());
+  await tick();
+  click(fileButtons(element, "issue-templates")[0]);
+  assert.ok(!calls.some((c) => c.name === "RemoveGitAccountRepoFile"));
+  assert.match(element("confirm-modal-message").textContent, /bug_report\.yml/);
+  click(element("btn-confirm-ok"));
+  await tick();
+  await tick();
+  assert.ok(calls.some((c) => c.name === "RemoveGitAccountRepoFile" && c.args[2] === "issue-templates"));
+  assert.match(element("ra-files-msg").textContent, /sem permissão/);
+});
+
+test("repository dialog: the e-mails are saved for the account or the repository, and the license choice reloads", async () => {
+  const { ctx, element, calls } = await openAccount({ GetGitAccountRepoFiles: filesView() });
+  ctx.openRepoActions(repo());
+  await tick();
+  element("ra-account-email").value = " acc@example.org ";
+  element("btn-ra-account-email").disabled = false;
+  click(element("btn-ra-account-email"));
+  await tick();
+  element("ra-repo-email").value = "perci@example.org";
+  element("btn-ra-repo-email").disabled = false;
+  click(element("btn-ra-repo-email"));
+  await tick();
+  const saves = calls.filter((c) => c.name === "SetGitAccountContactEmail").map((c) => [...c.args]);
+  assert.deepEqual(saves, [["oito2", "", "acc@example.org"], ["oito2", "/srv/oito2/labs/perci", "perci@example.org"]]);
+
+  element("ra-license-holder").value = "Typed Holder";
+  element("ra-license").value = "MIT";
+  element("ra-license").listeners.change[0]();
+  await tick();
+  const reloads = calls.filter((c) => c.name === "GetGitAccountRepoFiles");
+  assert.equal(reloads[reloads.length - 1].args[2], "MIT");
+  assert.equal(element("ra-license-holder").value, "Typed Holder", "a reload keeps what was typed");
+});
+
+test("repository dialog: an older answer is dropped when the files were reloaded", async () => {
+  let resolveFirst;
+  let n = 0;
+  const { ctx, element } = await openAccount({
+    GetGitAccountRepoFiles: () => (++n === 1 ? new Promise((r) => { resolveFirst = r; }) : filesView({ license: "MIT" })),
+  });
+  ctx.openRepoActions(repo());
+  ctx.raLoadFiles("MIT");
+  await tick();
+  resolveFirst(filesView({ license: "GPL-3.0" }));
+  await tick();
+  assert.equal(element("ra-license").value, "MIT");
 });
 
 test("Novo Repositório: pick from the account's list, the folder follows, and the clone runs after the check", async () => {

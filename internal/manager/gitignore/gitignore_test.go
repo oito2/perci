@@ -174,3 +174,23 @@ func TestSectionHeaderWidth(t *testing.T) {
 		t.Errorf("header is %d runes, want 80: %q", n, h)
 	}
 }
+
+func TestMissing(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	n, exists, err := Missing(dir)
+	if err != nil || exists || n == 0 {
+		t.Fatalf("no .gitignore: got %d, %v, %v", n, exists, err)
+	}
+	if _, err := Generate(io.Discard, dir); err != nil {
+		t.Fatal(err)
+	}
+	if n, exists, err := Missing(dir); err != nil || !exists || n != 0 {
+		t.Errorf("after Generate: got %d, %v, %v, want 0, true", n, exists, err)
+	}
+	if _, _, err := Missing(filepath.Join(dir, "missing")); err == nil {
+		t.Error("missing folder: want an error")
+	}
+}

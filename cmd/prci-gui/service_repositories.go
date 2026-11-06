@@ -32,7 +32,6 @@ import (
 	"github.com/oito2/perci/internal/config"
 	"github.com/oito2/perci/internal/executor"
 	"github.com/oito2/perci/internal/manager/gitaccount"
-	managergitignore "github.com/oito2/perci/internal/manager/gitignore"
 	managerrepo "github.com/oito2/perci/internal/manager/repo"
 )
 
@@ -249,6 +248,7 @@ func (s *RepositoriesService) saveGitAccount(ctx context.Context, in GitAccountI
 	if prev != nil {
 		acc.SSHKey, acc.KeyGenerated = prev.SSHKey, prev.KeyGenerated
 		acc.HasToken, acc.Pending = prev.HasToken, prev.Pending
+		acc.ContactEmail, acc.RepoSettings = prev.ContactEmail, prev.RepoSettings
 	}
 	acc = gitaccount.Normalize(acc)
 	if acc.SSHPort == 22 {
@@ -571,34 +571,6 @@ func (s *RepositoriesService) ResetGitAccountRepoIdentity(ctx context.Context, i
 			return err
 		}
 		return gitaccount.ResetIdentity(ctx, s.exe, st)
-	})
-}
-
-// GenerateGitAccountRepoGitignore creates the .gitignore of the repository
-// at dir, or merges the missing patterns into it, on the Execução tab.
-func (s *RepositoriesService) GenerateGitAccountRepoGitignore(id, dir string) error {
-	ctx := context.Background()
-	_, st, err := s.accountRepo(ctx, id, dir)
-	if err != nil {
-		return err
-	}
-	return s.runAction(func(stdout io.Writer) error {
-		_, err := managergitignore.Generate(stdout, st.Dir)
-		return err
-	})
-}
-
-// CreateGitAccountRepoConduct writes CODE_OF_CONDUCT.md and its Portuguese
-// mirror into the repository at dir, replacing existing copies, with
-// contactEmail for reports, on the Execução tab.
-func (s *RepositoriesService) CreateGitAccountRepoConduct(id, dir, contactEmail string) error {
-	ctx := context.Background()
-	_, st, err := s.accountRepo(ctx, id, dir)
-	if err != nil {
-		return err
-	}
-	return s.runAction(func(stdout io.Writer) error {
-		return managerrepo.CreateConduct(stdout, st.Dir, contactEmail, true)
 	})
 }
 

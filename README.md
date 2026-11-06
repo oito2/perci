@@ -42,7 +42,7 @@ A desktop GUI (Go + [Wails](https://wails.io)), six sidebar categories, no daemo
 - **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps.
 - **Desenvolvimento** — build prerequisites, Go/Rust/Flutter SDKs, AI apps, terminals, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — a per-project Docker application stack (Nginx/MariaDB/PHP/Node/PHP+Node containers, with Moodle routing), create and manage containers.
-- **Repositórios** — GitHub/GitLab accounts, each with its folder, commit identity and SSH key (also used by `git` in the terminal); fetch, fast-forward and clone the account's repositories; export/import accounts and repositories to another machine.
+- **Repositórios** — GitHub/GitLab accounts, each with its folder, commit identity and SSH key (also used by `git` in the terminal); fetch, fast-forward and clone the account's repositories; generate their LICENSE, code of conduct, support page and issue/pull request templates; export/import accounts and repositories to another machine.
 - **Dev Tools** — Moodle plugin development folders mounted into Moodle containers, AI context generation for Claude Code, Gemini, Codex, OpenCode and Antigravity (`AGENTS.md`, `.instructions/*.md` and each agent's own files) with a list of the folders that have one, updated or exported from there, AI agent skills, MCP server registration.
 
 An optional system tray icon gives quick access to containers and system updates from a compact window.

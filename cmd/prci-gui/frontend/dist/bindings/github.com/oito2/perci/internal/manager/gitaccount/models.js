@@ -179,6 +179,14 @@ export class ImportAccount {
              */
             this["folder"] = "";
         }
+        if (!("contactEmail" in $$source)) {
+            /**
+             * ContactEmail is the account's contact e-mail for generated files.
+             * @member
+             * @type {string}
+             */
+            this["contactEmail"] = "";
+        }
         if (!("repos" in $$source)) {
             /**
              * @member
@@ -224,14 +232,14 @@ export class ImportAccount {
      * @returns {ImportAccount}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType5;
-        const $$createField12_0 = $$createType7;
+        const $$createField9_0 = $$createType5;
+        const $$createField13_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
-            $$parsedSource["repos"] = $$createField8_0($$parsedSource["repos"]);
+            $$parsedSource["repos"] = $$createField9_0($$parsedSource["repos"]);
         }
         if ("states" in $$parsedSource) {
-            $$parsedSource["states"] = $$createField12_0($$parsedSource["states"]);
+            $$parsedSource["states"] = $$createField13_0($$parsedSource["states"]);
         }
         return new ImportAccount(/** @type {Partial<ImportAccount>} */($$parsedSource));
     }
@@ -632,6 +640,14 @@ export class TransferAccount {
              */
             this["folder"] = "";
         }
+        if (!("contactEmail" in $$source)) {
+            /**
+             * ContactEmail is the account's contact e-mail for generated files.
+             * @member
+             * @type {string}
+             */
+            this["contactEmail"] = "";
+        }
         if (!("repos" in $$source)) {
             /**
              * @member
@@ -649,10 +665,10 @@ export class TransferAccount {
      * @returns {TransferAccount}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType5;
+        const $$createField9_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
-            $$parsedSource["repos"] = $$createField8_0($$parsedSource["repos"]);
+            $$parsedSource["repos"] = $$createField9_0($$parsedSource["repos"]);
         }
         return new TransferAccount(/** @type {Partial<TransferAccount>} */($$parsedSource));
     }
@@ -724,6 +740,15 @@ export class TransferRepo {
              * @type {string}
              */
             this["url"] = "";
+        }
+        if (!("contactEmail" in $$source)) {
+            /**
+             * ContactEmail is the repository's own contact e-mail, overriding
+             * the account's.
+             * @member
+             * @type {string}
+             */
+            this["contactEmail"] = "";
         }
 
         Object.assign(this, $$source);

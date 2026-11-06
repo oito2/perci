@@ -563,9 +563,21 @@ const raRemotePreview = document.getElementById("ra-remote-preview");
 const raIdent = document.getElementById("ra-ident");
 const raIdentText = document.getElementById("ra-ident-text");
 const btnRaIdent = document.getElementById("btn-ra-ident");
-const btnRaGitignore = document.getElementById("btn-ra-gitignore");
-const raConductEmail = document.getElementById("ra-conduct-email");
-const btnRaConduct = document.getElementById("btn-ra-conduct");
+const raTabSettings = document.getElementById("ra-tab-settings");
+const raAccountEmail = document.getElementById("ra-account-email");
+const btnRaAccountEmail = document.getElementById("btn-ra-account-email");
+const raRepoEmail = document.getElementById("ra-repo-email");
+const btnRaRepoEmail = document.getElementById("btn-ra-repo-email");
+const raEmailEffective = document.getElementById("ra-email-effective");
+const raSSHOk = document.getElementById("ra-ssh-ok");
+const raSSHOkText = document.getElementById("ra-ssh-ok-text");
+const raLicense = document.getElementById("ra-license");
+const raLicenseHolderWrap = document.getElementById("ra-license-holder-wrap");
+const raLicenseHolder = document.getElementById("ra-license-holder");
+const raLicenseYearWrap = document.getElementById("ra-license-year-wrap");
+const raLicenseYear = document.getElementById("ra-license-year");
+const raFilesMsg = document.getElementById("ra-files-msg");
+const raFilesRows = document.getElementById("ra-files-rows");
 const gacAlert = document.getElementById("gac-alert");
 const gacAlertText = document.getElementById("gac-alert-text");
 const gacLoading = document.getElementById("gac-loading");
@@ -687,9 +699,9 @@ function buildGacRow(st) {
   const btnMore = document.createElement("button");
   btnMore.type = "button";
   btnMore.className = "btn btn-ghost btn-xs";
-  btnMore.title = "Mais ações de " + st.path;
+  btnMore.title = "Configurações, remote e arquivos de " + st.path;
   btnMore.setAttribute("aria-label", btnMore.title);
-  btnMore.textContent = "•••";
+  btnMore.innerHTML = LUCIDE.svg("plus", { size: 16 });
   btnMore.disabled = !!st.error;
   btnMore.addEventListener("click", function () { openRepoActions(st); });
   tdActions.appendChild(btnVerify);
@@ -738,9 +750,12 @@ function repoBaseName(path) {
 function openRepoActions(st) {
   if (!gacAccount) return;
   raRepo = st;
-  raTitle.textContent = "Ações — " + st.path;
+  raTitle.textContent = st.path;
   raSubtitle.textContent = st.dir;
+  raTabSettings.checked = true;
 
+  raSSHOk.classList.toggle("hidden", st.remoteClass !== "ok");
+  raSSHOkText.textContent = "O remote origin já usa SSH com a chave da conta: " + st.remote;
   raUrl.classList.toggle("hidden", st.remoteClass !== "https");
   raUrlText.textContent = "O remote usa HTTPS: " + st.remote + "\nCom SSH, vale a chave da conta: " + (st.sshUrl || "");
   btnRaUrl.disabled = !gacReady || running;
@@ -754,9 +769,13 @@ function openRepoActions(st) {
     [st.localName, st.localEmail].filter(Boolean).join(" ") + "). Os próximos commits passam a usar " +
     gacAccount.gitName + " <" + gacAccount.gitEmail + ">; os commits já feitos não mudam.";
 
-  raConductEmail.value = st.localEmail || gacAccount.gitEmail || "";
-  btnRaGitignore.disabled = running;
-  btnRaConduct.disabled = running;
+  raFiles = null;
+  raAccountEmail.value = "";
+  raRepoEmail.value = "";
+  raEmailEffective.textContent = "";
+  raFilesRows.innerHTML = "";
+  raShowFilesMsg("", false);
+  raLoadFiles("");
   showDialog(repoActionsModal);
 }
 
@@ -809,24 +828,257 @@ btnRaIdent.addEventListener("click", function () {
   );
 });
 
-btnRaGitignore.addEventListener("click", function () {
-  if (!raRepo || btnRaGitignore.disabled) return;
+// --- Configurações and Arquivos tabs ----------------------------------------
+
+let raFiles = null; // the last RepoFilesView of the open repository
+let raFilesSeq = 0; // drops answers of an older load
+
+// raShowFilesMsg shows text above the files table (an error in red), or
+// hides it when text is empty.
+function raShowFilesMsg(text, isError) {
+  raFilesMsg.textContent = text;
+  raFilesMsg.classList.toggle("hidden", !text);
+  raFilesMsg.classList.toggle("alert-error", !!isError);
+  raFilesMsg.classList.toggle("alert-success", !isError);
+}
+
+// raLoadFiles reads the Arquivos tab of the open repository, comparing
+// LICENSE against license ("" lets the backend pick the license found in
+// the file, or the default one).
+function raLoadFiles(license) {
+  if (!raRepo) return;
+  const seq = ++raFilesSeq;
+  const first = raFiles === null;
+  App.GetGitAccountRepoFiles(gacAccountId, raRepo.dir, license).then(function (view) {
+    if (seq !== raFilesSeq) return;
+    raFiles = view;
+    raRenderEmails(view);
+    raRenderLicense(view, first);
+    raRenderFiles(view);
+  }).catch(function (err) {
+    if (seq !== raFilesSeq) return;
+    raShowFilesMsg("Não foi possível ler os arquivos: " + gaErrText(err), true);
+  });
+}
+
+function raRenderEmails(v) {
+  raAccountEmail.value = v.accountEmail || "";
+  raRepoEmail.value = v.repoEmail || "";
+  if (!v.contactEmail) {
+    raEmailEffective.textContent = "Nenhum e-mail definido: CODE_OF_CONDUCT.md e SUPPORT.md não podem ser gerados.";
+  } else if (v.repoEmail) {
+    raEmailEffective.textContent = "Em uso neste repositório: " + v.contactEmail + " (só deste repositório).";
+  } else {
+    raEmailEffective.textContent = "Em uso neste repositório: " + v.contactEmail + " (padrão da conta).";
+  }
+}
+
+// raLicenseInfo returns the offered license id of the open view.
+function raLicenseInfo(id) {
+  const list = (raFiles && raFiles.licenses) || [];
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].id === id) return list[i];
+  }
+  return null;
+}
+
+// raRenderLicense fills the license select with v.license selected, and
+// the holder and year with the suggested values on the first load of the
+// dialog (later loads keep what was typed).
+function raRenderLicense(v, first) {
+  raLicense.innerHTML = "";
+  (v.licenses || []).forEach(function (l) {
+    const opt = document.createElement("option");
+    opt.value = l.id;
+    opt.textContent = l.name;
+    raLicense.appendChild(opt);
+  });
+  raLicense.value = v.license;
+  if (first) {
+    raLicenseHolder.value = v.holder || "";
+    raLicenseYear.value = String(v.year || "");
+  }
+  const info = raLicenseInfo(v.license);
+  const copyright = !!(info && info.copyright);
+  raLicenseHolderWrap.classList.toggle("hidden", !copyright);
+  raLicenseYearWrap.classList.toggle("hidden", !copyright);
+}
+
+// raStatus returns the Status badge of a files row.
+function raStatus(row, v) {
+  switch (row.state) {
+    case "missing":
+      return { label: "não existe", color: "neutral", title: "Nenhum dos arquivos existe" };
+    case "current":
+      return {
+        label: row.license ? row.license + " — em dia" : "em dia", color: "success",
+        title: "Igual ao que o Perci gera agora",
+      };
+    case "differs":
+      if (row.id === "gitignore") {
+        return { label: "faltam " + row.missing + " padrão(ões)", color: "warning", title: "Atualizar acrescenta só os padrões que faltam" };
+      }
+      if (row.id === "license") {
+        return row.license
+          ? { label: row.license, color: "warning", title: "A licença do arquivo não é a escolhida (" + v.license + ")" }
+          : { label: "licença não reconhecida", color: "warning", title: "O texto não é de nenhuma das licenças oferecidas" };
+      }
+      return {
+        label: "diferente", color: "warning",
+        title: "Diferente do que o Perci gera agora: editado, de outra versão, com outro e-mail ou endereço, ou faltando um arquivo",
+      };
+    case "present":
+      return { label: "existe", color: "info", title: "Defina o e-mail de contato na aba Configurações para comparar" };
+    default:
+      return { label: "em breve", color: "ghost", title: "Ainda não disponível" };
+  }
+}
+
+// raActions lists the actions of a files row: "apply" (Criar or
+// Atualizar) and "remove".
+function raActions(row) {
+  switch (row.state) {
+    case "missing": return [{ kind: "apply", label: "Criar" }];
+    case "current": return [{ kind: "remove", label: "Remover" }];
+    case "differs":
+    case "present": return [{ kind: "apply", label: "Atualizar" }, { kind: "remove", label: "Remover" }];
+    default: return [];
+  }
+}
+
+function raRenderFiles(v) {
+  raFilesRows.innerHTML = "";
+  (v.rows || []).forEach(function (row) {
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    const name = document.createElement("div");
+    name.className = "font-mono text-sm break-all";
+    name.textContent = row.label;
+    tdName.appendChild(name);
+    if (row.files && (row.files.length > 1 || row.files[0] !== row.label)) {
+      const files = document.createElement("div");
+      files.className = "text-xs opacity-60 break-all";
+      files.textContent = row.files.join(", ");
+      tdName.appendChild(files);
+    }
+    (row.notes || []).forEach(function (note) {
+      const n = document.createElement("div");
+      n.className = "text-xs text-warning";
+      n.textContent = note;
+      tdName.appendChild(n);
+    });
+    tr.appendChild(tdName);
+
+    const tdStatus = document.createElement("td");
+    const st = raStatus(row, v);
+    const badge = document.createElement("span");
+    badge.className = "badge badge-soft badge-sm whitespace-nowrap badge-" + st.color;
+    badge.textContent = st.label;
+    badge.title = st.title;
+    tdStatus.appendChild(badge);
+    tr.appendChild(tdStatus);
+
+    const tdActions = document.createElement("td");
+    tdActions.className = "whitespace-nowrap";
+    raActions(row).forEach(function (a) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-xs mr-1 " + (a.kind === "remove" ? "btn-ghost text-error" : row.state === "missing" ? "btn-primary" : "btn-outline");
+      btn.textContent = a.label;
+      btn.dataset.row = row.id;
+      btn.dataset.kind = a.kind;
+      btn.disabled = running;
+      if (a.kind === "apply" && row.needsEmail && !v.contactEmail) {
+        btn.disabled = true;
+        btn.title = "Defina o e-mail de contato na aba Configurações";
+      }
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        if (a.kind === "apply") raApply(row); else raRemove(row);
+      });
+      tdActions.appendChild(btn);
+    });
+    tr.appendChild(tdActions);
+    raFilesRows.appendChild(tr);
+  });
+}
+
+// raChoice returns the LICENSE choices typed in the Arquivos tab.
+function raChoice() {
+  return {
+    license: raLicense.value,
+    holder: raLicenseHolder.value.trim(),
+    year: parseInt(raLicenseYear.value, 10) || 0,
+  };
+}
+
+// raApply creates or updates the files of row, asking first when an
+// existing file is replaced (the .gitignore only gains patterns).
+function raApply(row) {
   const id = gacAccountId;
   const dir = raRepo.dir;
-  raLaunch("Criar/Atualizar .gitignore", function () { return App.GenerateGitAccountRepoGitignore(id, dir); });
-});
-
-btnRaConduct.addEventListener("click", function () {
-  if (!raRepo || btnRaConduct.disabled) return;
-  const email = raConductEmail.value.trim();
-  if (!email) {
-    openError("Informe o e-mail de contato para denúncias.");
+  const choice = raChoice();
+  const go = function () {
+    App.ApplyGitAccountRepoFile(id, dir, row.id, choice).then(function (msg) {
+      raShowFilesMsg(msg, false);
+      raLoadFiles(choice.license);
+    }).catch(function (err) {
+      raShowFilesMsg("Não foi possível gravar " + row.label + ": " + gaErrText(err), true);
+    });
+  };
+  if (row.state === "missing" || row.id === "gitignore") {
+    go();
     return;
   }
+  let message = "Substituir " + row.files.join(", ") + " pela versão do Perci?\n\nA versão atual de cada arquivo fica em <arquivo>.perci-bak.";
+  if (row.id === "license" && row.license && row.license !== choice.license) {
+    message = "Substituir a licença " + row.license + " por " + choice.license + "?\n\nA versão atual fica em LICENSE.perci-bak.";
+  }
+  openConfirm("Atualizar " + row.label + "?", message, go);
+}
+
+// raRemove deletes the files of row after a confirmation.
+function raRemove(row) {
   const id = gacAccountId;
   const dir = raRepo.dir;
-  raLaunch("Criar/Atualizar Código de Conduta", function () { return App.CreateGitAccountRepoConduct(id, dir, email); });
+  openConfirm(
+    "Remover " + row.label + "?",
+    "Apagar do repositório:\n- " + row.files.join("\n- ") + "\n\nO Git ainda guarda a versão commitada.",
+    function () {
+      App.RemoveGitAccountRepoFile(id, dir, row.id).then(function () {
+        raShowFilesMsg(row.label + " removido.", false);
+        raLoadFiles(raLicense.value);
+      }).catch(function (err) {
+        raShowFilesMsg("Não foi possível remover " + row.label + ": " + gaErrText(err), true);
+      });
+    }
+  );
+}
+
+raLicense.addEventListener("change", function () {
+  raShowFilesMsg("", false);
+  raLoadFiles(raLicense.value);
 });
+
+// raSaveEmail saves the account's contact e-mail (forRepo false) or the
+// open repository's own, then re-reads the tabs.
+function raSaveEmail(forRepo) {
+  if (!raRepo) return;
+  const btn = forRepo ? btnRaRepoEmail : btnRaAccountEmail;
+  if (btn.disabled) return;
+  const value = (forRepo ? raRepoEmail : raAccountEmail).value.trim();
+  btn.disabled = true;
+  App.SetGitAccountContactEmail(gacAccountId, forRepo ? raRepo.dir : "", value).then(function () {
+    raLoadFiles(raLicense.value);
+  }).catch(function (err) {
+    openError("Não foi possível salvar o e-mail de contato: " + gaErrText(err));
+  }).finally(function () {
+    btn.disabled = false;
+  });
+}
+btnRaAccountEmail.addEventListener("click", function () { raSaveEmail(false); });
+btnRaRepoEmail.addEventListener("click", function () { raSaveEmail(true); });
 
 btnGacVerify.addEventListener("click", function () {
   if (gacAccountId && !btnGacVerify.disabled) gacRun("verify", null);

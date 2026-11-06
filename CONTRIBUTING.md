@@ -87,11 +87,13 @@ perci/
 │   ├── system/         # "Linux" category (update, fonts, apps, templates, postinstall…)
 │   ├── appstack/       # Per-project Docker application stack (Nginx/MariaDB/PHP/Node containers)
 │   ├── dev/            # "Desenvolvimento" category (SDKs, AI apps, IDEs, terminals, MCP)
-│   └── manager/        # "Dev Tools" category (AI context, .gitignore, repositories)
+│   └── manager/        # "Repositórios" and "Dev Tools" categories (Git accounts, repository files, AI context)
 │       ├── ai/         # AI Context generation (CLAUDE.md, AGENTS.md, .instructions/*.md)
 │       ├── db/         # MariaDB backup/restore/optimize
+│       ├── gitaccount/ # Git accounts: SSH keys, includeIf rules, repositories, export/import
 │       ├── gitignore/  # .gitignore generation based on the detected project type
-│       └── repo/       # Git identity (global, init, clone, local ident, conduct)
+│       ├── repo/       # Global Git identity
+│       └── repofiles/  # Repository files: LICENSE, code of conduct, SUPPORT, issue/PR templates
 ├── packaging/          # perci.desktop + hicolor icon sets (application menu entry)
 ├── docs/
 │   ├── en/             # Documentation site (English, canonical)
