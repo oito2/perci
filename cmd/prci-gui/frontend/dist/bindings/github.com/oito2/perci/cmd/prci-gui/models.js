@@ -2202,60 +2202,6 @@ export class SelfConfigInfo {
 }
 
 /**
- * SelfUpdateInfo is what "Home :: Atualizar Perci" needs to render: the
- * installed version, the latest one found on GitHub Releases, and whether
- * they differ — or Error when the check itself failed (e.g. no network).
- */
-export class SelfUpdateInfo {
-    /**
-     * Creates a new SelfUpdateInfo instance.
-     * @param {Partial<SelfUpdateInfo>} [$$source = {}] - The source object to create the SelfUpdateInfo.
-     */
-    constructor($$source = {}) {
-        if (!("currentVersion" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["currentVersion"] = "";
-        }
-        if (/** @type {any} */(false)) {
-            /**
-             * @member
-             * @type {string | undefined}
-             */
-            this["latestVersion"] = undefined;
-        }
-        if (!("updateAvailable" in $$source)) {
-            /**
-             * @member
-             * @type {boolean}
-             */
-            this["updateAvailable"] = false;
-        }
-        if (/** @type {any} */(false)) {
-            /**
-             * @member
-             * @type {string | undefined}
-             */
-            this["error"] = undefined;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new SelfUpdateInfo instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {SelfUpdateInfo}
-     */
-    static createFrom($$source = {}) {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new SelfUpdateInfo(/** @type {Partial<SelfUpdateInfo>} */($$parsedSource));
-    }
-}
-
-/**
  * SingleAppInfo is what the frontend needs for the local-file app screens
  * (Android Studio, Antigravity IDE): whether the app is installed.
  */

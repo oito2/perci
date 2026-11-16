@@ -16,7 +16,7 @@ The GUI groups every action into six sidebar categories:
 
 | # | Category | Covers |
 |---|---|---|
-| 1 | **Home** | Dashboard/overview (with self-update and self-uninstall), settings. |
+| 1 | **Home** | Dashboard/overview (with the discontinuation notice and self-uninstall), settings. |
 | 2 | **Linux** | System-wide OS actions: updates, distro/DE-specific post-installation, fonts, file templates, Flatpak apps, WebApps. |
 | 3 | **Desenvolvimento** | Building a dev environment: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals. |
 | 4 | **Docker** | The per-project Docker application stack: creating and managing Nginx/MariaDB/PHP/Node containers, export/import. |

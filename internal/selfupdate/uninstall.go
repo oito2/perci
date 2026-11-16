@@ -27,6 +27,10 @@ import (
 	"github.com/oito2/perci/internal/ui"
 )
 
+// executablePath locates the running binary — os.Executable, replaced by
+// tests with a file in a temp dir.
+var executablePath = os.Executable
+
 // ErrUninstalled is returned by Uninstall after the binary is successfully removed.
 var ErrUninstalled = errors.New("perci desinstalado")
 

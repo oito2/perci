@@ -258,23 +258,26 @@ test("IA Contextos: an answer for a folder that was cleared is dropped", async (
 });
 
 // FE-05
-test("an update that ends outside Visão Geral makes the next visit check again", () => {
-  const { ctx } = load();
-  evalIn(ctx, 'selfUpdateCheckedAt = 12345; dashboardRunningAction = "self-update"');
-  ctx.__selectedItem = { actionId: "dashboard" };
-  ctx.startExecution("Atualizar Perci");
-  ctx.__selectedItem = { actionId: "fonts" };
-  ctx.finishRun({ ok: true });
-  assert.equal(evalIn(ctx, "selfUpdateCheckedAt"), 0);
+test("the discontinuation notice copies each install command", async () => {
+  const { ctx, element } = load();
+  const copied = [];
+  ctx.Clipboard = { SetText: (text) => { copied.push(text); return Promise.resolve(); } };
+  element("perci82-system-cmd").textContent = "  install-system  ";
+  element("perci82-dev-cmd").textContent = "install-dev\n";
+  element("btn-perci82-copy-system").listeners.click[0]();
+  element("btn-perci82-copy-dev").listeners.click[0]();
+  await tick();
+  assert.deepEqual(copied, ["install-system", "install-dev"]);
+  assert.equal(element("btn-perci82-copy-system").textContent, "Copiado!");
+  assert.equal(element("btn-perci82-copy-dev").textContent, "Copiado!");
 });
 
-test("the update check shows a failure instead of staying on Verificando", async () => {
-  const { ctx, element } = load({ GetSelfUpdateInfo: () => Promise.reject(new Error("offline")) });
-  ctx.loadSelfUpdateStatus(true);
-  await tick();
-  await tick();
-  assert.match(element("su-status").textContent, /Falha ao verificar atualizações: Error: offline/);
-  assert.equal(evalIn(ctx, "selfUpdateCheckedAt"), 0);
+test("the discontinuation notice opens the Perci82 repository", () => {
+  const { ctx, element } = load();
+  const opened = [];
+  ctx.Browser = { OpenURL: (url) => { opened.push(url); } };
+  element("btn-perci82-repo").listeners.click[0]();
+  assert.deepEqual(opened, ["https://github.com/oito2/perci82"]);
 });
 
 // FE-06

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Home :: Visão Geral (dashboard, Atualizar/Desinstalar Perci) and Home :: Configurações.
+// Home :: Visão Geral (dashboard, discontinuation notice, Desinstalar Perci) and Home :: Configurações.
 //
 // Classic script (not a module): shares one global scope with the other
 // scripts under js/.
@@ -22,12 +22,8 @@
 // --- "Home :: Visão Geral" (dashboard — also the screen's initial
 // state: #dashboard-container is visible by default, without going
 // through selectItem). Brings together 3 blocks: the stats (GetAppVersion,
-// GetPostinstallProfile, GetContainerRows), "Atualizar Perci" and
-// "Desinstalar Perci". dashboardRunningAction marks which of the two
-// embedded actions is in progress — App's "action-done" event only has
-// the actionId "dashboard" to go on, so this extra flag is needed to know
-// what to reload. ---------------------------------------------------------
-let dashboardRunningAction = null;
+// GetPostinstallProfile, GetContainerRows), the discontinuation notice and
+// "Desinstalar Perci". ------------------------------------------------------
 
 function renderDashboardStats() {
   App.GetAppVersion().then(function (v) {
@@ -51,47 +47,29 @@ function renderDashboardStats() {
   });
 }
 
-// --- "Atualizar Perci" (embedded in Visão Geral) ------------------------
-// Reopening Visão Geral re-checks GitHub at most every 10 minutes; force
-// (the "Verificar novamente" button, after an update) always does.
-const SELF_UPDATE_RECHECK_MS = 10 * 60 * 1000;
-let selfUpdateCheckedAt = 0;
-function loadSelfUpdateStatus(force) {
-  if (!force && selfUpdateCheckedAt && Date.now() - selfUpdateCheckedAt < SELF_UPDATE_RECHECK_MS) return;
-  selfUpdateCheckedAt = Date.now();
-  suStatus.textContent = "Verificando...";
-  btnSuUpdate.disabled = true;
-  App.GetSelfUpdateInfo().then(function (info) {
-    if (info.error) {
-      selfUpdateCheckedAt = 0; // retried on the next visit
-      suStatus.textContent = "Não foi possível verificar atualizações: " + info.error;
-      return;
-    }
-    if (info.updateAvailable) {
-      suStatus.textContent = "Existe uma nova versão do Perci disponível (" + info.latestVersion + ").";
-      btnSuUpdate.disabled = false;
-    } else {
-      suStatus.textContent = "O Perci está atualizado.";
-    }
+// --- Discontinuation notice (embedded in Visão Geral) -------------------
+// "Copiar" puts the install command shown next to it on the clipboard;
+// the repository button opens the Perci82 page in the default browser.
+const PERCI82_REPO_URL = "https://github.com/oito2/perci82";
+
+function copyInstallCommand(button, pre) {
+  Clipboard.SetText(pre.textContent.trim()).then(function () {
+    button.textContent = "Copiado!";
   }).catch(function (err) {
-    selfUpdateCheckedAt = 0;
-    suStatus.textContent = "Falha ao verificar atualizações: " + err;
+    openError("Falha ao copiar: " + err);
   });
 }
 
-btnSuCheck.addEventListener("click", function () {
-  if (running) return;
-  loadSelfUpdateStatus(true);
+btnPerci82CopySystem.addEventListener("click", function () {
+  copyInstallCommand(btnPerci82CopySystem, perci82SystemCmd);
 });
 
-btnSuUpdate.addEventListener("click", function () {
-  if (running) return;
-  dashboardRunningAction = "self-update";
-  beginRun("Atualizar Perci", function () { return App.RunSelfUpdate(); }, {
-    buttons: [btnSuUpdate, btnSuCheck],
-    maxSteps: 1,
-    announce: "Iniciando atualização do Perci...",
-  });
+btnPerci82CopyDev.addEventListener("click", function () {
+  copyInstallCommand(btnPerci82CopyDev, perci82DevCmd);
+});
+
+btnPerci82Repo.addEventListener("click", function () {
+  Browser.OpenURL(PERCI82_REPO_URL);
 });
 
 // --- "Desinstalar Perci" (embedded in Visão Geral) — five independent
@@ -127,7 +105,6 @@ btnSu2Uninstall.addEventListener("click", function () {
   openConfirm("Desinstalar o Perci?", message, function () {
     function startUninstall(backupPath, reposBackupPath, aiBackupPath) {
       if (running || activeRun) return; // re-checked: the dialogs are async
-      dashboardRunningAction = "self-uninstall";
       beginRun("Desinstalar", function () {
         return App.RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBackupPath, aiBackupPath);
       }, {
@@ -168,10 +145,7 @@ btnSu2Uninstall.addEventListener("click", function () {
 
 // The dashboard is the main window's initial screen; the tray's compact
 // window never shows it.
-if (!compactAction) {
-  renderDashboardStats();
-  loadSelfUpdateStatus();
-}
+if (!compactAction) renderDashboardStats();
 
 // --- "Home :: Configurar" (self-config) ---------------------------------
 // Generic button grid with an image above the label — reused for Logo
@@ -345,5 +319,4 @@ function renderSelfConfigScreen() {
 // dynamically recreated like the others).
 function renderDashboardScreen() {
   renderDashboardStats();
-  loadSelfUpdateStatus();
 }

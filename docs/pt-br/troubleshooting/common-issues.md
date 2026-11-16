@@ -6,11 +6,11 @@
 
 ## Instalação
 
-**`install.sh` falha com "Required tool 'jq' is not installed."**
-Instale `curl`, `jq` e `sha256sum` (geralmente parte do `coreutils`) primeiro — o script verifica os três antes de fazer qualquer coisa e se recusa a continuar sem eles, de propósito, já que a verificação de checksum depende deles.
+**O `install.sh` mostra "perci.gnl was discontinued" e sai com erro**
+Esperado: o Perci foi substituído pelo Perci82 System e pelo Perci82 Dev, e o `install.sh` só mostra os comandos de instalação deles. Use esses (veja [Migrar para o Perci82](../leiame.md#migrar-para-o-perci82)) ou instale uma release do Perci manualmente como mostrado em [Instalação → Instalação Manual](../getting-started/installation.md#instalação-manual).
 
-**"Checksum mismatch" durante a instalação**
-O script aborta em vez de instalar um binário que não bate com o `checksums.txt` publicado. Rode o instalador de novo — se a divergência persistir, pode indicar um download corrompido ou uma release em estado ruim; não contorne essa verificação manualmente.
+**O `sha256sum -c` acusa divergência de checksum**
+O binário baixado não bate com o `checksums.txt` publicado. Baixe de novo — se a divergência persistir, pode indicar um download corrompido ou uma release em estado ruim; não instale esse arquivo.
 
 **A janela não abre, com erros sobre bibliotecas `libgtk-4` / `libwebkitgtk-6.0` ausentes**
 As bibliotecas de tempo de execução do GTK4/WebKitGTK 6.0 não estão instaladas. Instale-as como mostrado em [Instalação → Requisitos de Tempo de Execução](../getting-started/installation.md#requisitos-de-tempo-de-execução-linux).

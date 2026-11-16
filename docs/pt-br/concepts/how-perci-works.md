@@ -16,7 +16,7 @@ A GUI agrupa toda ação em seis categorias na barra lateral:
 
 | # | Categoria | Cobre |
 |---|---|---|
-| 1 | **Home** | Visão geral/dashboard (com auto-atualização e desinstalação), configurações. |
+| 1 | **Home** | Visão geral/dashboard (com o aviso de descontinuação e a desinstalação), configurações. |
 | 2 | **Linux** | Ações de SO em nível de sistema: atualizações, pós-instalação específica por distro/DE, fontes, modelos de arquivos, apps Flatpak, WebApps. |
 | 3 | **Desenvolvimento** | Construir um ambiente de dev: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais. |
 | 4 | **Docker** | A stack Docker de aplicativos por projeto: criação e gerenciamento de containers Nginx/MariaDB/PHP/Node, exportar/importar. |

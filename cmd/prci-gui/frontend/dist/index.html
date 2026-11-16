@@ -230,8 +230,8 @@
         </label>
         <div id="panel-desc" class="tab-content bg-base-100 border-base-300 p-6 overflow-y-auto">
           <!-- "dashboard" mode (Home :: Visão Geral): a system summary plus the
-               "Atualizar Perci" and "Desinstalar Perci" screens embedded right
-               here. This is also the screen's initial state, before any sidebar
+               discontinuation notice and the "Desinstalar Perci" screen embedded
+               right here. This is also the screen's initial state, before any sidebar
                selection — shown by default (no class="hidden") instead of inside
                selectItem's dispatch. -->
           <div id="dashboard-container">
@@ -250,13 +250,22 @@
               </div>
             </div>
 
-            <!-- "Atualizar Perci" (ActionID "self-update"). -->
+            <!-- Discontinuation notice: Perci was replaced by Perci82 System
+                 and Perci82 Dev; each install command has a "Copiar" button. -->
             <div class="mb-8">
-              <h3 class="font-semibold mb-3">Atualizar Perci</h3>
-              <p id="su-status" class="opacity-80 mb-4">Verificando...</p>
-              <div class="flex gap-2">
-                <button id="btn-su-check" class="btn btn-outline">Verificar Novamente</button>
-                <button id="btn-su-update" class="btn btn-primary" disabled>Atualizar</button>
+              <h3 class="font-semibold mb-3">Perci descontinuado</h3>
+              <div class="alert alert-info mb-4">
+                <span>O Perci foi descontinuado e substituído pelo <strong>Perci82 System</strong> e pelo <strong>Perci82 Dev</strong>. Esta é a última versão do Perci: ele não recebe mais atualizações.</span>
+              </div>
+              <p class="opacity-80 mb-4">Os dois aplicativos usam a mesma pasta <code>~/.perci</code>: as configurações e os backups do Perci continuam valendo. Cada instalador oferece remover o Perci antigo, mantendo <code>~/.perci</code>. Para instalar, execute no terminal:</p>
+              <p class="font-semibold mb-1">Perci82 System — administração do Linux (pós-instalação, atualizações, fontes, templates, Flatpaks)</p>
+              <pre id="perci82-system-cmd" class="bg-base-200 rounded p-3 text-xs mb-2" style="white-space: pre-wrap; word-break: break-all;">curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-system.sh | bash</pre>
+              <button id="btn-perci82-copy-system" class="btn btn-sm mb-4">Copiar</button>
+              <p class="font-semibold mb-1">Perci82 Dev — desenvolvimento (ambiente, Docker, repositórios, contextos de IA, skills e MCPs)</p>
+              <pre id="perci82-dev-cmd" class="bg-base-200 rounded p-3 text-xs mb-2" style="white-space: pre-wrap; word-break: break-all;">curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-dev.sh | bash</pre>
+              <button id="btn-perci82-copy-dev" class="btn btn-sm mb-4">Copiar</button>
+              <div>
+                <button id="btn-perci82-repo" class="btn btn-outline">Abrir o repositório do Perci82</button>
               </div>
             </div>
 

@@ -33,7 +33,7 @@ cmd/prci-gui/main.go → cmd/prci-gui (app*.go)   → domain packages   → inte
 | `internal/config` | `~/.perci/config.yaml` load/save |
 | `internal/distro` | Debian/Fedora family + desktop environment detection |
 | `internal/executor` | Single point of `sudo` escalation |
-| `internal/selfupdate` | Self-update via GitHub Releases, self-uninstall |
+| `internal/selfupdate` | Self-uninstall and the menu icon set (the self-update was removed in 1.10.0) |
 | `internal/shellrc` | Shared helpers for editing `~/.bashrc`/rc files (PATH exports, idempotent appends) |
 | `internal/system/*` | **Linux category**: post-install (Mint/Zorin/Ubuntu/Fedora), fonts, file templates, Flatpak apps, system update |
 | `internal/dev/*` | **Desenvolvimento category**: prerequisites, Go/Rust/Flutter SDKs, IDEs, LLM/MCP CLIs, terminals; also backs the **Dev Tools category**'s AI skills (`agentskills`) and MCP server registration (`mcpservers`) |
@@ -46,7 +46,7 @@ There is no persistent process or database. Every GUI action follows the same sh
 
 ## External Integrations
 
-- **GitHub Releases** (`oito2/perci`) — self-update and the `install.sh` installer both fetch from here, verifying `checksums.txt` before installing.
+- **GitHub Releases** (`oito2/perci`) — where the releases are published; the self-update of versions before 1.10.0 and their `install.sh` installer fetched from here, verifying `checksums.txt` before installing.
 - **APT / DNF / Flatpak / Snap** — system package managers, invoked through `internal/executor`.
 - **Docker Engine** (`docker run`/`create`/`start`/`stop`/`rm`, no `docker-compose`) — the per-project Nginx/MariaDB/PHP/Node application stack.
 - **mkcert** — local HTTPS for `*.localhost`, one wildcard certificate shared by every app.

@@ -8,11 +8,7 @@ A complete walkthrough combining every category, start to finish.
 
 ## 1. Install perci
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
-```
-
-See [Installation](../../getting-started/installation.md) for alternatives.
+Perci was discontinued and its one-line installer retired: install a release by hand or from source, as described in [Installation](../../getting-started/installation.md) — or use Perci82 instead (see [Moving to Perci82](../../../../README.md#moving-to-perci82)).
 
 ## 2. Configure
 
@@ -72,4 +68,4 @@ This generates `AGENTS.md`, `.instructions/MOODLE.md` (with the Moodle version f
 
 ## 9. Keep Everything Up to Date
 
-**Linux → Atualizar Sistema** updates the OS + Flatpak + Snap. To update perci itself, use the **Atualizar** action on **Home → Visão Geral**.
+**Linux → Atualizar Sistema** updates the OS + Flatpak + Snap. Perci itself no longer updates: 1.10.0 is its last release (see [Moving to Perci82](../../../../README.md#moving-to-perci82)).

@@ -51,7 +51,6 @@ export {
     RepoFileChoice,
     RepoFilesView,
     SelfConfigInfo,
-    SelfUpdateInfo,
     SingleAppInfo,
     TransferApp,
     TransferItems,

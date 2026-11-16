@@ -39,8 +39,7 @@ export function GetAppIcons() {
 
 /**
  * GetAppVersion returns the running binary's own version (internal/version)
- * with no network access — used by "Home :: Visão Geral" (dashboard), which
- * must stay useful offline, unlike GetSelfUpdateInfo below.
+ * with no network access — used by "Home :: Visão Geral" (dashboard).
  * @returns {$CancellablePromise<string>}
  */
 export function GetAppVersion() {
@@ -77,20 +76,6 @@ export function GetGUIThemes() {
 export function GetSelfConfigInfo() {
     return $Call.ByName("main.HomeService.GetSelfConfigInfo").then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
-    }));
-}
-
-/**
- * GetSelfUpdateInfo checks GitHub Releases (internal/selfupdate.
- * LatestRelease) and compares against the running version; RunSelfUpdate
- * redoes the lookup before applying, never trusting this earlier check. A
- * 10s timeout keeps a dead network from hanging the screen open
- * indefinitely (LatestRelease itself has no timeout of its own).
- * @returns {$CancellablePromise<$models.SelfUpdateInfo>}
- */
-export function GetSelfUpdateInfo() {
-    return $Call.ByName("main.HomeService.GetSelfUpdateInfo").then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
     }));
 }
 
@@ -209,17 +194,6 @@ export function RunSelfUninstall(removeConfig, removeDocker, backupPath, reposBa
 }
 
 /**
- * RunSelfUpdate checks for and applies an update — internal/selfupdate.Run.
- * The GUI's "Atualizar agora" button click is itself the confirmation.
- * Recalculates the latest release itself instead of trusting
- * GetSelfUpdateInfo's earlier result.
- * @returns {$CancellablePromise<void>}
- */
-export function RunSelfUpdate() {
-    return $Call.ByName("main.HomeService.RunSelfUpdate");
-}
-
-/**
  * SetAppIcon persists the chosen window/taskbar icon variant. Unlike
  * SetSidebarLogo, this has no live effect on the running window — the
  * icon is only applied when the window is created, so the new window
@@ -292,4 +266,3 @@ const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = $models.MenuCategory.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = $models.SelfConfigInfo.createFrom;
-const $$createType4 = $models.SelfUpdateInfo.createFrom;

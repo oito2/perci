@@ -1,5 +1,8 @@
 # perci.gnl
 
+> [!IMPORTANT]
+> **O Perci foi descontinuado** e substituído pelo **Perci82 System** e pelo **Perci82 Dev** ([oito2/perci82](https://github.com/oito2/perci82)). A versão 1.10.0 é a última release, e este repositório fica só para consulta — veja [Migrar para o Perci82](#migrar-para-o-perci82).
+
 Um app de desktop para Linux que transforma uma instalação nova numa estação de desenvolvimento completa em minutos — pós-instalação, SDKs, IDEs e uma stack Docker por projeto, tudo numa janela só.
 
 [![Version](https://img.shields.io/github/v/release/oito2/perci?label=vers%C3%A3o&color=brightgreen)](https://github.com/oito2/perci/releases)
@@ -16,13 +19,36 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 
 ## Índice
 
+- [Migrar para o Perci82](#migrar-para-o-perci82)
 - [Visão geral](#visão-geral)
 - [Pré-requisitos e instalação rápida](#pré-requisitos-e-instalação-rápida)
-- [Instalação automatizada](#instalação-automatizada)
 - [Atualização e manutenção](#atualização-e-manutenção)
 - [Documentação](#documentação)
 - [Uso de IA neste projeto](#uso-de-ia-neste-projeto)
 - [Licença](#licença)
+
+---
+
+## Migrar para o Perci82
+
+O Perci foi dividido em dois apps, publicados no [oito2/perci82](https://github.com/oito2/perci82):
+
+| App | Cobre | Instalação |
+|---|---|---|
+| **Perci82 System** | Administração do Linux: pós-instalação, atualização do sistema e dos apps, fontes, modelos de arquivos, Flatpaks | `install-system.sh` |
+| **Perci82 Dev** | Desenvolvimento: ambiente (pré-requisitos, SDKs, apps de IA, terminais, IDEs), Docker, repositórios, contextos de IA, skills e MCPs | `install-dev.sh` |
+
+```bash
+# Perci82 System
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-system.sh | bash
+
+# Perci82 Dev
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-dev.sh | bash
+```
+
+- **Mesmas configurações:** os dois apps usam a mesma pasta `~/.perci` e leem o `config.yaml` que o Perci gravou, e importam os backups que o Perci exporta.
+- **Remover o Perci:** cada instalador encontra o Perci antigo (`/usr/local/bin/prci`) e oferece remover o binário, o alias `perci`, a entrada no menu, os ícones e a entrada de início automático, mantendo `~/.perci`. Para remover por conta própria, use **Home → Visão Geral → Desinstalar Perci** sem marcar **Também remover configurações** — veja [Desinstalação](./getting-started/uninstallation.md).
+- **Este repositório:** o `install.sh` não instala mais o Perci (ele mostra os comandos acima), e as releases antigas continuam disponíveis.
 
 ---
 
@@ -38,7 +64,7 @@ Um app de desktop para Linux que transforma uma instalação nova numa estação
 
 Uma interface gráfica de desktop (Go + [Wails](https://wails.io)), seis categorias na barra lateral, sem daemon, sem banco de dados — só `~/.perci/config.yaml`:
 
-- **Home** — visão geral do seu sistema, atualizar/desinstalar o próprio Perci, configurações (tema, mascote da barra lateral, workspace, escopo Flatpak, bandeja do sistema).
+- **Home** — visão geral do seu sistema, o aviso de descontinuação, desinstalar o próprio Perci, configurações (tema, mascote da barra lateral, workspace, escopo Flatpak, bandeja do sistema).
 - **Linux** — pós-instalação sensível a distro/DE, atualizações de sistema, fontes, modelos de arquivos, aplicativos Flatpak.
 - **Desenvolvimento** — pré-requisitos de build, SDKs Go/Rust/Flutter, aplicativos de IA, terminais, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — stack Docker por projeto (contêineres Nginx/MariaDB/PHP/Node/PHP+Node, com roteamento Moodle), criar e gerenciar contêineres.
@@ -92,21 +118,9 @@ Instalação manual do binário, artefatos de release e arquiteturas suportadas:
 
 ---
 
-## Instalação automatizada
-
-O instalador de uma linha baixa a release mais recente, verifica o checksum SHA-256, instala em `/usr/local/bin/prci` com o alias `perci` e adiciona a entrada no menu de aplicativos:
-
-```bash
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
-```
-
-Requer `curl`, `jq`, `sha256sum` e `tar`.
-
----
-
 ## Atualização e manutenção
 
-- **Instalado a partir de uma release:** abra o Perci e use **Home → Visão Geral → Atualizar Perci** — ele consulta a release mais recente no GitHub, verifica o checksum e substitui o binário. Uma build de desenvolvimento (`make build` sem versão de release) se recusa a se atualizar.
+- **Instalado a partir de uma release:** a 1.10.0 é a última release e não se atualiza mais — a Home → Visão Geral mostra o aviso de descontinuação no lugar. As versões anteriores ainda chegam à 1.10.0 por **Home → Visão Geral → Atualizar Perci**.
 - **Instalado a partir do código-fonte:** atualize e reinstale:
   ```bash
   git pull && make install

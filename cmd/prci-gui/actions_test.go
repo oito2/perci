@@ -234,7 +234,7 @@ func rowsOrNil[T any](rows []T, err error) []T {
 }
 
 // The screens' read-only getters answer without panicking and list one row
-// per catalogue entry. GetSelfUpdateInfo is left out: it asks GitHub.
+// per catalogue entry.
 func TestGetters_ListTheirCatalogues(t *testing.T) {
 	isolateActions(t)
 	b, _ := newTestBase(t)

@@ -82,51 +82,9 @@ func (h *HomeService) GetGUIThemes() []string {
 }
 
 // GetAppVersion returns the running binary's own version (internal/version)
-// with no network access — used by "Home :: Visão Geral" (dashboard), which
-// must stay useful offline, unlike GetSelfUpdateInfo below.
+// with no network access — used by "Home :: Visão Geral" (dashboard).
 func (h *HomeService) GetAppVersion() string {
 	return version.Version
-}
-
-// SelfUpdateInfo is what "Home :: Atualizar Perci" needs to render: the
-// installed version, the latest one found on GitHub Releases, and whether
-// they differ — or Error when the check itself failed (e.g. no network).
-type SelfUpdateInfo struct {
-	CurrentVersion  string `json:"currentVersion"`
-	LatestVersion   string `json:"latestVersion,omitempty"`
-	UpdateAvailable bool   `json:"updateAvailable"`
-	Error           string `json:"error,omitempty"`
-}
-
-// GetSelfUpdateInfo checks GitHub Releases (internal/selfupdate.
-// LatestRelease) and compares against the running version; RunSelfUpdate
-// redoes the lookup before applying, never trusting this earlier check. A
-// 10s timeout keeps a dead network from hanging the screen open
-// indefinitely (LatestRelease itself has no timeout of its own).
-func (h *HomeService) GetSelfUpdateInfo() SelfUpdateInfo {
-	info := SelfUpdateInfo{CurrentVersion: version.Version}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	rel, err := selfupdate.LatestRelease(ctx)
-	if err != nil {
-		info.Error = err.Error()
-		return info
-	}
-	info.LatestVersion = rel.Version
-	info.UpdateAvailable = selfupdate.IsNewer(rel.Version, version.Version)
-	return info
-}
-
-// RunSelfUpdate checks for and applies an update — internal/selfupdate.Run.
-// The GUI's "Atualizar agora" button click is itself the confirmation.
-// Recalculates the latest release itself instead of trusting
-// GetSelfUpdateInfo's earlier result.
-func (h *HomeService) RunSelfUpdate() error {
-	return h.runAction(func(stdout io.Writer) error {
-		return selfupdate.Run(context.Background(), h.exe, stdout)
-	})
 }
 
 // SelfConfigInfo is what "Home :: Configurar" needs to render its form —

@@ -106,15 +106,27 @@ jobs:
           body: |
             ## perci.gnl ${{ github.ref_name }}
 
-            Só linux/amd64 nesta release — o Perci agora é uma aplicação
-            gráfica (Wails v3), que usa cgo (GTK4/WebKitGTK 6.0) e não faz
-            cross-compile pra arm64 sem um toolchain dedicado; suporte a
-            arm64 fica pendente.
+            > **O Perci foi descontinuado** e substituído pelo **Perci82 System** e pelo
+            > **Perci82 Dev** ([oito2/perci82](https://github.com/oito2/perci82)). Esta é a
+            > última versão do Perci. Os dois apps usam a mesma pasta `~/.perci`: as
+            > configurações e os backups do Perci continuam valendo, e cada instalador
+            > oferece remover o Perci antigo.
 
-            ### Instalação rápida
+            Só linux/amd64 nesta release — o Perci é uma aplicação gráfica
+            (Wails v3), que usa cgo (GTK4/WebKitGTK 6.0).
+
+            ### Instalar o Perci82
+
+            Perci82 System (administração do Linux):
 
             ```bash
-            curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/${{ github.ref_name }}/install.sh | bash
+            curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-system.sh | bash
+            ```
+
+            Perci82 Dev (desenvolvimento):
+
+            ```bash
+            curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-dev.sh | bash
             ```
 
             ### Instalação manual

@@ -359,9 +359,11 @@ const dashboardContainer = document.getElementById("dashboard-container");
 const dashboardSystemLabel = document.getElementById("dashboard-system-label");
 const dashboardDockerSummary = document.getElementById("dashboard-docker-summary");
 const dashboardVersion = document.getElementById("dashboard-version");
-const suStatus = document.getElementById("su-status");
-const btnSuCheck = document.getElementById("btn-su-check");
-const btnSuUpdate = document.getElementById("btn-su-update");
+const perci82SystemCmd = document.getElementById("perci82-system-cmd");
+const perci82DevCmd = document.getElementById("perci82-dev-cmd");
+const btnPerci82CopySystem = document.getElementById("btn-perci82-copy-system");
+const btnPerci82CopyDev = document.getElementById("btn-perci82-copy-dev");
+const btnPerci82Repo = document.getElementById("btn-perci82-repo");
 const su2BackupConfig = document.getElementById("su2-backup-config");
 const su2BackupRepos = document.getElementById("su2-backup-repos");
 const su2BackupAI = document.getElementById("su2-backup-ai");
@@ -472,12 +474,8 @@ function finishRun(result) {
   termTitle.textContent = result.ok ? "Concluído." : "Falhou.";
   if (result.ok) termProgress.value = termProgress.max;
   run.buttons.forEach(function (b) { b.disabled = false; });
-  // An update that ended outside Visão Geral leaves its status stale: the
-  // next visit checks again.
-  if (run.actionId === "dashboard" && dashboardRunningAction === "self-update") selfUpdateCheckedAt = 0;
   const current = window.__selectedItem && window.__selectedItem.actionId;
   doneHandlerFor(current)(run);
-  if (run.actionId === "dashboard") dashboardRunningAction = null;
 }
 
 // Per-screen refresh after a run, keyed by actionId. Screens that share one
@@ -505,12 +503,9 @@ const ACTION_DONE_HANDLERS = {
   agentskills: function () { renderAgentSkillsTable(); },
   aicontext: function () { refreshAIContextScreen(); },
   mcpservers: function () { renderMCPServersTable(); },
-  // "Atualizar Perci" and "Desinstalar Perci" both live in Visão Geral —
-  // dashboardRunningAction (set before each one) says which one finished.
-  // A successful uninstall closes the window on its own.
-  dashboard: function () {
-    if (dashboardRunningAction === "self-update") loadSelfUpdateStatus(true);
-  },
+  // "Desinstalar Perci" lives in Visão Geral; a successful uninstall
+  // closes the window on its own, so there is nothing to reload.
+  dashboard: function () {},
 };
 
 function doneHandlerFor(actionId) {

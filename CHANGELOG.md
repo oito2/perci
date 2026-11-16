@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-16
+
+### Changed
+- Home → Visão Geral: **Atualizar Perci** was replaced by a notice that Perci was discontinued and replaced by **Perci82 System** and **Perci82 Dev**, with the install command of each (and a **Copiar** button) and a button that opens the Perci82 repository.
+- `install.sh` no longer installs Perci: it prints the install commands of Perci82 System and Perci82 Dev and exits with an error.
+
+### Deprecated
+- Perci itself: this is its last release. Perci82 System and Perci82 Dev ([oito2/perci82](https://github.com/oito2/perci82)) replace it, use the same `~/.perci` folder and import the backups Perci exports; each installer offers to remove the old Perci, keeping `~/.perci`.
+
+### Removed
+- Perci's self-update: 1.10.0 no longer checks for or installs new versions.
+
 ## [1.9.0] - 2026-11-06
 
 ### Added
@@ -228,7 +240,8 @@ First public release: a Linux desktop app (Go + Wails, GTK4/WebKitGTK 6.0) with 
 - Privileged actions ask for the administrator password once per action (PolicyKit).
 - Installation through `install.sh` or `make install`; release artifacts (`prci-linux-amd64`, `perci-menu.tar.gz`, `checksums.txt`) with build provenance attestation.
 
-[Unreleased]: https://github.com/oito2/perci/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/oito2/perci/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/oito2/perci/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/oito2/perci/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/oito2/perci/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/oito2/perci/compare/v1.6.0...v1.7.0

@@ -4,13 +4,18 @@
 
 ---
 
+> [!IMPORTANT]
+> **O Perci foi descontinuado** e substituído pelo **Perci82 System** e pelo **Perci82 Dev** ([oito2/perci82](https://github.com/oito2/perci82)). A versão 1.10.0 é a última release; esta documentação fica como registro — veja [Migrar para o Perci82](./leiame.md#migrar-para-o-perci82).
+
+---
+
 perci.gnl (`prci`) é uma interface gráfica de desktop pessoal (Go + [Wails](https://wails.io)) que transforma uma instalação Linux nova em uma estação de desenvolvimento totalmente configurada em minutos. Ele reúne pós-instalação de SO, manutenção de sistema, setup de SDKs/IDEs/ferramentas de dev, e um gerenciador de stack Docker por projeto (PHP, Node, ou os dois juntos, com suporte de primeira classe pro Moodle), tudo atrás de um único binário, um único arquivo de configuração e seis categorias na sidebar: Home, Linux, Desenvolvimento, Docker, Repositórios e Dev Tools.
 
 ---
 
 ## 🚀 Primeiros Passos
 
-- [Instalação](./getting-started/installation.md) — instalador automático, instalação manual do binário ou compilação a partir da fonte.
+- [Instalação](./getting-started/installation.md) — instalação manual do binário ou compilação a partir da fonte (o instalador automático foi aposentado).
 - [Desinstalação](./getting-started/uninstallation.md) — o desinstalador embutido, a remoção manual e o que fica no sistema.
 - [Início Rápido](./getting-started/quickstart.md) — primeira execução: a interface gráfica, o arquivo de configuração e o caminho mais rápido até um setup funcionando.
 

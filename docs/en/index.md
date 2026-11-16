@@ -4,13 +4,18 @@
 
 ---
 
+> [!IMPORTANT]
+> **Perci was discontinued** and replaced by **Perci82 System** and **Perci82 Dev** ([oito2/perci82](https://github.com/oito2/perci82)). Version 1.10.0 is the last release; this documentation stays as a record — see [Moving to Perci82](../../README.md#moving-to-perci82).
+
+---
+
 perci.gnl (`prci`) is a personal desktop GUI (Go + [Wails](https://wails.io)) that turns a fresh Linux install into a fully configured development workstation in minutes. It bundles OS post-installation, system maintenance, dev SDK/IDE/tooling setup, and a per-project Docker application stack manager (PHP, Node, or both together, with first-class Moodle support) behind one binary, one config file, and six sidebar categories: Home, Linux, Desenvolvimento, Docker, Repositórios, and Dev Tools.
 
 ---
 
 ## 🚀 Getting Started
 
-- [Installation](./getting-started/installation.md) — automatic installer, manual binary install, or build from source.
+- [Installation](./getting-started/installation.md) — manual binary install or build from source (the automatic installer was retired).
 - [Uninstallation](./getting-started/uninstallation.md) — the built-in uninstaller, manual removal, and what stays on the system.
 - [Quickstart](./getting-started/quickstart.md) — first run: the GUI, the config file, and the fastest path to a working setup.
 

@@ -33,7 +33,7 @@ O `internal/ui` (helpers de terminal estilo script: `PrintHeader`/`Info`/`Err`/`
 | `internal/config` | Carregamento/gravação de `~/.perci/config.yaml` |
 | `internal/distro` | Detecção de família Debian/Fedora + ambiente de desktop |
 | `internal/executor` | Único ponto de escalada `sudo` |
-| `internal/selfupdate` | Auto-atualização via GitHub Releases, auto-desinstalação |
+| `internal/selfupdate` | Auto-desinstalação e o conjunto de ícones do menu (a auto-atualização foi removida na 1.10.0) |
 | `internal/shellrc` | Helpers compartilhados para editar `~/.bashrc`/arquivos rc (exports de PATH, appends idempotentes) |
 | `internal/system/*` | **Categoria Linux**: pós-instalação (Mint/Zorin/Ubuntu/Fedora), fontes, modelos de arquivos, apps Flatpak, atualização de sistema |
 | `internal/dev/*` | **Categoria Desenvolvimento**: pré-requisitos, SDKs Go/Rust/Flutter, IDEs, CLIs de LLM/MCP, terminais; também dá suporte às skills de IA (`agentskills`) e ao registro de servidores MCP (`mcpservers`) da **categoria Dev Tools** |
@@ -46,7 +46,7 @@ Não há processo persistente nem banco de dados. Toda ação na GUI segue o mes
 
 ## Integrações Externas
 
-- **GitHub Releases** (`oito2/perci`) — tanto a auto-atualização quanto o instalador `install.sh` buscam daqui, verificando o `checksums.txt` antes de instalar.
+- **GitHub Releases** (`oito2/perci`) — onde as releases são publicadas; a auto-atualização das versões anteriores à 1.10.0 e o instalador `install.sh` delas buscavam daqui, verificando o `checksums.txt` antes de instalar.
 - **APT / DNF / Flatpak / Snap** — gerenciadores de pacotes do sistema, invocados através do `internal/executor`.
 - **Docker Engine** (`docker run`/`create`/`start`/`stop`/`rm`, sem `docker-compose`) — a stack de aplicativos Nginx/MariaDB/PHP/Node por projeto.
 - **mkcert** — HTTPS local para `*.localhost`, um certificado wildcard compartilhado por todo app.

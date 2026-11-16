@@ -83,7 +83,7 @@ perci/
 │   ├── checklist/      # Loop compartilhado de "checklist simples" usado pelas telas de checklist
 │   ├── shellrc/        # Helpers para editar os arquivos rc do shell do usuário
 │   ├── version/        # String de versão (injetada via -ldflags)
-│   ├── selfupdate/     # Auto-atualização via GitHub Releases (com verificação de checksum) + desinstalação + ícones do menu
+│   ├── selfupdate/     # Auto-desinstalação + ícones do menu
 │   ├── system/         # Categoria "Linux" (update, fonts, apps, templates, postinstall…)
 │   ├── appstack/       # Stack Docker por projeto (containers Nginx/MariaDB/PHP/Node)
 │   ├── dev/            # Categoria "Desenvolvimento" (SDKs, apps de IA, IDEs, terminais, MCP)
@@ -100,7 +100,7 @@ perci/
 │   ├── pt-br/          # Site de documentação (espelho em português)
 │   └── img/            # Logos, ícones e screenshots
 ├── CODE_OF_CONDUCT.md  # Contributor Covenant
-└── install.sh          # Instalador one-line
+└── install.sh          # Instalador aposentado: mostra os comandos de instalação do Perci82
 ```
 
 Veja [docs/pt-br/index.md](./index.md) para o site de documentação completo — este arquivo cobre só o necessário para começar a contribuir.

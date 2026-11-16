@@ -1,5 +1,8 @@
 # perci.gnl
 
+> [!IMPORTANT]
+> **Perci was discontinued** and replaced by **Perci82 System** and **Perci82 Dev** ([oito2/perci82](https://github.com/oito2/perci82)). Version 1.10.0 is the last release, and this repository is kept for reference only — see [Moving to Perci82](#moving-to-perci82).
+
 A Linux desktop app that turns a fresh install into a fully configured development workstation in minutes — post-installation, SDKs, IDEs, and a per-project Docker stack behind one window.
 
 [![Version](https://img.shields.io/github/v/release/oito2/perci?label=version&color=brightgreen)](https://github.com/oito2/perci/releases)
@@ -16,13 +19,36 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 
 ## Table of Contents
 
+- [Moving to Perci82](#moving-to-perci82)
 - [Overview](#overview)
 - [Prerequisites & Quick Installation](#prerequisites--quick-installation)
-- [Automated Installation](#automated-installation)
 - [Update & Maintenance](#update--maintenance)
 - [Documentation](#documentation)
 - [AI Usage in This Project](#ai-usage-in-this-project)
 - [License](#license)
+
+---
+
+## Moving to Perci82
+
+Perci was split into two apps, released from [oito2/perci82](https://github.com/oito2/perci82):
+
+| App | Covers | Install |
+|---|---|---|
+| **Perci82 System** | Linux administration: post-installation, OS and app updates, fonts, file templates, Flatpaks | `install-system.sh` |
+| **Perci82 Dev** | Development: environment (prerequisites, SDKs, AI apps, terminals, IDEs), Docker, repositories, AI contexts, skills and MCPs | `install-dev.sh` |
+
+```bash
+# Perci82 System
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-system.sh | bash
+
+# Perci82 Dev
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci82/main/install-dev.sh | bash
+```
+
+- **Same settings:** both apps use the same `~/.perci` folder and read the `config.yaml` Perci wrote, and they import the backups Perci exports.
+- **Removing Perci:** each installer finds the old Perci (`/usr/local/bin/prci`) and offers to remove its binary, `perci` alias, menu entry, icons and autostart entry, keeping `~/.perci`. To remove it yourself, use **Home → Visão Geral → Desinstalar Perci** without **Também remover configurações** — see [Uninstallation](docs/en/getting-started/uninstallation.md).
+- **This repository:** `install.sh` no longer installs Perci (it prints the commands above), and the old releases stay available.
 
 ---
 
@@ -38,7 +64,7 @@ A Linux desktop app that turns a fresh install into a fully configured developme
 
 A desktop GUI (Go + [Wails](https://wails.io)), six sidebar categories, no daemon, no database — just `~/.perci/config.yaml`:
 
-- **Home** — an overview of your system, update/uninstall Perci itself, settings (theme, sidebar mascot, workspace, Flatpak scope, system tray).
+- **Home** — an overview of your system, the discontinuation notice, uninstall Perci itself, settings (theme, sidebar mascot, workspace, Flatpak scope, system tray).
 - **Linux** — distro/DE-aware post-installation, system updates, fonts, file templates, Flatpak apps.
 - **Desenvolvimento** — build prerequisites, Go/Rust/Flutter SDKs, AI apps, terminals, IDEs (Zed, VS Code, VSCodium, Android Studio, Antigravity).
 - **Docker** — a per-project Docker application stack (Nginx/MariaDB/PHP/Node/PHP+Node containers, with Moodle routing), create and manage containers.
@@ -92,21 +118,9 @@ Manual binary install, release artifacts, and supported architectures: **[Instal
 
 ---
 
-## Automated Installation
-
-The one-line installer downloads the latest release, verifies its SHA-256 checksum, installs it to `/usr/local/bin/prci` with the `perci` alias, and adds the application menu entry:
-
-```bash
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 10 --max-time 600 -fsSL https://raw.githubusercontent.com/oito2/perci/main/install.sh | bash
-```
-
-Requires `curl`, `jq`, `sha256sum` and `tar`.
-
----
-
 ## Update & Maintenance
 
-- **Installed from a release:** open Perci and use **Home → Visão Geral → Atualizar Perci** — it checks the latest GitHub release, verifies its checksum, and replaces the binary. A development build (`make build` without a release version) refuses to update itself.
+- **Installed from a release:** 1.10.0 is the last release, and it no longer updates itself — Home → Visão Geral shows the discontinuation notice instead. Earlier versions still reach 1.10.0 through **Home → Visão Geral → Atualizar Perci**.
 - **Installed from source:** pull and reinstall:
   ```bash
   git pull && make install
